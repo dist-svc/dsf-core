@@ -1,0 +1,17 @@
+[package]
+name = "dsd-core"
+version = "0.1.0"
+authors = ["Ryan Kurte <ryankurte@gmail.com>"]
+edition = "2018"
+license = "GPLv3"
+
+[dependencies]
+sodiumoxide = "0.2.0"
+futures = "0.1.25"
+byteorder = "1.2.7"
+bytes = "0.4.11"
+base64 = "0.10.0"
+rand = "0.6.1"
+derive_builder = "0.7.0"
+newtype_array = "0.1.6"
+bip39 = "0.5.1"
