@@ -75,10 +75,10 @@ impl Into<u16> for Kind {
 pub struct Flags(pub(crate) u8);
 
 pub mod flags {
-    pub const NONE           : u8 = 0;
-    pub const SECONDARY      : u8 = (1 << 0);
-    pub const ENCRYPTED      : u8 = (1 << 1);
-    pub const ADDRESSREQUEST : u8 = (1 << 2);
+    pub const NONE            : u8 = 0;
+    pub const SECONDARY       : u8 = (1 << 0);
+    pub const ENCRYPTED       : u8 = (1 << 1);
+    pub const ADDRESS_REQUEST : u8 = (1 << 2);
 }
 
 impl Flags {
@@ -90,6 +90,28 @@ impl Flags {
         match encrypted {
             true => self.0 |= flags::ENCRYPTED as u8,
             false => self.0 &= !(flags::ENCRYPTED as u8)
+        };
+    }
+
+    pub fn secondary(&self) -> bool {
+        self.0 & flags::SECONDARY as u8 != 0
+    }
+
+    pub fn set_secondary(&mut self, secondary: bool) {
+        match secondary {
+            true => self.0 |= flags::SECONDARY as u8,
+            false => self.0 &= !(flags::SECONDARY as u8)
+        };
+    }
+
+    pub fn address_request(&self) -> bool {
+        self.0 & flags::ADDRESS_REQUEST as u8 != 0
+    }
+
+    pub fn set_address_request(&mut self, address_request: bool) {
+        match address_request {
+            true => self.0 |= flags::ADDRESS_REQUEST as u8,
+            false => self.0 &= !(flags::ADDRESS_REQUEST as u8)
         };
     }
 }
@@ -120,6 +142,9 @@ pub enum Error {
     InvalidServiceVersion,
     NoPrivateKey,
     NoPublicKey,
+    ExpectedPrimaryPage,
+    KeyIdMismatch,
+    PublicKeyChanged
 }
 
 impl From<IoError> for Error {

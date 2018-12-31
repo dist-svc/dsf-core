@@ -52,7 +52,7 @@ All pages provide contain an ID derived from the service or node public key and 
   - Messages types are identified by setting the top bit (0x8000)
 - **Flags**
   - Bit 0: Secondary, indicates a secondary page type
-  - Bit 1: Encrypted, indicates data field has been encrypted
+  - Bit 1: Encrypted, indicates data and secure options fields have been encrypted
   - Bit 2: Address Request, messages only, indicates the responder should attach a peer address option to the response (used for address discovery)
   - Bits 2:7: Reserved, must be 0
 - **Reserved**, for algorithm specifiers if required, must be 0
@@ -66,24 +66,25 @@ All pages provide contain an ID derived from the service or node public key and 
 
 ## Body
 - **Data** contains arbitrary data for service pages (based on the page kind), or DSD data for messages (such as pages to be transferred). The data section may be encrypted.
-- **Secure Options** contain options that are encrypted and can thus only be parsed by those with the appropriate keys.
+- **Secure Options** contain options that are encrypted and can thus only be parsed by those with the appropriate keys
 - **Public Options** contain public options associated with a page or message
 
 ## Signature
 - **Signature** is a cryptographic signature across the whole object (header included) used to validate the authenticity of pages and messages.
 
-### Pages
+## Encryption
 
-Pages are split into two types, Primary pages published at an SID by the service holding the corresponding key pair, and Secondary pages published at an SID by a third party providing supplemental information or services. For example, these may be used by the service publisher to provide transient information alongside the service page.
+If the encryption flag is set, Data and SecureOptions fields are encrypted using the specified algorithm (see [0x-security.md](0x-security.md)), and must be decrypted before use. Encrypted fields must include any information required to decrypt them (ie. Nonces).
+In the current scheme, the cryptographic nonce is appended to the end of the field following encryption (and increasing the field length), and removed prior to decryption (decreasing the field length). 
 
-## Fields
 
-See [Common](###Common) section for header information
-
-- **ID**, Service ID (hash of service public key)
-- **Data**, Arbitrary service data, parsing and encoding specific to a given service type (and thus page kind)
-- **Secure Options**, private (and encrypted) well-defined service options for a given page
-- **Public Options**, public well-defined service options for a given page
-- **Signature**, a cryptographic signature over the whole page
-
-If the `encrypted` flag is set, data and secure options fields must be decrypted before parsing.
+```
+ 0                   1                   2                   3
+ 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/                                                               /
+/                             Field                             /
+/          Optional, Variable Length (4-byte aligned)           /
+/                                                               /
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+```

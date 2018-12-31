@@ -1,5 +1,20 @@
 # Pages
 
+Pages are split into two types, Primary pages published at an SID by the service holding the corresponding key pair, and Secondary pages published at an SID by a third party providing supplemental information or services. For example, these may be used by the service publisher to provide transient information alongside the service page.
+
+## Fields
+
+See [Common](###Common) section for header information
+
+- **ID**, Service ID (hash of service public key)
+- **Data**, Arbitrary service data, parsing and encoding specific to a given service type (and thus page kind)
+- **Secure Options**, private (and encrypted) well-defined service options for a given page
+- **Public Options**, public well-defined service options for a given page
+- **Signature**, a cryptographic signature over the whole page
+
+If the `encrypted` flag is set, data and secure options fields must be decrypted before parsing.
+
+
 ## Primary Pages
 
 Primary pages are used for service definition / registration / discovery, and should include the information required to connect to a service (though this may be encrypted). 

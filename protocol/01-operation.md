@@ -32,13 +32,16 @@ This section covers the high-level processes for interacting with DSD, this is s
 3. Add public key to local cache
 4. Handle message and reply
 
-### Storing a Page
-1. Find the public key associated with the page ID (included in page, from the database, from the local cache)
+### Storing a Primary Page
+1. Locate the public key associated with the page ID (included in page, from the database, from the local cache)
 2. Validate the ID matches the public key
 3. Validate the signature
 4. Parse the options
 5. Check required options exist
 6. Store page
+
+### Storing a Secondary Page
+1. Find the public key associated with the peer ID (from the database or local cache)
 
 ### Receiving a (Requested) Page
 1. Find the public key associated with the page ID (included in page, from the database, from the local cache)

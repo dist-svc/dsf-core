@@ -20,11 +20,14 @@ In addition to *Primary* pages, published by the service directly, *Secondary* p
 - **Should** use small / efficient encodings for use with resource-constrained and embedded system
   - Except where this would impair protocol compatibility or similar
 
-## Usability
+## Organisation
 
-TODO
+- [00-overview.md](00-overview.md) contains this overview
+- [01-operation.md](01-operation.md) provides a description of high level and low level protocol operations
+- [02-base.md](02-base.md) describes the base page and message structure
+- [03-options.md](03-options.md) describes common options fields
+- [04-pages.md](04-pages.md) describes pages used for service description
+- [05-messages.md](05-messages.md) describes messages used for communication between services and for RMI use
 
-
-
-## Data Structures
-
+- [0x-api.md](0x-api.md) describes a common API to be implemented by DSD interfaces
+- [0x-security.md](0x-security) describes approaches to security, privacy, and security in DSD

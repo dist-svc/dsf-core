@@ -7,6 +7,7 @@ use sodiumoxide::crypto::sign::ed25519::SecretKey as SodiumPrivateKey;
 use sodiumoxide::crypto::secretbox;
 use sodiumoxide::crypto::secretbox::xsalsa20poly1305::Key as SodiumSecretKey;
 use sodiumoxide::crypto::secretbox::xsalsa20poly1305::Nonce as SodiumSecretNonce;
+use sodiumoxide::crypto::secretbox::xsalsa20poly1305::NONCEBYTES;
 
 use sodiumoxide::crypto::hash::sha256;
 
@@ -32,14 +33,14 @@ pub trait Validator {
 pub trait Encrypter {
     type Error;
 
-    fn encrypt(&mut self, data: &mut [u8]) -> Result<(), Self::Error>;
+    fn encrypt(&mut self, id: &[u8], key: &[u8], data: &mut [u8]) -> Result<(), Self::Error>;
 }
 
 /// Decrypter trait, used to decrypt data for a given service
 pub trait Decrypter {
     type Error;
 
-    fn decrypt(&mut self, data: &mut [u8]) -> Result<(), Self::Error>;
+    fn decrypt(&mut self, id: &[u8], key: &[u8], data: &mut [u8]) -> Result<(), Self::Error>;
 }
 
 
@@ -71,23 +72,64 @@ pub fn new_sk() -> Result<SecretKey, ()> {
      Ok(key.0)
 }
 
-pub fn sk_encrypt(secret_key: &[u8], plaintext: &[u8]) -> Vec<u8> {
+pub fn sk_encrypt(secret_key: &[u8], plaintext: &[u8]) -> Result<Vec<u8>, ()> {
      let secret_key = SodiumSecretKey::from_slice(secret_key).unwrap();
      let nonce = secretbox::gen_nonce();
 
-     secretbox::seal(plaintext, &nonce, &secret_key)
+     let mut ciphertext = secretbox::seal(plaintext, &nonce, &secret_key);
 
+     ciphertext.extend_from_slice(&nonce.0);
+
+     Ok(ciphertext)
 }
 
-pub fn sk_decrypt(secret_key: &[u8], nonce: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>, ()> {
+pub fn sk_decrypt(secret_key: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>, ()> {
      let secret_key = SodiumSecretKey::from_slice(secret_key).unwrap();
+
+     let split = ciphertext.len() - NONCEBYTES;
+     let data = &ciphertext[..split];
+     let nonce = &ciphertext[split..];
+
      let nonce = SodiumSecretNonce::from_slice(nonce).unwrap();
 
-     secretbox::open(ciphertext, &nonce, &secret_key)
+     secretbox::open(data, &nonce, &secret_key)
 }
 
 
 pub fn hash(data: &[u8]) -> Result<Hash, ()> {
     let digest = sha256::hash(data);
     Ok(digest.0)
+}
+
+#[cfg(test)]
+mod test {
+
+    use super::*;
+
+    #[test]
+    fn test_sign_verify() {
+          let (public, private) = new_pk().expect("Error generating public/private keypair");
+          let mut data = vec!(0, 1, 2, 3, 4, 5, 6, 7, 8, 9);
+
+          let signature = pk_sign(&private, &data).expect("Error generating signature");
+          
+          let valid = pk_validate(&public, signature.as_ref(), &data).expect("Error validating signature");
+          assert_eq!(true, valid);
+
+          data[3] = 100;
+          let valid = pk_validate(&public, signature.as_ref(), &data).expect("Error validating signature");
+          assert_eq!(false, valid);
+    }
+
+     #[test]
+    fn test_encrypt_decrypt() {
+         let secret = new_sk().expect("Error generating secret key");
+         let mut data = vec!(0, 1, 2, 3, 4, 5, 6, 7, 8, 9);
+
+         let ciphertext = sk_encrypt(&secret, &data).expect("Error encrypting data");
+         let plaintext = sk_decrypt(&secret, &ciphertext).expect("Error decrypting data");
+
+         assert_eq!(data, plaintext);
+    }
+
 }
