@@ -33,28 +33,62 @@ newtype_array!(pub struct Array64(pub 64));
 /// 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Kind {
+    // Pages
     None,
     Peer,
     Generic,
     Private,
     Other(u16),
+
+    // Messages
+    Ping,
+    FindNodes,
+    FindValues,
+    Store,
+    NodesFound,
+    ValuesFound,
+    NoResult,
 }
 
 pub mod kinds {
-    pub const NONE    : u16 = 0x0000;
-    pub const PEER    : u16 = 0x0001;
-    pub const GENERIC : u16 = 0x0002;
-    pub const PRIVATE : u16 = 0xFFFE;
+    pub const NONE          : u16 = 0x0000;
+
+    // Page Kinds
+    pub const PEER          : u16 = 0x0001;
+    pub const GENERIC       : u16 = 0x0002;
+    pub const PRIVATE       : u16 = 0x0FFF;
+
+    // Message Kinds
+    pub const PING          : u16 = 0x8000;
+    pub const FIND_NODES    : u16 = 0x8001;
+    pub const FIND_VALUES   : u16 = 0x8002;
+    pub const STORE         : u16 = 0x8003;
+    pub const NODES_FOUND   : u16 = 0x8004;
+    pub const VALUES_FOUND  : u16 = 0x8005;
+    pub const NO_RESULT     : u16 = 0x8006;
 }
 
 impl From<u16> for Kind {
     fn from(val: u16) -> Kind {
         match val {
-            kinds::NONE     => Kind::None,
-            kinds::PEER     => Kind::Peer,
-            kinds::GENERIC  => Kind::Generic,
-            kinds::PRIVATE  => Kind::Private,
-            _ => Kind::Other(val),
+            kinds::NONE         => Kind::None,
+            kinds::PEER         => Kind::Peer,
+            kinds::GENERIC      => Kind::Generic,
+            kinds::PRIVATE      => Kind::Private,
+            kinds::PING         => Kind::Ping,
+            kinds::FIND_NODES   => Kind::FindNodes,
+            kinds::FIND_VALUES  => Kind::FindValues,
+            kinds::STORE        => Kind::Store,
+            kinds::NODES_FOUND  => Kind::NodesFound,
+            kinds::VALUES_FOUND => Kind::ValuesFound,
+            kinds::NO_RESULT    => Kind::NoResult,
+            _ => {
+                if val & 0x8000 == 0 {
+                    Kind::Other(val)
+                } else {
+                    Kind::None
+                }
+            },
         }
     }
 }
@@ -62,11 +96,19 @@ impl From<u16> for Kind {
 impl Into<u16> for Kind {
     fn into(self) -> u16 {
         match self {
-            Kind::None      => kinds::NONE,
-            Kind::Peer      => kinds::PEER,
-            Kind::Generic   => kinds::GENERIC,
-            Kind::Private   => kinds::PRIVATE,
-            Kind::Other(v)  => v,
+            Kind::None          => kinds::NONE,
+            Kind::Peer          => kinds::PEER,
+            Kind::Generic       => kinds::GENERIC,
+            Kind::Private       => kinds::PRIVATE,
+            Kind::Other(v)      => v,
+
+            Kind::Ping          => kinds::PING,
+            Kind::FindNodes     => kinds::FIND_NODES,
+            Kind::FindValues    => kinds::FIND_VALUES,
+            Kind::Store         => kinds::STORE,
+            Kind::NodesFound    => kinds::NODES_FOUND,
+            Kind::ValuesFound   => kinds::VALUES_FOUND,
+            Kind::NoResult      => kinds::NO_RESULT,
         }
     }
 }
@@ -147,7 +189,8 @@ pub enum Error {
     NoPublicKey,
     ExpectedPrimaryPage,
     KeyIdMismatch,
-    PublicKeyChanged
+    PublicKeyChanged,
+    Unimplemented,
 }
 
 impl From<IoError> for Error {

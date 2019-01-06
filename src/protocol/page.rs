@@ -4,14 +4,14 @@ use byteorder::{ByteOrder, NetworkEndian};
 
 use crate::types::{Id, ID_LEN, Signature, SIGNATURE_LEN, Flags, Kind, ENCRYPTED_META_LEN};
 use crate::protocol::{Encode, Parse};
-use crate::protocol::header::PageHeader;
+use crate::protocol::header::Header;
 use crate::protocol::options::{Options, OptionsError};
 
 
 #[derive(Clone, Builder, Debug, PartialEq)]
 pub struct Page {
     id:             Id,
-    header:         PageHeader,
+    header:         Header,
     #[builder(default = "vec![]")]
     body:           Vec<u8>,
     #[builder(default = "vec![]")]
@@ -45,7 +45,7 @@ const PAGE_HEADER_LEN: usize = 12;
 
 impl Page {
     pub fn new(id: Id, kind: Kind, flags: Flags, version: u16, body: Vec<u8>, public_options: Vec<Options>, private_options: Vec<Options>) -> Page {
-        let header = PageHeader::new(kind, version, flags);
+        let header = Header::new(kind, version, flags);
         Page{id, header, body, public_options, private_options, signature: None}
     }
 
@@ -53,7 +53,7 @@ impl Page {
         &self.id
     }
 
-    pub fn header(&self) -> &PageHeader {
+    pub fn header(&self) -> &Header {
         &self.header
     }
 
@@ -82,7 +82,7 @@ impl Page {
     {
         // Parse page header
         let header_data = &data[0..PAGE_HEADER_LEN];
-        let (header, _) = PageHeader::parse(header_data)?;
+        let (header, _) = Header::parse(header_data)?;
         let flags = header.flags();
 
         // Parse lengths from header
@@ -205,7 +205,7 @@ mod tests {
 
         let sec_key = crypto::new_sk().expect("Error generating new secret key");
 
-        let header = PageHeaderBuilder::default().kind(Kind::Generic).build().expect("Error building page header");
+        let header = HeaderBuilder::default().kind(Kind::Generic).build().expect("Error building page header");
         let data = vec![1, 2, 3, 4, 5, 6, 7];
 
         let mut page = PageBuilder::default().id(id).header(header).body(data).build().expect("Error building page");

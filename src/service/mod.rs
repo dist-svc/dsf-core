@@ -276,6 +276,10 @@ struct SecondaryOptions {
 
 impl Service
 {
+    pub fn id(&self) -> &Id {
+        &self.id
+    }
+
     /// Secondary generates a secondary page using this service to be attached to the provided service ID
     fn secondary(&self, options: SecondaryOptions) -> Page {
         let mut default_options = vec![

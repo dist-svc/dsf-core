@@ -9,9 +9,9 @@ use crate::types::{Kind, Flags};
 use crate::protocol::{Encode, Parse};
 
 
-/// PageHeader encodes information for a given page in the database
+/// Header encodes information for a given page in the database
 #[derive(Clone, PartialEq, Debug, Builder)]
-pub struct PageHeader {
+pub struct Header {
     kind: Kind,
     #[builder(default = "Flags(0)")]
     flags: Flags,
@@ -21,9 +21,9 @@ pub struct PageHeader {
     version: u16,
 }
 
-impl PageHeader {
-    pub fn new(kind: Kind, version: u16, flags: Flags) -> PageHeader {
-        PageHeader{kind, flags, reserved: 0, version}
+impl Header {
+    pub fn new(kind: Kind, version: u16, flags: Flags) -> Header {
+        Header{kind, flags, reserved: 0, version}
     }
 
     pub fn kind(&self) -> Kind {
@@ -39,8 +39,8 @@ impl PageHeader {
     }
 }
 
-impl Parse for PageHeader {
-    type Output = PageHeader;
+impl Parse for Header {
+    type Output = Header;
     type Error = IoError;
 
     fn parse(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
@@ -51,11 +51,11 @@ impl Parse for PageHeader {
         let reserved = r.read_u8()?;
         let version = r.read_u16::<NetworkEndian>()?;
 
-        Ok((PageHeader {kind, flags, reserved, version}, r.position() as usize))
+        Ok((Header {kind, flags, reserved, version}, r.position() as usize))
     }
 }
 
-impl Encode for PageHeader {
+impl Encode for Header {
     type Error = IoError;
 
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
@@ -77,13 +77,13 @@ mod tests {
 
     #[test]
     fn test_encode_page_header() {
-        let h1 = PageHeader::new(Kind::Generic, 1, 2.into());
+        let h1 = Header::new(Kind::Generic, 1, 2.into());
 
         let mut buff = [0u8; 1024];
         let n1 = h1.encode(&mut buff).expect("Header encoding failed");
         let b = &buff[..n1];
 
-        let (h2, n2) = PageHeader::parse(&b).expect("Header parsing failed");
+        let (h2, n2) = Header::parse(&b).expect("Header parsing failed");
         assert_eq!(h1, h2);
         assert_eq!(n1, n2);
     }

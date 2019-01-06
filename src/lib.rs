@@ -15,8 +15,14 @@ extern crate newtype_array;
 #[macro_use] 
 extern crate serde_derive;
 
+#[macro_use] 
+extern crate structopt;
+
 pub mod types;
 pub mod crypto;
 pub mod service;
 pub mod protocol;
 pub mod api;
+pub mod manager;
+
+pub mod prelude;

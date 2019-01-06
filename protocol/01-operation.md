@@ -6,7 +6,7 @@ This section covers the high-level processes for interacting with DSD, this is s
 
 ### Connecting to the network
 1. Generate a new keypair and DatabaseID for the new node (this may be persisted as desired)
-2. Connect to a "bootstrap" node that is already a member of the network
+2. Connect to a "bootstrap" node (address only) that is already a member of the network
 3. Generate a new Primary page containing the node information
 4. Publish the new primary page to DSD at the Node DatabaseID
 
