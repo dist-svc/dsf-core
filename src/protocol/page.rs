@@ -2,7 +2,7 @@
 
 use byteorder::{ByteOrder, NetworkEndian};
 
-use crate::types::{Id, ID_LEN, Signature, SIGNATURE_LEN, Flags, Kind};
+use crate::types::{Id, ID_LEN, Signature, SIGNATURE_LEN, Flags, Kind, ENCRYPTED_META_LEN};
 use crate::protocol::{Encode, Parse};
 use crate::protocol::header::PageHeader;
 use crate::protocol::options::{Options, OptionsError};
@@ -76,13 +76,14 @@ impl Page {
 
 impl Page {
     /// Parses an array containing a page into a page object
-    pub fn parse<'a, V>(validator: V, data: &'a [u8]) -> Result<(Page, Option<&'a [u8]>), PageError> 
+    pub fn parse<'a, V>(validator: V, data: &'a [u8]) -> Result<(Page, usize), PageError> 
     where 
         V: Fn(&[u8], &[u8], &[u8]) -> bool
     {
         // Parse page header
         let header_data = &data[0..PAGE_HEADER_LEN];
         let (header, _) = PageHeader::parse(header_data)?;
+        let flags = header.flags();
 
         // Parse lengths from header
         let data_len = NetworkEndian::read_u16(&header_data[6..8]) as usize;
@@ -108,14 +109,20 @@ impl Page {
 
         let mut index = PAGE_HEADER_LEN + ID_LEN;
 
-        let body = &data[index..index+data_len];
+        let body_data = &data[index..index+data_len];
         index += data_len;
 
-        let (private_options, _) = Options::parse_vec(&page_data[index..index+private_options_len])?;
+        let private_option_data = &page_data[index..index+private_options_len];
         index += private_options_len;
 
-        let (public_options, _) = Options::parse_vec(&page_data[index..index+public_options_len])?;
+        let public_option_data = &page_data[index..index+public_options_len];
         index += public_options_len;
+
+        // TODO: handle decryption here
+
+        let (private_options, _) = Options::parse_vec(private_option_data)?;
+
+        let (public_options, _) = Options::parse_vec(public_option_data)?;
 
         assert_eq!(index + SIGNATURE_LEN, page_len);
 
@@ -124,18 +131,18 @@ impl Page {
             Page {
                 id,
                 header,
-                body: body.into(),
+                body: body_data.into(),
                 private_options,
                 public_options,
                 signature: Some(signature.into()),
             },
-            data.get(page_len..),
+            page_len,
         ))
     }
 }
 
 impl Page {
-    pub fn encode<'a, S>(&mut self, mut signer: S, buff: &'a mut [u8]) -> Result<(&'a [u8], usize), PageError> 
+    pub fn encode<'a, S>(&mut self, mut signer: S, buff: &'a mut [u8]) -> Result<usize, PageError> 
     where 
         S: FnMut(&[u8], &[u8]) -> Signature
     {
@@ -148,6 +155,8 @@ impl Page {
         // Write data
         (&mut buff[i..i+self.body.len()]).copy_from_slice(&self.body);
         i += self.body.len();
+
+        // TODO: handle encryption here
 
         // Write secret options
         let private_options_len = { Options::encode_vec(&self.private_options, &mut buff[i..])?};
@@ -166,7 +175,6 @@ impl Page {
             NetworkEndian::write_u16(&mut header_data[8..10], private_options_len as u16);
             NetworkEndian::write_u16(&mut header_data[10..12], public_options_len as u16);
         }
-        
 
         // Calculate signature over written data
         let signature = (signer)(&self.id, &buff[..i]);
@@ -178,7 +186,7 @@ impl Page {
         (&mut buff[i..i+SIGNATURE_LEN]).copy_from_slice(signature.as_ref());
         i += SIGNATURE_LEN;
 
-        Ok((&buff[..i], i))
+        Ok(i)
     }
 }
 
@@ -186,17 +194,29 @@ impl Page {
 mod tests {
 
     use super::*;
+    use crate::protocol::header::*;
+
+    use crate::crypto;
 
     #[test]
-    fn new_page() {
-        
+    fn encode_decode_page() {
+        let (pub_key, pri_key) = crypto::new_pk().expect("Error generating new public/private key pair");
+        let id = crypto::hash(&pub_key).expect("Error generating new ID");
+
+        let sec_key = crypto::new_sk().expect("Error generating new secret key");
+
+        let header = PageHeaderBuilder::default().kind(Kind::Generic).build().expect("Error building page header");
+        let data = vec![1, 2, 3, 4, 5, 6, 7];
+
+        let mut page = PageBuilder::default().id(id).header(header).body(data).build().expect("Error building page");
+
+        let mut buff = vec![0u8; 1024];
+        let n = page.encode(move |_id, data| crypto::pk_sign(&pri_key, data).unwrap(), &mut buff).expect("Error encoding page");
+
+        let (decoded, m) = Page::parse(move |_id, data, sig| crypto::pk_validate(&pub_key, sig, data).unwrap(), &buff[..n]).expect("Error decoding page");;
+
+        assert_eq!(page, decoded);
+        assert_eq!(n, m);
     }
-
-    #[test]
-    fn encode_page() {
-        
-    }
-
-
 
 }

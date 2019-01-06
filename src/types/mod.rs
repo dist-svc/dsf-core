@@ -24,6 +24,9 @@ pub type SecretKey = [u8; SECRET_KEY_LEN];
 pub const HASH_LEN: usize = 32;
 pub type Hash = [u8; HASH_LEN];
 
+pub const ENCRYPTED_META_LEN: usize = 64;
+pub type EncryptedMeta = Array64<u8>;
+
 newtype_array!(pub struct Array64(pub 64));
 
 /// Page Kinds.

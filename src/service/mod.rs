@@ -256,25 +256,41 @@ impl Crypto for Service {
     }
 }
 
+#[derive(Clone, Builder)]
+struct SecondaryOptions {
+    #[builder(default = "Kind::Generic")]
+    kind: Kind,
+    #[builder(default = "Flags(0)")]
+    flags: Flags,
+    #[builder(default = "0")]
+    version: u16,
+
+    #[builder(default = "vec![]")]
+    body: Vec<u8>,
+
+    #[builder(default = "vec![]")]
+    public_options: Vec<Options>,
+    #[builder(default = "vec![]")]
+    private_options: Vec<Options>,
+}
+
 impl Service
 {
     /// Secondary generates a secondary page using this service to be attached to the provided service ID
-    fn secondary(&self, kind: Kind, version: u16, body: &[u8], public_options: Vec<Options>, private_options: Vec<Options>) -> Page {
+    fn secondary(&self, options: SecondaryOptions) -> Page {
         let mut default_options = vec![
             Options::peer_id(self.id.clone()),
-            Options::public_key(self.public_key),
             Options::issued(SystemTime::now()),
             Options::expiry(SystemTime::now().add(Duration::from_secs(24 * 60 * 60))),
         ];
 
-        let mut public_options = public_options.clone();
+        let mut public_options = options.public_options.clone();
         public_options.append(&mut default_options);
 
-        let mut flags = Flags(0);
+        let mut flags = options.flags;
         flags.set_secondary(true);
-        flags.set_encrypted(self.encrypted);
 
-        Page::new(self.id.clone(), self.kind, flags, self.version, self.body.clone(), public_options, self.private_options.clone())
+        Page::new(self.id.clone(), options.kind, options.flags, options.version, options.body, public_options, options.private_options)
     }
 
     pub fn encrypt(&self) {
@@ -313,13 +329,14 @@ mod test {
 
         println!("Encoding service page");
         let mut buff = vec![0u8; 1024];
-        let (encoded, _n) = page1.encode(|_, d| service.sign(d).unwrap(), &mut buff).expect("Error encoding service page");
+        let n = page1.encode(|_id, d| service.sign(d).unwrap(), &mut buff).expect("Error encoding service page");
 
-        println!("Encoded service to {} bytes", encoded.len());
+        println!("Encoded service to {} bytes", n);
     
         println!("Decoding service page");
-        let (page2, _) = Page::parse(|_, d, s| true, encoded).expect("Error parsing service page");
+        let (page2, m) = Page::parse(|_id, d, s| true, &buff[..n]).expect("Error parsing service page");
         assert_eq!(page1, page2);
+        assert_eq!(n, m);
 
         println!("Generating service replica");
         let mut replica = Service::load(&page2).expect("Error generating service replica");
@@ -337,7 +354,12 @@ mod test {
         replica.apply(&page3).expect("Error updating service replica");
         assert_eq!(replica.version, 1);
 
-        println!("Generating a secondary page")
+        println!("Generating a secondary page");
+        let secondary_options = SecondaryOptionsBuilder::default().build().expect("Error building secondary options");
+        let secondary = service.secondary(secondary_options);
+
+        
+
 
     }
 }

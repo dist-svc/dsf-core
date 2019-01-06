@@ -7,7 +7,8 @@ use sodiumoxide::crypto::sign::ed25519::SecretKey as SodiumPrivateKey;
 use sodiumoxide::crypto::secretbox;
 use sodiumoxide::crypto::secretbox::xsalsa20poly1305::Key as SodiumSecretKey;
 use sodiumoxide::crypto::secretbox::xsalsa20poly1305::Nonce as SodiumSecretNonce;
-use sodiumoxide::crypto::secretbox::xsalsa20poly1305::NONCEBYTES;
+use sodiumoxide::crypto::secretbox::xsalsa20poly1305::Tag as SodiumSecretTag;
+use sodiumoxide::crypto::secretbox::xsalsa20poly1305::{NONCEBYTES, MACBYTES};
 
 use sodiumoxide::crypto::hash::sha256;
 
@@ -67,32 +68,38 @@ pub fn pk_validate(public_key: &[u8], signature: &[u8], data: &[u8]) -> Result<b
      Ok(sign::verify_detached(&sig, data, &public_key))
 }  
 
+pub const SK_META: usize = MACBYTES + NONCEBYTES;
+
 pub fn new_sk() -> Result<SecretKey, ()> {
      let key = secretbox::gen_key();
      Ok(key.0)
 }
 
-pub fn sk_encrypt(secret_key: &[u8], plaintext: &[u8]) -> Result<Vec<u8>, ()> {
+pub fn sk_encrypt(secret_key: &[u8], message: &mut [u8]) -> Result<[u8; SK_META], ()> {
      let secret_key = SodiumSecretKey::from_slice(secret_key).unwrap();
      let nonce = secretbox::gen_nonce();
 
-     let mut ciphertext = secretbox::seal(plaintext, &nonce, &secret_key);
+     // Perform in-place encryption
+     let tag = secretbox::seal_detached(message, &nonce, &secret_key);
 
-     ciphertext.extend_from_slice(&nonce.0);
+     // Generate encryption metadata
+     let mut meta = [0u8; SK_META];
+     (&mut meta[..MACBYTES]).copy_from_slice(&tag.0);
+     (&mut meta[MACBYTES..]).copy_from_slice(&nonce.0);
 
-     Ok(ciphertext)
+     Ok(meta)
 }
 
-pub fn sk_decrypt(secret_key: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>, ()> {
+pub fn sk_decrypt(secret_key: &[u8], meta: &[u8], message: &mut [u8]) -> Result<(), ()> {
      let secret_key = SodiumSecretKey::from_slice(secret_key).unwrap();
 
-     let split = ciphertext.len() - NONCEBYTES;
-     let data = &ciphertext[..split];
-     let nonce = &ciphertext[split..];
+     // Parse encryption metadata
+     let tag = SodiumSecretTag::from_slice(&meta[..MACBYTES]).unwrap();
+     let nonce = SodiumSecretNonce::from_slice(&meta[MACBYTES..]).unwrap();
+     
 
-     let nonce = SodiumSecretNonce::from_slice(nonce).unwrap();
-
-     secretbox::open(data, &nonce, &secret_key)
+     // Perform in-place decryption
+     secretbox::open_detached(message, &tag, &nonce, &secret_key)
 }
 
 
@@ -124,12 +131,14 @@ mod test {
      #[test]
     fn test_encrypt_decrypt() {
          let secret = new_sk().expect("Error generating secret key");
-         let mut data = vec!(0, 1, 2, 3, 4, 5, 6, 7, 8, 9);
+         let data = vec!(0, 1, 2, 3, 4, 5, 6, 7, 8, 9);
+         let mut message = data.clone();
 
-         let ciphertext = sk_encrypt(&secret, &data).expect("Error encrypting data");
-         let plaintext = sk_decrypt(&secret, &ciphertext).expect("Error decrypting data");
+         let meta = sk_encrypt(&secret, &mut message).expect("Error encrypting data");
+         assert!(data != message);
 
-         assert_eq!(data, plaintext);
+         sk_decrypt(&secret, &meta, &mut message).expect("Error decrypting data");
+         assert_eq!(data, message);
     }
 
 }

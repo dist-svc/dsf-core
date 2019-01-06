@@ -12,6 +12,9 @@ extern crate derive_builder;
 #[macro_use]
 extern crate newtype_array;
 
+#[macro_use] 
+extern crate serde_derive;
+
 pub mod types;
 pub mod crypto;
 pub mod service;
