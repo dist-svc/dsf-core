@@ -1,9 +1,11 @@
 
+use std::net::SocketAddr;
 
 use futures::prelude::*;
 
-use super::service::Service;
+use crate::service::Service;
 use crate::protocol::page::Page;
+use crate::types::{Id, Error};
 
 /// Producer API trait used by service producers
 pub trait Producer {
@@ -42,25 +44,3 @@ pub trait Subscriber {
     fn subscribe(service: &Service) -> Future<Item=Stream<Item=Service, Error=Self::Error>, Error=Self::Error>;
 }
 
-use std::net::SocketAddr;
-
-use crate::types::Id;
-use crate::types::Error;
-
-/// Request from the client to the daemon
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum Request {
-    Status,
-    Connect(SocketAddr),
-    Search(Id),
-    Publish,
-}
-
-/// Response from the daemon to the client
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum Response {
-    None,
-    StatusResponse,
-    //Value(String),
-    Unrecognised,
-}

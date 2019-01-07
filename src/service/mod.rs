@@ -152,7 +152,7 @@ impl Subscriber for Service {
         let private_options = page.private_options();
 
         // Fetch public key from options
-        let public_key = match public_options.iter().find_map(|o| match o { Options::PubKey(pk) => Some(pk), _ => None } ) {
+        let public_key: PublicKey = match public_options.iter().find_map(|o| match o { Options::PubKey(pk) => Some(pk), _ => None } ) {
             Some(pk) => pk.public_key,
             None => return Err(Error::NoPublicKey)
         };
@@ -205,7 +205,7 @@ impl Subscriber for Service {
         }
 
         // Fetch public key from options
-        let public_key = match public_options.iter().find_map(|o| match o { Options::PubKey(pk) => Some(pk), _ => None } ) {
+        let public_key: PublicKey = match public_options.iter().find_map(|o| match o { Options::PubKey(pk) => Some(pk), _ => None } ) {
             Some(pk) => pk.public_key,
             None => return Err(Error::NoPublicKey)
         };

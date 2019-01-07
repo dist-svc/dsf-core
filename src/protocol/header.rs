@@ -21,6 +21,15 @@ pub struct Header {
     version: u16,
 }
 
+impl HeaderBuilder {
+    pub fn address_request(&mut self) -> &mut Self {
+        let mut flags = self.flags.or(Some(Flags(0))).unwrap();
+        flags.set_address_request(true);
+        self.flags = Some(flags);
+        self
+    }
+}
+
 impl Header {
     pub fn new(kind: Kind, version: u16, flags: Flags) -> Header {
         Header{kind, flags, reserved: 0, version}
@@ -29,6 +38,16 @@ impl Header {
     pub fn kind(&self) -> Kind {
         self.kind
     }
+
+    pub fn is_page(&self) -> bool {
+        let kind: u16 = self.kind.into();
+        kind & 0x8000 == 0
+    }
+
+    pub fn is_message(&self) -> bool {
+        !self.is_page()
+    }
+
 
     pub fn flags(&self) -> Flags {
         self.flags

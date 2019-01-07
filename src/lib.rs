@@ -23,6 +23,5 @@ pub mod crypto;
 pub mod service;
 pub mod protocol;
 pub mod api;
-pub mod manager;
 
 pub mod prelude;

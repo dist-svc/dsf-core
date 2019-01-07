@@ -1,6 +1,7 @@
 
 use std::time::SystemTimeError;
 use std::io::Error as IoError;
+use std::net::SocketAddr;
 
 pub const ID_LEN: usize = 32;
 pub type Id = [u8; ID_LEN];
@@ -26,6 +27,8 @@ pub type Hash = [u8; HASH_LEN];
 
 pub const ENCRYPTED_META_LEN: usize = 64;
 pub type EncryptedMeta = Array64<u8>;
+
+pub type Address = SocketAddr;
 
 newtype_array!(pub struct Array64(pub 64));
 

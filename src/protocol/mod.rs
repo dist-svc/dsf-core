@@ -2,6 +2,7 @@
 pub mod helpers;
 pub mod options;
 pub mod header;
+pub mod base;
 pub mod page;
 pub mod messages;
 
@@ -22,3 +23,4 @@ pub trait Encode {
     /// Encode method writes object data to the provided writer
     fn encode(&self, buff: &mut [u8]) -> Result<usize, Self::Error>;
 }
+
