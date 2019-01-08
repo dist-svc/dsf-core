@@ -41,6 +41,31 @@ impl From<std::io::Error> for BaseError {
     }
 }
 
+impl BaseBuilder {
+    pub fn base(&mut self, id: Id, kind: Kind, version: u16, flags: Flags) -> &mut Self {
+        let header = Header::new(kind, version, flags);
+        self.id = Some(id);
+        self.header = Some(header);
+        self
+    }
+
+    pub fn append_public_option(&mut self, o: Options) -> &mut Self {
+        match &mut self.public_options {
+            Some(opts) => opts.push(o),
+            None => self.public_options = Some(vec![o]),
+        }
+        self
+    }
+
+     pub fn append_private_option(&mut self, o: Options) -> &mut Self {
+        match &mut self.private_options {
+            Some(opts) => opts.push(o),
+            None => self.private_options = Some(vec![o]),
+        }
+        self
+    }
+}
+
 const PAGE_HEADER_LEN: usize = 12;
 
 impl Base {

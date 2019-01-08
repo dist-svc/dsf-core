@@ -164,6 +164,12 @@ impl Flags {
     }
 }
 
+impl Default for Flags {
+    fn default() -> Flags {
+        Flags(0)
+    }
+}
+
 impl From<u8> for Flags {
     fn from(v: u8) -> Flags {
         Flags(v)

@@ -115,6 +115,10 @@ impl Options {
         Options::PubKey(PubKey::new(public_key))
     }
 
+    pub fn request_id(request_id: RequestId) -> Options {
+        Options::RequestId(ReqId::new(request_id))
+    }
+
     pub fn address<T>(address: T) -> Options 
     where T: Into<SocketAddr>
     {

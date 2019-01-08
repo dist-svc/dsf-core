@@ -7,100 +7,60 @@ use crate::protocol::base::{Base, BaseError, BaseBuilder};
 
 
 #[derive(Clone, PartialEq, Debug)]
-pub struct Message {
-    pub from: Id,
-    pub request_id: u128,
-    pub data: MessageKind,
-}
-
-#[derive(Clone, PartialEq, Debug)]
-pub enum MessageKind {
+pub enum Message {
     Request(Request),
     Response(Response),
 }
 
 #[derive(Clone, PartialEq, Debug)]
-pub enum Request {
-    Ping,
-    FindNode(Id),
-    FindValue(Id),
-    Store(Id, Vec<Base>),
+pub struct Request {
+    pub id: RequestId,
+    pub flags: Flags,
+    pub data: RequestKind,
 }
 
 #[derive(Clone, PartialEq, Debug)]
-pub enum Response {
+pub enum RequestKind {
+    Ping,
+    FindNode(Id),
+    FindValue(Id),
+    Store(Id, Base),
+}
+
+impl Request {
+    pub fn new(data: RequestKind, flags: Flags) -> Request {
+        Request {
+            id: rand::random(),
+            data,
+            flags,
+        }
+    }
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct Response {
+    pub id: RequestId,
+    pub flags: Flags,
+    pub data: ResponseKind,
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub enum ResponseKind {
     NodesFound(Vec<(Id, Address)>),
     ValuesFound(Vec<Base>),
     NoResult,
 }
 
-impl Message {
-    pub fn request(from: Id, req: Request) -> Message {
-        Message {
-            from,
-            request_id: rand::random(),
-            data: MessageKind::Request(req),
-        }
-    }
 
-    pub fn response(&self, from: Id, resp: Response) -> Message {
-        Message {
-            from,
-            request_id: self.request_id,
-            data: MessageKind::Response(resp),
+impl Response {
+    pub fn new(id: RequestId, data: ResponseKind, flags: Flags) -> Response {
+        Response {
+            id,
+            data,
+            flags,
         }
-    }
-
-    pub fn ping(from: Id, to: Id) -> Message {
-        Message::request(from, Request::Ping)
     }
 }
-
-impl Into<Base> for Message {
-    fn into(self) -> Base {
-        let mut base_builder = BaseBuilder::default();
-        let mut header_builder = HeaderBuilder::default();
-        let mut flags = Flags(0);
-
-        match &self.data {
-            MessageKind::Request(req) => {
-                match req {
-                    Request::Ping => {
-                        header_builder.kind(Kind::Ping);
-                        flags.set_address_request(true);
-                    },
-                    Request::FindNode(_id) => {
-
-                    },
-                    Request::FindValue(_id) => {
-
-                    },
-                    Request::Store(_id, _values) => {
-
-                    }
-                }
-            },
-            MessageKind::Response(resp) => {
-                 match resp {
-                    Response::NodesFound(_nodes) => {
-
-                    },
-                    Response::ValuesFound(_values) => {
-
-                    },
-                    Response::NoResult => {
-
-                    }
-                }
-            }
-        }
-
-        header_builder.flags(flags);
-        base_builder.header(header_builder.build().unwrap());
-        base_builder.build().unwrap()
-    }
-}
-
 
 #[cfg(test)]
 mod tests {
@@ -114,8 +74,8 @@ mod tests {
         let id = crypto::hash(&pub_key).expect("Error generating new ID");
         let fake_id = crypto::hash(&[0, 1, 2, 3, 4]).expect("Error generating fake target ID");
 
-        let messages = vec![
-            Message::ping(id, fake_id),
+        let messages: Vec<Message> = vec![
+            //Message::ping(id, fake_id),
         ];
 
         let mut buff = vec![0u8; 1024];

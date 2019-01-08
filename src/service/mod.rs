@@ -3,8 +3,10 @@
 use std::time::{Duration, SystemTime};
 use std::ops::Add;
 
-use crate::types::{Id, Kind, Flags, Error, PublicKey, PrivateKey, Signature, SecretKey};
-use crate::protocol::{page::Page, options::Options};
+use crate::types::{Id, Kind, Flags, Error, Address, PublicKey, PrivateKey, Signature, SecretKey};
+use crate::protocol::{header::Header, options::Options};
+use crate::protocol::page::{Page, PageBuilder};
+use crate::protocol::messages::{Message, Request, Response, RequestKind, ResponseKind};
 
 use crate::crypto;
 
@@ -304,6 +306,72 @@ impl Service
     pub fn decrypt(&self) {
         
     }
+
+    /// Generate a request message
+    fn build_request(&self, req: Request) -> Page {
+        let kind: Kind;
+        let mut flags = Flags(0);
+        let mut body = vec![];
+
+        let mut builder = PageBuilder::default();
+
+        match &req.data {
+            RequestKind::Ping => {
+                kind = Kind::Ping;
+                flags.set_address_request(true);
+            },
+            RequestKind::FindNode(id) => {
+                kind = Kind::FindNodes;
+                body = id.to_vec();
+            },
+            RequestKind::FindValue(id) => {
+                kind = Kind::FindValues;
+                body = id.to_vec();
+            },
+            RequestKind::Store(_id, _value) => {
+                kind = Kind::Store;
+            }
+        }
+
+        // Append request ID option
+        builder.append_public_option(Options::request_id(req.id));
+
+        builder.base(self.id().clone(), kind, 0, flags).body(body).build().unwrap()
+    }
+
+    /// Generate a response message
+    fn build_response(&self, req: Request, from: Address, resp: Response) -> Page {
+        let kind: Kind;
+        let mut flags = Flags(0);
+
+        let mut builder = PageBuilder::default();
+
+        match &resp.data {
+            ResponseKind::NodesFound(_nodes) => {
+                kind = Kind::NodesFound;
+            },
+            ResponseKind::ValuesFound(_values) => {
+                kind = Kind::ValuesFound;
+            },
+            ResponseKind::NoResult => {
+                kind = Kind::NoResult;
+            }
+        };
+
+        // Append address option if address request flag is set
+        if req.flags.address_request() {
+            let o = Options::address(from);
+            builder.append_public_option(o);
+        }
+
+        // Append request ID
+        builder.append_public_option(Options::request_id(resp.id));
+
+
+        builder.base(self.id().clone(), kind, 0, flags).build().unwrap()
+    }
+
+
 }
 
 
