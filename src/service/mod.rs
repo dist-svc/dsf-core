@@ -308,7 +308,7 @@ impl Service
     }
 
     /// Generate a request message
-    fn build_request(&self, req: Request) -> Page {
+    pub fn build_request(&self, req: &Request) -> Page {
         let kind: Kind;
         let mut flags = Flags(0);
         let mut body = vec![];
@@ -339,8 +339,10 @@ impl Service
         builder.base(self.id().clone(), kind, 0, flags).body(body).build().unwrap()
     }
 
+
+
     /// Generate a response message
-    fn build_response(&self, req: Request, from: Address, resp: Response) -> Page {
+    pub fn build_response(&self, req: &Request, from: Address, resp: &Response) -> Page {
         let kind: Kind;
         let mut flags = Flags(0);
 

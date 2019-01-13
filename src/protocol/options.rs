@@ -305,7 +305,7 @@ impl Encode for PeerId {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ReqId {
-    request_id: RequestId,
+    pub request_id: RequestId,
 }
 
 impl ReqId {

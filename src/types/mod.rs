@@ -1,6 +1,6 @@
 
 use std::time::SystemTimeError;
-use std::io::Error as IoError;
+use std::io::{Error as IoError, ErrorKind as IoErrorKind};
 use std::net::SocketAddr;
 
 pub const ID_LEN: usize = 32;
@@ -120,7 +120,7 @@ impl Into<u16> for Kind {
 /// Page and Message Flags.
 /// 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Flags(pub(crate) u8);
+pub struct Flags(pub u8);
 
 pub mod flags {
     pub const NONE            : u8 = 0;
@@ -182,10 +182,10 @@ impl Into<u8> for Flags {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Error {
-    IO(IoError),
-    Time(SystemTimeError),
+    IO(IoErrorKind),
+    Time,
     InvalidOption,
     InvalidOptionLength,
     InvalidPageLength,
@@ -200,15 +200,17 @@ pub enum Error {
     KeyIdMismatch,
     PublicKeyChanged,
     Unimplemented,
+    SendError,
+    NoRequestId,
 }
 
 impl From<IoError> for Error {
     fn from(e: IoError) -> Error {
-        Error::IO(e)
+        Error::IO(e.kind())
     }
 }
 impl From<SystemTimeError> for Error {
-    fn from(e: SystemTimeError) -> Error {
-        Error::Time(e)
+    fn from(_e: SystemTimeError) -> Error {
+        Error::Time
     }
 }
