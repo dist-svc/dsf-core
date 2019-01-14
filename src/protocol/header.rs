@@ -16,8 +16,6 @@ pub struct Header {
     #[builder(default = "Flags(0)")]
     flags: Flags,
     #[builder(default = "0")]
-    reserved: u8,
-    #[builder(default = "0")]
     version: u16,
 }
 
@@ -32,7 +30,7 @@ impl HeaderBuilder {
 
 impl Header {
     pub fn new(kind: Kind, version: u16, flags: Flags) -> Header {
-        Header{kind, flags, reserved: 0, version}
+        Header{kind, flags, version}
     }
 
     pub fn kind(&self) -> Kind {
@@ -66,11 +64,10 @@ impl Parse for Header {
         let mut r = Cursor::new(data);
         
         let kind = Kind::from(r.read_u16::<NetworkEndian>()?);
-        let flags = Flags(r.read_u8()?);
-        let reserved = r.read_u8()?;
+        let flags = r.read_u16::<NetworkEndian>()?.into();
         let version = r.read_u16::<NetworkEndian>()?;
 
-        Ok((Header {kind, flags, reserved, version}, r.position() as usize))
+        Ok((Header {kind, flags, version}, r.position() as usize))
     }
 }
 
@@ -81,8 +78,7 @@ impl Encode for Header {
         let mut w = Cursor::new(data);
         
         w.write_u16::<NetworkEndian>(self.kind.into())?;
-        w.write_u8(self.flags.0)?;
-        w.write_u8(self.reserved)?;
+        w.write_u16::<NetworkEndian>(self.flags.into())?;
         w.write_u16::<NetworkEndian>(self.version)?;
 
         Ok(w.position() as usize)

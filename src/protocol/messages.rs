@@ -1,4 +1,5 @@
 
+use core::convert::TryFrom;
 
 use crate::types::{Id, ID_LEN, RequestId, Address, Signature, Kind, Flags, Error};
 
@@ -15,6 +16,7 @@ pub enum Message {
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct Request {
+    pub from: Id,
     pub id: RequestId,
     pub flags: Flags,
     pub data: RequestKind,
@@ -29,47 +31,20 @@ pub enum RequestKind {
 }
 
 impl Request {
-    pub fn new(data: RequestKind, flags: Flags) -> Request {
+    pub fn new(from: Id, data: RequestKind, flags: Flags) -> Request {
         Request {
+            from,
             id: rand::random(),
             data,
             flags,
         }
     }
+}
 
-    pub fn to_base(&self, id: Id, req: &Request) -> Base {
-        let kind: Kind;
-        let mut flags = Flags(0);
-        let mut body = vec![];
+impl TryFrom<Base> for Request {
+    type Error = Error;
 
-        let mut builder = BaseBuilder::default();
-
-        match &req.data {
-            RequestKind::Ping => {
-                kind = Kind::Ping;
-                flags.set_address_request(true);
-            },
-            RequestKind::FindNode(id) => {
-                kind = Kind::FindNodes;
-                body = id.to_vec();
-            },
-            RequestKind::FindValue(id) => {
-                kind = Kind::FindValues;
-                body = id.to_vec();
-            },
-            RequestKind::Store(id, _value) => {
-                kind = Kind::Store;
-                body = id.to_vec();
-            }
-        }
-
-        // Append request ID option
-        builder.append_public_option(Options::request_id(req.id));
-
-        builder.base(id, kind, 0, flags).body(body).build().unwrap()
-    }
-
-    pub fn from_base(base: &Base) -> Result<Request, Error> {
+    fn try_from(base: Base) -> Result<Request, Error> {
         let header = base.header();
         let body = base.body();
 
@@ -97,18 +72,54 @@ impl Request {
             }
         };
 
-        // Fetch public key from options
+        // Fetch request id from options
         let request_id: RequestId = match base.public_options().iter().find_map(|o| match o { Options::RequestId(id) => Some(id), _ => None } ) {
             Some(req_id) => req_id.request_id,
             None => return Err(Error::NoRequestId)
         };
 
-        Ok(Request{id: request_id, data: data, flags: header.flags() })
+        Ok(Request{from: base.id().clone(), id: request_id, data: data, flags: header.flags() })
+    }
+}
+
+impl Into<Base> for Request {
+    fn into(self) -> Base {
+
+        let kind: Kind;
+        let mut flags = Flags(0);
+        let mut body = vec![];
+
+        let mut builder = BaseBuilder::default();
+
+        match &self.data {
+            RequestKind::Ping => {
+                kind = Kind::Ping;
+                flags.set_address_request(true);
+            },
+            RequestKind::FindNode(id) => {
+                kind = Kind::FindNodes;
+                body = id.to_vec();
+            },
+            RequestKind::FindValue(id) => {
+                kind = Kind::FindValues;
+                body = id.to_vec();
+            },
+            RequestKind::Store(id, _value) => {
+                kind = Kind::Store;
+                body = id.to_vec();
+            }
+        }
+
+        // Append request ID option
+        builder.append_public_option(Options::request_id(self.id));
+
+        builder.base(self.from, kind, 0, flags).body(body).build().unwrap()
     }
 }
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct Response {
+    pub from: Id,
     pub id: RequestId,
     pub flags: Flags,
     pub data: ResponseKind,
@@ -123,12 +134,79 @@ pub enum ResponseKind {
 
 
 impl Response {
-    pub fn new(id: RequestId, data: ResponseKind, flags: Flags) -> Response {
+    pub fn new(from: Id, id: RequestId, data: ResponseKind, flags: Flags) -> Response {
         Response {
+            from,
             id,
             data,
             flags,
         }
+    }
+}
+
+impl TryFrom<Base> for Response {
+    type Error = Error;
+
+    fn try_from(base: Base) -> Result<Response, Error> {
+        let header = base.header();
+        let body = base.body();
+
+        let data = match header.kind() {
+            Kind::NoResult => {
+                ResponseKind::NoResult
+            },
+            Kind::NodesFound => {
+                let mut id = Id::default();
+                id.copy_from_slice(&body[0..ID_LEN]);
+                ResponseKind::NodesFound(vec![])
+            },
+            Kind::ValuesFound => {
+                let mut id = Id::default();
+                id.copy_from_slice(&body[0..ID_LEN]);
+                ResponseKind::ValuesFound(vec![])
+            },
+            _ => {
+                return Err(Error::InvalidPageKind)
+            }
+        };
+
+        // Fetch request id from options
+        let request_id: RequestId = match base.public_options().iter().find_map(|o| match o { Options::RequestId(id) => Some(id), _ => None } ) {
+            Some(req_id) => req_id.request_id,
+            None => return Err(Error::NoRequestId)
+        };
+
+        Ok(Response{from: base.id().clone(), id: request_id, data: data, flags: header.flags() })
+    }
+}
+
+impl Into<Base> for Response {
+    fn into(self) -> Base {
+
+        let kind: Kind;
+        let mut flags = Flags(0);
+        let mut body = vec![];
+
+        let mut builder = BaseBuilder::default();
+
+        match &self.data {
+            ResponseKind::NoResult => {
+                kind = Kind::NoResult;
+            },
+            ResponseKind::NodesFound(id) => {
+                kind = Kind::NodesFound;
+                // TODO
+            },
+            ResponseKind::ValuesFound(id) => {
+                kind = Kind::ValuesFound;
+                // TODO
+            },
+        }
+
+        // Append request ID option
+        builder.append_public_option(Options::request_id(self.id));
+
+        builder.base(self.from, kind, 0, flags).body(body).build().unwrap()
     }
 }
 

@@ -369,7 +369,6 @@ impl Service
         // Append request ID
         builder.append_public_option(Options::request_id(resp.id));
 
-
         builder.base(self.id().clone(), kind, 0, flags).build().unwrap()
     }
 

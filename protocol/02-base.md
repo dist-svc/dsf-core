@@ -7,7 +7,7 @@ All pages provide contain an ID derived from the service or node public key and 
  0                   1                   2                   3
  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|           Page Kind           |     Flags     |    Reserved   |           
+|           Page Kind           |              Flags            |           
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 |          Page Version         |            Data Len           |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -44,18 +44,33 @@ All pages provide contain an ID derived from the service or node public key and 
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 ```
 
+
+```
+ 0                   1           
+ 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+| K |       Reserved      |A|E|S|        
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+```
+
 ## Header Fields
 - **Kind** indicates protocol-specific page or message kind
-  - this must be globally unique within DSD
-  - To apply for a page kind (or kinds) apply for a PR on this repo against the `KINDS.yml` listing
-  - For testing purposes and/or private use that does not require registration, a page kind of  `0x0FFF` may be used
-  - Messages types are identified by setting the top bit (0x8000)
+    - kinds must be globally unique within DSD
+    - To apply for a page kind (or kinds) apply for a PR on this repo against the `KINDS.yml` listing
+    - For testing purposes and/or private use that does not require registration, a page kind of  `0x0FFF` may be used
+    - Messages types are identified by setting the top bit (0x8000)
 - **Flags**
-  - Bit 0: Secondary, indicates a secondary page type
-  - Bit 1: Encrypted, indicates data and secure options fields have been encrypted
-  - Bit 2: Address Request, messages only, indicates the responder should attach a peer address option to the response (used for address discovery)
-  - Bits 2:7: Reserved, must be 0
-- **Reserved**, for algorithm specifiers if required, must be 0
+  - Bit 0:1 General Kind
+    - 0b00 for dsd pages (service / peer registration etc.)
+    - 0b01 for dsd messages (between dsd peers)
+    - 0b10 for implementation data (merkle-tree based application specific data structures)
+    - 0b11 for implementation messages (peer-to-peer application specific messages)
+
+  - Bit 15: Secondary, indicates this is a secondary object
+  - Bit 14: Encrypted, indicates data and secure options fields have been encrypted
+  - Bit 13: Address Request, messages only, indicates the responder should attach a peer address option to the response (used for address discovery)
+    
+
 - **Page version**, monotonically increasing counter for page replacement
 - **Data Length**, length of the variable length data field
 - **Secure Options length**, length of the variable length secure options field

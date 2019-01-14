@@ -1,3 +1,4 @@
+#![feature(try_from)]
 
 extern crate byteorder;
 extern crate futures;
