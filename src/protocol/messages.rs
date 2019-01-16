@@ -14,6 +14,37 @@ pub enum Message {
     Response(Response),
 }
 
+impl Message {
+    pub fn id(&self) -> RequestId {
+        match self {
+            Message::Request(req) => req.id,
+            Message::Response(resp) => resp.id,
+        }
+    }
+}
+
+impl TryFrom<Base> for Message {
+    type Error = Error;
+
+    fn try_from(base: Base) -> Result<Message, Error> {
+        let kind = base.header().kind();
+
+        // Check for DSD messages
+        if !kind.is_dsd() {
+            return Err(Error::InvalidMessageType)
+        }
+
+        // Parse request and response types
+        if kind.is_request() {
+            Ok(Message::Request(Request::try_from(base)?))
+        } else if kind.is_response() {
+            Ok(Message::Response(Response::try_from(base)?))
+        } else {
+            Err(Error::InvalidMessageType)
+        }
+    }
+}
+
 #[derive(Clone, PartialEq, Debug)]
 pub struct Request {
     pub from: Id,

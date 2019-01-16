@@ -82,6 +82,10 @@ impl Base {
         &self.header
     }
 
+    pub fn flags(&self) -> Flags {
+        self.header.flags()
+    }
+
     pub fn body(&self) -> &[u8] {
         &self.body
     }

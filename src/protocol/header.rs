@@ -37,16 +37,6 @@ impl Header {
         self.kind
     }
 
-    pub fn is_page(&self) -> bool {
-        let kind: u16 = self.kind.into();
-        kind & 0x8000 == 0
-    }
-
-    pub fn is_message(&self) -> bool {
-        !self.is_page()
-    }
-
-
     pub fn flags(&self) -> Flags {
         self.flags
     }

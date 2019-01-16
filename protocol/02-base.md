@@ -58,14 +58,14 @@ All pages provide contain an ID derived from the service or node public key and 
     - kinds must be globally unique within DSD
     - To apply for a page kind (or kinds) apply for a PR on this repo against the `KINDS.yml` listing
     - For testing purposes and/or private use that does not require registration, a page kind of  `0x0FFF` may be used
-    - Messages types are identified by setting the top bit (0x8000)
-- **Flags**
-  - Bit 0:1 General Kind
-    - 0b00 for dsd pages (service / peer registration etc.)
-    - 0b01 for dsd messages (between dsd peers)
-    - 0b10 for implementation data (merkle-tree based application specific data structures)
-    - 0b11 for implementation messages (peer-to-peer application specific messages)
+    - Bit 15 indicates whether the block is dsd (0) or implementation (1) defined 
+    - Bits 13:14 indicate the block base kind
+      - 0b000 for pages (service / peer registration etc.)
+      - 0b001 for request messages (between peers)
+      - 0b010 for response messages (between peers)
+      - 0b011 for data (merkle-tree based data structures)
 
+- **Flags**
   - Bit 15: Secondary, indicates this is a secondary object
   - Bit 14: Encrypted, indicates data and secure options fields have been encrypted
   - Bit 13: Address Request, messages only, indicates the responder should attach a peer address option to the response (used for address discovery)
