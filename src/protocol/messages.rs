@@ -45,7 +45,7 @@ impl TryFrom<Base> for Message {
     }
 }
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, Debug)]
 pub struct Request {
     pub from: Id,
     pub id: RequestId,
@@ -69,6 +69,12 @@ impl Request {
             data,
             flags,
         }
+    }
+}
+
+impl PartialEq for Request {
+    fn eq(&self, b: &Self) -> bool {
+        self.from == b.from && self.flags == b.flags && self.data == b.data
     }
 }
 

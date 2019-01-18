@@ -23,6 +23,7 @@ pub enum Error {
     SendError,
     NoRequestId,
     InvalidMessageType,
+    InvalidJson,
 }
 
 impl From<IoError> for Error {
