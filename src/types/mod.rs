@@ -5,7 +5,7 @@ pub const ID_LEN: usize = 32;
 pub type Id = [u8; ID_LEN];
 
 pub const REQUEST_ID_LEN: usize = 8;
-pub type RequestId = [u8; REQUEST_ID_LEN];
+pub type RequestId = u64;
 
 pub const PUBLIC_KEY_LEN: usize = 32;
 pub type PublicKey = [u8; PUBLIC_KEY_LEN];

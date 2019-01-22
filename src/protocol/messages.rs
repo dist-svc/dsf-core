@@ -58,7 +58,7 @@ pub enum RequestKind {
     Ping,
     FindNode(Id),
     FindValue(Id),
-    Store(Id, ()),
+    Store(Id, Vec<u64>),
 }
 
 impl Request {
@@ -102,7 +102,9 @@ impl TryFrom<Base> for Request {
             Kind::Store => {
                 let mut id = Id::default();
                 id.copy_from_slice(&body[0..ID_LEN]);
-                RequestKind::Store(id, ())
+                let base = &body[ID_LEN..];
+                // TODO: store data
+                RequestKind::Store(id, vec![])
             },
             _ => {
                 return Err(Error::InvalidPageKind)
@@ -143,6 +145,7 @@ impl Into<Base> for Request {
             },
             RequestKind::Store(id, _value) => {
                 kind = Kind::Store;
+                // TODO: store data
                 body = id.to_vec();
             }
         }
@@ -154,7 +157,7 @@ impl Into<Base> for Request {
     }
 }
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, Debug)]
 pub struct Response {
     pub from: Id,
     pub id: RequestId,
@@ -165,7 +168,7 @@ pub struct Response {
 #[derive(Clone, PartialEq, Debug)]
 pub enum ResponseKind {
     NodesFound(Vec<(Id, Address)>),
-    ValuesFound(Vec<Base>),
+    ValuesFound(Vec<u64>),
     NoResult,
 }
 
@@ -180,6 +183,13 @@ impl Response {
         }
     }
 }
+
+impl PartialEq for Response {
+    fn eq(&self, b: &Self) -> bool {
+        self.from == b.from && self.flags == b.flags && self.data == b.data
+    }
+}
+
 
 impl TryFrom<Base> for Response {
     type Error = Error;

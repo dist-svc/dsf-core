@@ -319,8 +319,10 @@ impl Parse for ReqId {
     type Error = OptionsError;
 
     fn parse(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
-        let mut request_id = [0u8; REQUEST_ID_LEN];
-        request_id.copy_from_slice(&data[..REQUEST_ID_LEN]);
+        let mut r = Cursor::new(data);
+
+        let request_id = r.read_u64::<NetworkEndian>()?;
+
         Ok((ReqId { request_id }, REQUEST_ID_LEN))
     }
 }
@@ -333,7 +335,7 @@ impl Encode for ReqId {
         
         w.write_u16::<NetworkEndian>(option_kinds::REQUEST_ID)?;
         w.write_u16::<NetworkEndian>(REQUEST_ID_LEN as u16)?;
-        w.write(&self.request_id)?;
+        w.write_u64::<NetworkEndian>(self.request_id)?;
 
         Ok(w.position() as usize)
     }
