@@ -28,6 +28,8 @@ pub type EncryptedMeta = Array64<u8>;
 
 pub type Address = SocketAddr;
 
+pub type Data = u64;
+
 newtype_array!(pub struct Array64(pub 64));
 
 pub mod kinds;
