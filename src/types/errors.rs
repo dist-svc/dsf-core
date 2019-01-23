@@ -24,6 +24,8 @@ pub enum Error {
     NoRequestId,
     InvalidMessageType,
     InvalidJson,
+    NoPeersFound,
+    InvalidResponse,
 }
 
 impl From<IoError> for Error {
