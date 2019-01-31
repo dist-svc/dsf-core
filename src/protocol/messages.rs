@@ -1,11 +1,10 @@
 
 use core::convert::TryFrom;
 
-use crate::types::{Id, ID_LEN, RequestId, Address, Signature, Kind, Flags, Error};
+use crate::types::{Id, ID_LEN, RequestId, Address, Kind, Flags, Error};
 
-use crate::protocol::header::{Header, HeaderBuilder};
 use crate::protocol::options::Options;
-use crate::protocol::base::{Base, BaseError, BaseBuilder};
+use crate::protocol::base::{Base, BaseBuilder};
 
 
 #[derive(Clone, PartialEq, Debug)]
@@ -102,7 +101,7 @@ impl TryFrom<Base> for Request {
             Kind::Store => {
                 let mut id = Id::default();
                 id.copy_from_slice(&body[0..ID_LEN]);
-                let base = &body[ID_LEN..];
+                let _base = &body[ID_LEN..];
                 // TODO: store data
                 RequestKind::Store(id, vec![])
             },
@@ -231,8 +230,8 @@ impl Into<Base> for Response {
     fn into(self) -> Base {
 
         let kind: Kind;
-        let mut flags = Flags(0);
-        let mut body = vec![];
+        let flags = Flags(0);
+        let body = vec![];
 
         let mut builder = BaseBuilder::default();
 
@@ -240,11 +239,11 @@ impl Into<Base> for Response {
             ResponseKind::NoResult => {
                 kind = Kind::NoResult;
             },
-            ResponseKind::NodesFound(id) => {
+            ResponseKind::NodesFound(_id) => {
                 kind = Kind::NodesFound;
                 // TODO
             },
-            ResponseKind::ValuesFound(id) => {
+            ResponseKind::ValuesFound(_id) => {
                 kind = Kind::ValuesFound;
                 // TODO
             },
@@ -265,17 +264,17 @@ mod tests {
     use crate::crypto;
     #[test]
     fn test_encode_decode() {
-        let (pub_key, pri_key) = crypto::new_pk().expect("Error generating new public/private key pair");
-        let id = crypto::hash(&pub_key).expect("Error generating new ID");
-        let fake_id = crypto::hash(&[0, 1, 2, 3, 4]).expect("Error generating fake target ID");
+        let (pub_key, _pri_key) = crypto::new_pk().expect("Error generating new public/private key pair");
+        let _id = crypto::hash(&pub_key).expect("Error generating new ID");
+        let _fake_id = crypto::hash(&[0, 1, 2, 3, 4]).expect("Error generating fake target ID");
 
         let messages: Vec<Message> = vec![
             //Message::ping(id, fake_id),
         ];
 
-        let mut buff = vec![0u8; 1024];
+        let _buff = vec![0u8; 1024];
 
-        for m in messages {
+        for _m in messages {
             //let b: Base = m.clone().into();
 
         }

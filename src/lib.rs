@@ -13,10 +13,8 @@ extern crate derive_builder;
 #[macro_use]
 extern crate newtype_array;
 
-#[macro_use] 
 extern crate serde_derive;
 
-#[macro_use] 
 extern crate structopt;
 
 pub mod types;

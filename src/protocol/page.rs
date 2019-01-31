@@ -1,6 +1,4 @@
 
-use core::ops::DerefMut;
-use core::ops::Deref;
 
 use crate::protocol::base::{Base, BaseBuilder};
 

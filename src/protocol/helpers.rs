@@ -3,7 +3,7 @@ use std::ops::Add;
 use std::str;
 use std::time::{SystemTime, Duration};
 
-use byteorder::{ByteOrder, NetworkEndian, ReadBytesExt, WriteBytesExt};
+use byteorder::{NetworkEndian, ReadBytesExt, WriteBytesExt};
 
 use crate::protocol::{Encode, Parse};
 

@@ -2,7 +2,7 @@
 use std::io::{Cursor, Error as IoError};
 
 
-use byteorder::{ByteOrder, NetworkEndian, ReadBytesExt, WriteBytesExt};
+use byteorder::{NetworkEndian, ReadBytesExt, WriteBytesExt};
 
 
 use crate::types::{Kind, Flags};

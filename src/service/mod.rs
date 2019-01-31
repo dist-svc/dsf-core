@@ -4,9 +4,9 @@ use std::time::{Duration, SystemTime};
 use std::ops::Add;
 
 use crate::types::{Id, Kind, Flags, Error, Address, PublicKey, PrivateKey, Signature, SecretKey};
-use crate::protocol::{header::Header, options::Options};
+use crate::protocol::{options::Options};
 use crate::protocol::page::{Page, PageBuilder};
-use crate::protocol::messages::{Message, Request, Response, RequestKind, ResponseKind};
+use crate::protocol::messages::{Request, Response, RequestKind, ResponseKind};
 
 use crate::crypto;
 
@@ -344,7 +344,7 @@ impl Service
     /// Generate a response message
     pub fn build_response(&self, req: &Request, from: Address, resp: &Response) -> Page {
         let kind: Kind;
-        let mut flags = Flags(0);
+        let flags = Flags(0);
 
         let mut builder = PageBuilder::default();
 
@@ -407,7 +407,7 @@ mod test {
         println!("Encoded service to {} bytes", n);
     
         println!("Decoding service page");
-        let (page2, m) = Page::parse(|_id, d, s| true, &buff[..n]).expect("Error parsing service page");
+        let (page2, m) = Page::parse(|_id, _d, _s| true, &buff[..n]).expect("Error parsing service page");
         assert_eq!(page1, page2);
         assert_eq!(n, m);
 
@@ -421,7 +421,7 @@ mod test {
         assert_eq!(service.version, 1, "service.update updates service version");
 
         println!("Generating updated page");
-        let mut page3 = service.publish();
+        let page3 = service.publish();
 
         println!("Applying updated page to replica");
         replica.apply(&page3).expect("Error updating service replica");
@@ -429,7 +429,7 @@ mod test {
 
         println!("Generating a secondary page");
         let secondary_options = SecondaryOptionsBuilder::default().build().expect("Error building secondary options");
-        let secondary = service.secondary(secondary_options);
+        let _secondary = service.secondary(secondary_options);
 
         
 

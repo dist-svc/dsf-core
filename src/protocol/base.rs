@@ -2,7 +2,7 @@
 
 use byteorder::{ByteOrder, NetworkEndian};
 
-use crate::types::{Id, ID_LEN, Signature, SIGNATURE_LEN, Flags, Kind, ENCRYPTED_META_LEN};
+use crate::types::{Id, ID_LEN, Signature, SIGNATURE_LEN, Flags, Kind};
 use crate::protocol::{Encode, Parse};
 use crate::protocol::header::Header;
 use crate::protocol::options::{Options, OptionsError};
@@ -112,7 +112,7 @@ impl Base {
         // Parse page header
         let header_data = &data[0..PAGE_HEADER_LEN];
         let (header, _) = Header::parse(header_data)?;
-        let flags = header.flags();
+        let _flags = header.flags();
 
         // Parse lengths from header
         let data_len = NetworkEndian::read_u16(&header_data[6..8]) as usize;
@@ -232,7 +232,7 @@ mod tests {
         let (pub_key, pri_key) = crypto::new_pk().expect("Error generating new public/private key pair");
         let id = crypto::hash(&pub_key).expect("Error generating new ID");
 
-        let sec_key = crypto::new_sk().expect("Error generating new secret key");
+        let _sec_key = crypto::new_sk().expect("Error generating new secret key");
 
         let header = HeaderBuilder::default().kind(Kind::Generic).build().expect("Error building page header");
         let data = vec![1, 2, 3, 4, 5, 6, 7];

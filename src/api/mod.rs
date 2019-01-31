@@ -1,11 +1,8 @@
 
-use std::net::SocketAddr;
-
 use futures::prelude::*;
 
 use crate::service::Service;
 use crate::protocol::page::Page;
-use crate::types::{Id, Error};
 
 /// Producer API trait used by service producers
 pub trait Producer {
