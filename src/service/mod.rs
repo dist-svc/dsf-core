@@ -259,7 +259,7 @@ impl Crypto for Service {
 }
 
 #[derive(Clone, Builder)]
-struct SecondaryOptions {
+pub struct SecondaryOptions {
     #[builder(default = "Kind::Generic")]
     kind: Kind,
     #[builder(default = "Flags(0)")]
@@ -283,7 +283,7 @@ impl Service
     }
 
     /// Secondary generates a secondary page using this service to be attached to the provided service ID
-    fn secondary(&self, options: SecondaryOptions) -> Page {
+    pub fn secondary(&self, options: SecondaryOptions) -> Page {
         let mut default_options = vec![
             Options::peer_id(self.id.clone()),
             Options::issued(SystemTime::now()),
