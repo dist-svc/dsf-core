@@ -299,6 +299,10 @@ impl Service
         Page::new(self.id.clone(), options.kind, options.flags, options.version, options.body, public_options, options.private_options)
     }
 
+    pub fn public_key(&self) -> PublicKey {
+        self.public_key
+    }
+
     pub fn encrypt(&self) {
 
     }

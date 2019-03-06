@@ -1,4 +1,4 @@
-#![feature(try_from)]
+//#![feature(try_from)]
 
 extern crate byteorder;
 extern crate futures;
@@ -16,6 +16,8 @@ extern crate newtype_array;
 extern crate serde_derive;
 
 extern crate structopt;
+
+extern crate try_from;
 
 pub mod types;
 pub mod crypto;

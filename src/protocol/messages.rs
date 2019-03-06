@@ -1,5 +1,6 @@
 
-use core::convert::TryFrom;
+//use core::convert::TryFrom;
+use try_from::TryFrom;
 
 use crate::types::{Id, ID_LEN, RequestId, Address, Kind, Flags, Error};
 
@@ -23,7 +24,7 @@ impl Message {
 }
 
 impl TryFrom<Base> for Message {
-    type Error = Error;
+    type Err = Error;
 
     fn try_from(base: Base) -> Result<Message, Error> {
         let kind = base.header().kind();
@@ -78,7 +79,7 @@ impl PartialEq for Request {
 }
 
 impl TryFrom<Base> for Request {
-    type Error = Error;
+    type Err = Error;
 
     fn try_from(base: Base) -> Result<Request, Error> {
         let header = base.header();
@@ -191,7 +192,7 @@ impl PartialEq for Response {
 
 
 impl TryFrom<Base> for Response {
-    type Error = Error;
+    type Err = Error;
 
     fn try_from(base: Base) -> Result<Response, Error> {
         let header = base.header();
