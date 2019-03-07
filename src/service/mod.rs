@@ -353,10 +353,10 @@ impl Service
         let mut builder = PageBuilder::default();
 
         match &resp.data {
-            ResponseKind::NodesFound(_nodes) => {
+            ResponseKind::NodesFound(id, _nodes) => {
                 kind = Kind::NodesFound;
             },
-            ResponseKind::ValuesFound(_values) => {
+            ResponseKind::ValuesFound(id, _values) => {
                 kind = Kind::ValuesFound;
             },
             ResponseKind::NoResult => {

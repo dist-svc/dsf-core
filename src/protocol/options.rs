@@ -182,6 +182,10 @@ impl Parse for Options {
                 let (opt, n) = Expiry::parse(d)?;
                 Ok((Options::Expiry(opt), n + OPTION_HEADER_LEN))
             },
+            option_kinds::REQUEST_ID => {
+                let (opt, n) = ReqId::parse(d)?;
+                Ok((Options::RequestId(opt), n + OPTION_HEADER_LEN))
+            }
             _ => {
                 // Unrecognised option types (and None) are skipped
                 Ok((Options::None, OPTION_HEADER_LEN + option_len))
@@ -222,8 +226,12 @@ impl Encode for Options {
             Options::Expiry(ref o) => {
                 Ok(o.encode(data)?)
             },
+            Options::RequestId(ref o) => {
+                Ok(o.encode(data)?)
+            },
             _ => {
-                Err(OptionsError::Unimplemented)
+                println!("Option encoding not implemented for object {:?}", *self);
+                unimplemented!();
             }
         }
     }

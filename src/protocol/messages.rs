@@ -167,8 +167,8 @@ pub struct Response {
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum ResponseKind {
-    NodesFound(Vec<(Id, Address)>),
-    ValuesFound(Vec<u64>),
+    NodesFound(Id, Vec<(Id, Address)>),
+    ValuesFound(Id, Vec<u64>),
     NoResult,
 }
 
@@ -205,12 +205,12 @@ impl TryFrom<Base> for Response {
             Kind::NodesFound => {
                 let mut id = Id::default();
                 id.copy_from_slice(&body[0..ID_LEN]);
-                ResponseKind::NodesFound(vec![])
+                ResponseKind::NodesFound(id, vec![])
             },
             Kind::ValuesFound => {
                 let mut id = Id::default();
                 id.copy_from_slice(&body[0..ID_LEN]);
-                ResponseKind::ValuesFound(vec![])
+                ResponseKind::ValuesFound(id, vec![])
             },
             _ => {
                 return Err(Error::InvalidPageKind)
@@ -232,7 +232,7 @@ impl Into<Base> for Response {
 
         let kind: Kind;
         let flags = Flags(0);
-        let body = vec![];
+        let mut body = vec![];
 
         let mut builder = BaseBuilder::default();
 
@@ -240,13 +240,16 @@ impl Into<Base> for Response {
             ResponseKind::NoResult => {
                 kind = Kind::NoResult;
             },
-            ResponseKind::NodesFound(_id) => {
+            ResponseKind::NodesFound(id, _nodes) => {
                 kind = Kind::NodesFound;
+                body = id.to_vec();
                 // TODO
             },
-            ResponseKind::ValuesFound(_id) => {
+            ResponseKind::ValuesFound(id, _values) => {
                 kind = Kind::ValuesFound;
+                body = id.to_vec();
                 // TODO
+                unimplemented!();
             },
         }
 
