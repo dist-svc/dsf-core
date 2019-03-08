@@ -311,7 +311,7 @@ impl Service
         
     }
 
-    /// Generate a request message
+    /// Generate a protocol message from a request object
     pub fn build_request(&self, req: &Request) -> Page {
         let kind: Kind;
         let mut flags = Flags(0);
@@ -320,6 +320,10 @@ impl Service
         let mut builder = PageBuilder::default();
 
         match &req.data {
+            RequestKind::Hello => {
+                kind = Kind::Hello;
+                flags.set_address_request(true);
+            },
             RequestKind::Ping => {
                 kind = Kind::Ping;
                 flags.set_address_request(true);
@@ -353,10 +357,13 @@ impl Service
         let mut builder = PageBuilder::default();
 
         match &resp.data {
-            ResponseKind::NodesFound(id, _nodes) => {
+            ResponseKind::Status => {
+                kind = Kind::Status;
+            },
+            ResponseKind::NodesFound(_id, _nodes) => {
                 kind = Kind::NodesFound;
             },
-            ResponseKind::ValuesFound(id, _values) => {
+            ResponseKind::ValuesFound(_id, _values) => {
                 kind = Kind::ValuesFound;
             },
             ResponseKind::NoResult => {
@@ -411,7 +418,7 @@ mod test {
         println!("Encoded service to {} bytes", n);
     
         println!("Decoding service page");
-        let (page2, m) = Page::parse(|_id, _d, _s| true, &buff[..n]).expect("Error parsing service page");
+        let (page2, m) = Page::parse(&buff[..n]).expect("Error parsing service page");
         assert_eq!(page1, page2);
         assert_eq!(n, m);
 

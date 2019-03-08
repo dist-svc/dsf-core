@@ -2,6 +2,9 @@
 use std::time::SystemTimeError;
 use std::io::{Error as IoError, ErrorKind as IoErrorKind};
 
+
+use crate::protocol::base::BaseError;
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum Error {
     IO(IoErrorKind),
@@ -10,6 +13,7 @@ pub enum Error {
     InvalidOptionLength,
     InvalidPageLength,
     InvalidPageKind,
+    InvalidMessageKind,
     CryptoError,
     UnexpectedPageType,
     UnexpectedServiceId,
@@ -26,6 +30,8 @@ pub enum Error {
     InvalidJson,
     NoPeersFound,
     InvalidResponse,
+    InvalidSignature,
+    Base(BaseError),
 }
 
 impl From<IoError> for Error {
@@ -33,8 +39,15 @@ impl From<IoError> for Error {
         Error::IO(e.kind())
     }
 }
+
 impl From<SystemTimeError> for Error {
     fn from(_e: SystemTimeError) -> Error {
         Error::Time
+    }
+}
+
+impl From<BaseError> for Error {
+    fn from(e: BaseError) -> Error {
+        Error::Base(e)
     }
 }

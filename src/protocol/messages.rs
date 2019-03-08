@@ -55,6 +55,7 @@ pub struct Request {
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum RequestKind {
+    Hello,
     Ping,
     FindNode(Id),
     FindValue(Id),
@@ -86,6 +87,9 @@ impl TryFrom<Base> for Request {
         let body = base.body();
 
         let data = match header.kind() {
+            Kind::Hello => {
+                RequestKind::Hello
+            },
             Kind::Ping => {
                 RequestKind::Ping
             },
@@ -107,7 +111,7 @@ impl TryFrom<Base> for Request {
                 RequestKind::Store(id, vec![])
             },
             _ => {
-                return Err(Error::InvalidPageKind)
+                return Err(Error::InvalidMessageKind)
             }
         };
 
@@ -121,6 +125,8 @@ impl TryFrom<Base> for Request {
     }
 }
 
+// TODO: this is duplicated in the service module
+// where should it be?
 impl Into<Base> for Request {
     fn into(self) -> Base {
 
@@ -131,9 +137,15 @@ impl Into<Base> for Request {
         let mut builder = BaseBuilder::default();
 
         match &self.data {
+            RequestKind::Hello => {
+                kind = Kind::Hello;
+                flags.set_address_request(true);
+                body = vec![];
+            },
             RequestKind::Ping => {
                 kind = Kind::Ping;
                 flags.set_address_request(true);
+                body = vec![];
             },
             RequestKind::FindNode(id) => {
                 kind = Kind::FindNodes;
@@ -167,6 +179,7 @@ pub struct Response {
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum ResponseKind {
+    Status,
     NodesFound(Id, Vec<(Id, Address)>),
     ValuesFound(Id, Vec<u64>),
     NoResult,
@@ -199,6 +212,9 @@ impl TryFrom<Base> for Response {
         let body = base.body();
 
         let data = match header.kind() {
+            Kind::Status => {
+                ResponseKind::Status
+            },
             Kind::NoResult => {
                 ResponseKind::NoResult
             },
@@ -213,7 +229,7 @@ impl TryFrom<Base> for Response {
                 ResponseKind::ValuesFound(id, vec![])
             },
             _ => {
-                return Err(Error::InvalidPageKind)
+                return Err(Error::InvalidMessageKind)
             }
         };
 
@@ -232,13 +248,18 @@ impl Into<Base> for Response {
 
         let kind: Kind;
         let flags = Flags(0);
-        let mut body = vec![];
+        let body: Vec<u8>;
 
         let mut builder = BaseBuilder::default();
 
         match &self.data {
+            ResponseKind::Status => {
+                kind = Kind::Status;
+                body = vec![];
+            },
             ResponseKind::NoResult => {
                 kind = Kind::NoResult;
+                body = vec![];
             },
             ResponseKind::NodesFound(id, _nodes) => {
                 kind = Kind::NodesFound;

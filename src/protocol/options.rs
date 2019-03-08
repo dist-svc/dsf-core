@@ -127,6 +127,10 @@ impl Options {
             SocketAddr::V6(v6) => Options::IPv6(v6),
         }
     }
+
+    pub fn pub_key(public_key: PublicKey) -> Options {
+        Options::PubKey(PubKey::new(public_key))
+    }
 }
 
 /// Parse parses a control option from the given scope
