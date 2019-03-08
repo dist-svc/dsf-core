@@ -9,6 +9,7 @@ pub mod flags {
     pub const SECONDARY       : u16 = (1 << 0);
     pub const ENCRYPTED       : u16 = (1 << 1);
     pub const ADDRESS_REQUEST : u16 = (1 << 2);
+    pub const PUB_KEY_REQUEST : u16 = (1 << 3);
 }
 
 impl Flags {
@@ -44,6 +45,18 @@ impl Flags {
         match address_request {
             true => self.0 |= flags::ADDRESS_REQUEST,
             false => self.0 &= !(flags::ADDRESS_REQUEST)
+        };
+        *self
+    }
+
+    pub fn pub_key_request(&self) -> bool {
+        self.0 & flags::PUB_KEY_REQUEST != 0
+    }
+
+    pub fn set_pub_key_request(&mut self, pub_key_request: bool) -> Flags {
+        match pub_key_request {
+            true => self.0 |= flags::PUB_KEY_REQUEST,
+            false => self.0 &= !(flags::PUB_KEY_REQUEST)
         };
         *self
     }

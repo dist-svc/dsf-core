@@ -1,8 +1,9 @@
 
+use std::net::{SocketAddr};
 
 use byteorder::{ByteOrder, NetworkEndian};
 
-use crate::types::{Id, ID_LEN, Signature, SIGNATURE_LEN, Flags, Kind};
+use crate::types::{Id, ID_LEN, Signature, SIGNATURE_LEN, Flags, Kind, PublicKey, RequestId, Address};
 use crate::protocol::{Encode, Parse};
 use crate::protocol::header::Header;
 use crate::protocol::options::{Options, OptionsError};
@@ -106,8 +107,36 @@ impl Base {
         self.public_options.push(o);
     }
 
-     pub fn append_private_option(&mut self, o: Options) {
+    pub fn append_private_option(&mut self, o: Options) {
         self.private_options.push(o);
+    }
+
+    pub fn pub_key_option(&self) -> Option<PublicKey> {
+        self.public_options().iter().find_map(|o| {
+            match o { 
+                Options::PubKey(pk) => Some(pk.public_key),
+                 _ => None 
+            } 
+        })
+    }
+
+    pub fn req_id_option(&self) -> Option<RequestId> {
+        self.public_options().iter().find_map(|o| {
+            match o { 
+                Options::RequestId(req_id) => Some(req_id.request_id),
+                 _ => None 
+            } 
+        })
+    }
+
+    pub fn address_option(&self) -> Option<Address> {
+        self.public_options().iter().find_map(|o| {
+            match o { 
+                Options::IPv4(addr) => Some(SocketAddr::V4(*addr)),
+                Options::IPv6(addr) => Some(SocketAddr::V6(*addr)),
+                 _ => None 
+            } 
+        })
     }
 }
 

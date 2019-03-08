@@ -2,7 +2,7 @@
 //use core::convert::TryFrom;
 use try_from::TryFrom;
 
-use crate::types::{Id, ID_LEN, RequestId, Address, Kind, Flags, Error};
+use crate::types::{Id, ID_LEN, RequestId, Address, Kind, Flags, PublicKey, Error};
 
 use crate::protocol::options::Options;
 use crate::protocol::base::{Base, BaseBuilder};
@@ -51,6 +51,8 @@ pub struct Request {
     pub id: RequestId,
     pub flags: Flags,
     pub data: RequestKind,
+
+    pub public_key: Option<PublicKey>,
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -69,6 +71,8 @@ impl Request {
             id: rand::random(),
             data,
             flags,
+
+            public_key: None,
         }
     }
 }
@@ -116,12 +120,15 @@ impl TryFrom<Base> for Request {
         };
 
         // Fetch request id from options
-        let request_id: RequestId = match base.public_options().iter().find_map(|o| match o { Options::RequestId(id) => Some(id), _ => None } ) {
-            Some(req_id) => req_id.request_id,
+        let request_id = match base.req_id_option() {
+            Some(req_id) => req_id,
             None => return Err(Error::NoRequestId)
         };
 
-        Ok(Request{from: base.id().clone(), id: request_id, data: data, flags: header.flags() })
+        // Fetch other key options
+        let public_key = base.pub_key_option();
+
+        Ok(Request{from: base.id().clone(), id: request_id, data: data, flags: header.flags(), public_key })
     }
 }
 
@@ -131,7 +138,6 @@ impl Into<Base> for Request {
     fn into(self) -> Base {
 
         let kind: Kind;
-        let mut flags = Flags(0);
         let mut body = vec![];
 
         let mut builder = BaseBuilder::default();
@@ -139,12 +145,10 @@ impl Into<Base> for Request {
         match &self.data {
             RequestKind::Hello => {
                 kind = Kind::Hello;
-                flags.set_address_request(true);
                 body = vec![];
             },
             RequestKind::Ping => {
                 kind = Kind::Ping;
-                flags.set_address_request(true);
                 body = vec![];
             },
             RequestKind::FindNode(id) => {
@@ -165,7 +169,7 @@ impl Into<Base> for Request {
         // Append request ID option
         builder.append_public_option(Options::request_id(self.id));
 
-        builder.base(self.from, kind, 0, flags).body(body).build().unwrap()
+        builder.base(self.from, kind, 0, self.flags).body(body).build().unwrap()
     }
 }
 
@@ -175,6 +179,9 @@ pub struct Response {
     pub id: RequestId,
     pub flags: Flags,
     pub data: ResponseKind,
+
+    pub remote_address: Option<Address>,
+    pub public_key: Option<PublicKey>,
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -193,6 +200,9 @@ impl Response {
             id,
             data,
             flags,
+
+            remote_address: None,
+            public_key: None,
         }
     }
 }
@@ -234,12 +244,17 @@ impl TryFrom<Base> for Response {
         };
 
         // Fetch request id from options
-        let request_id: RequestId = match base.public_options().iter().find_map(|o| match o { Options::RequestId(id) => Some(id), _ => None } ) {
-            Some(req_id) => req_id.request_id,
+        let request_id = match base.req_id_option() {
+            Some(req_id) => req_id,
             None => return Err(Error::NoRequestId)
         };
 
-        Ok(Response{from: base.id().clone(), id: request_id, data: data, flags: header.flags() })
+        // Fetch other key options
+        let public_key = base.pub_key_option();
+
+        let remote_address = base.address_option();
+
+        Ok(Response{from: base.id().clone(), id: request_id, data: data, flags: header.flags(), public_key, remote_address })
     }
 }
 
@@ -247,7 +262,6 @@ impl Into<Base> for Response {
     fn into(self) -> Base {
 
         let kind: Kind;
-        let flags = Flags(0);
         let body: Vec<u8>;
 
         let mut builder = BaseBuilder::default();
@@ -277,7 +291,7 @@ impl Into<Base> for Response {
         // Append request ID option
         builder.append_public_option(Options::request_id(self.id));
 
-        builder.base(self.from, kind, 0, flags).body(body).build().unwrap()
+        builder.base(self.from, kind, 0, self.flags).body(body).build().unwrap()
     }
 }
 
