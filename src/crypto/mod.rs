@@ -12,7 +12,7 @@ use sodiumoxide::crypto::secretbox::xsalsa20poly1305::{NONCEBYTES, MACBYTES};
 
 use sodiumoxide::crypto::hash::sha256;
 
-use crate::types::{PublicKey, PrivateKey, Signature, SecretKey, Hash};
+use crate::types::{PublicKey, PrivateKey, Signature, SecretKey, CryptoHash};
 
 /// Signer trait, used for generating page signatures
 pub trait Signer {
@@ -47,7 +47,7 @@ pub trait Decrypter {
 
 pub fn new_pk() -> Result<(PublicKey, PrivateKey), ()> {
      let (public_key, private_key) = sign::gen_keypair();
-     Ok((public_key.0, private_key.0))
+     Ok((public_key.0.into(), private_key.0.into()))
 }
 
 pub fn pk_sign(private_key: &[u8], data: &[u8]) -> Result<Signature, ()> {
@@ -72,7 +72,7 @@ pub const SK_META: usize = MACBYTES + NONCEBYTES;
 
 pub fn new_sk() -> Result<SecretKey, ()> {
      let key = secretbox::gen_key();
-     Ok(key.0)
+     Ok(key.0.into())
 }
 
 pub fn sk_encrypt(secret_key: &[u8], message: &mut [u8]) -> Result<[u8; SK_META], ()> {
@@ -103,9 +103,9 @@ pub fn sk_decrypt(secret_key: &[u8], meta: &[u8], message: &mut [u8]) -> Result<
 }
 
 
-pub fn hash(data: &[u8]) -> Result<Hash, ()> {
+pub fn hash(data: &[u8]) -> Result<CryptoHash, ()> {
     let digest = sha256::hash(data);
-    Ok(digest.0)
+    Ok(digest.0.into())
 }
 
 #[cfg(test)]

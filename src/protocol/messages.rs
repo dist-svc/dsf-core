@@ -75,6 +75,11 @@ impl Request {
             public_key: None,
         }
     }
+
+    pub fn with_public_key(mut self, pk: PublicKey) -> Self {
+        self.public_key = Some(pk);
+        self
+    }
 }
 
 impl PartialEq for Request {
@@ -204,6 +209,17 @@ impl Response {
             remote_address: None,
             public_key: None,
         }
+    }
+
+
+    pub fn with_remote_address(mut self, addr: Address) -> Self {
+        self.remote_address = Some(addr);
+        self
+    }
+
+    pub fn with_public_key(mut self, pk: PublicKey) -> Self {
+        self.public_key = Some(pk);
+        self
     }
 }
 

@@ -114,7 +114,7 @@ impl Base {
     pub fn pub_key_option(&self) -> Option<PublicKey> {
         self.public_options().iter().find_map(|o| {
             match o { 
-                Options::PubKey(pk) => Some(pk.public_key),
+                Options::PubKey(pk) => Some(pk.public_key.clone()),
                  _ => None 
             } 
         })
@@ -144,7 +144,7 @@ impl Base {
     pub fn raw_id(data: &[u8]) -> Id {
         let mut id = [0u8; ID_LEN];
         id.clone_from_slice(&data[PAGE_HEADER_LEN..PAGE_HEADER_LEN+ID_LEN]);
-        id
+        id.into()
     }
 
     pub fn raw_sig(data: &[u8]) -> Signature {
@@ -210,7 +210,7 @@ impl Base {
         // Return page and options
         Ok((
             Base {
-                id,
+                id: id.into(),
                 header,
                 body: body_data.into(),
                 private_options,
@@ -261,7 +261,7 @@ impl Base {
         let signature = (signer)(&self.id, &buff[..i]);
 
         // Attach signature to page object
-        self.signature = Some(signature);
+        self.signature = Some(signature.clone());
 
         // Write signature
         (&mut buff[i..i+SIGNATURE_LEN]).copy_from_slice(signature.as_ref());
@@ -282,7 +282,7 @@ mod tests {
     #[test]
     fn encode_decode_page() {
         let (pub_key, pri_key) = crypto::new_pk().expect("Error generating new public/private key pair");
-        let id = crypto::hash(&pub_key).expect("Error generating new ID");
+        let id = crypto::hash(&pub_key).expect("Error generating new ID").into();
 
         let _sec_key = crypto::new_sk().expect("Error generating new secret key");
 

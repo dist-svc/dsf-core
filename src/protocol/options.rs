@@ -261,7 +261,7 @@ impl Parse for PubKey {
         let mut public_key = [0u8; PUBLIC_KEY_LEN];
         public_key.copy_from_slice(&data[..PUBLIC_KEY_LEN]);
 
-        Ok((PubKey { public_key }, PUBLIC_KEY_LEN))
+        Ok((PubKey { public_key: public_key.into() }, PUBLIC_KEY_LEN))
     }
 }
 
@@ -297,7 +297,7 @@ impl Parse for PeerId {
     fn parse(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
         let mut peer_id = [0u8; ID_LEN];
         peer_id.copy_from_slice(&data[..ID_LEN]);
-        Ok((PeerId { peer_id }, ID_LEN))
+        Ok((PeerId { peer_id: peer_id.into() }, ID_LEN))
     }
 }
 
@@ -656,8 +656,8 @@ mod tests {
     #[test]
     fn encode_decode_option_types() {
         let tests = [
-            Options::PubKey(PubKey::new([1u8; PUBLIC_KEY_LEN])),
-            Options::PeerId(PeerId::new([2u8; ID_LEN])),
+            Options::PubKey(PubKey::new([1u8; PUBLIC_KEY_LEN].into())),
+            Options::PeerId(PeerId::new([2u8; ID_LEN].into())),
             Options::Kind(Kind::new("test-kind")),
             Options::Name(Name::new("test-name")),
             Options::IPv4(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8080)),
@@ -681,8 +681,8 @@ mod tests {
     #[test]
     fn encode_decode_option_list() {
         let tests = vec![
-            Options::PubKey(PubKey::new([1u8; PUBLIC_KEY_LEN])),
-            Options::PeerId(PeerId::new([2u8; ID_LEN])),
+            Options::PubKey(PubKey::new([1u8; PUBLIC_KEY_LEN].into())),
+            Options::PeerId(PeerId::new([2u8; ID_LEN].into())),
             Options::Kind(Kind::new("test-kind")),
             Options::Name(Name::new("test-name")),
             Options::IPv4(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8080)),

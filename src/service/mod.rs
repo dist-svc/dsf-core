@@ -88,7 +88,7 @@ impl Default for Service {
         let (public_key, private_key) = crypto::new_pk().unwrap();
 
         // Generate service ID from public key
-        let id = crypto::hash(&public_key).unwrap();
+        let id = crypto::hash(&public_key).unwrap().into();
 
         // Create service object
         Service{id, kind: Kind::None, version: 0, body: vec![], public_options: vec![], private_options: vec![], public_key: public_key, private_key: Some(private_key), encrypted: false, secret_key: None}
@@ -120,7 +120,7 @@ impl Publisher for Service {
         let mut default_options = vec![
             Options::issued(SystemTime::now()),
             Options::expiry(SystemTime::now().add(Duration::from_secs(24 * 60 * 60))),
-            Options::public_key(self.public_key),
+            Options::public_key(self.public_key.clone()),
         ];
 
         let mut public_options = self.public_options.clone();
@@ -155,17 +155,18 @@ impl Subscriber for Service {
 
         // Fetch public key from options
         let public_key: PublicKey = match public_options.iter().find_map(|o| match o { Options::PubKey(pk) => Some(pk), _ => None } ) {
-            Some(pk) => pk.public_key,
+            Some(pk) => pk.public_key.clone(),
             None => return Err(Error::NoPublicKey)
         };
 
         // Check public key and ID match
-        if &crypto::hash(&public_key).unwrap() != page.id() {
+        let hash: Id = crypto::hash(&public_key).unwrap().into();
+        if &hash != page.id() {
             return Err(Error::KeyIdMismatch)
         }
 
         Ok(Service{
-            id: *page.id(),
+            id: page.id().clone(),
             kind: header.kind(),
             version: header.version(),
 
@@ -208,12 +209,12 @@ impl Subscriber for Service {
 
         // Fetch public key from options
         let public_key: PublicKey = match public_options.iter().find_map(|o| match o { Options::PubKey(pk) => Some(pk), _ => None } ) {
-            Some(pk) => pk.public_key,
+            Some(pk) => pk.public_key.clone(),
             None => return Err(Error::NoPublicKey)
         };
 
         // Check public key and ID match
-        if crypto::hash(&public_key).unwrap() != self.id {
+        if self.id != crypto::hash(&public_key).unwrap() {
             return Err(Error::KeyIdMismatch)
         }
 
@@ -242,7 +243,7 @@ impl Crypto for Service {
     /// Sign the provided data with the associated service key.
     /// This returns an error if the service does not have an attached service private key
     fn sign(&mut self, data: &[u8]) -> Result<Signature, Error> {
-        if let Some(private_key) = self.private_key {
+        if let Some(private_key) = &self.private_key {
             let sig = crypto::pk_sign(&private_key, data).unwrap();
             Ok(sig)
         } else {
@@ -299,8 +300,8 @@ impl Service
         Page::new(self.id.clone(), options.kind, options.flags, options.version, options.body, public_options, options.private_options)
     }
 
-    pub fn public_key(&self) -> PublicKey {
-        self.public_key
+    pub fn public_key(&self) -> &PublicKey {
+        &self.public_key
     }
 
     pub fn encrypt(&self) {
