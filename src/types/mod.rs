@@ -111,9 +111,9 @@ macro_rules! arr {
             fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
                 for i in 0..self.0.len() {
                     if i == 0 {
-                        write!(f, "{:.2X}", self.0[i])?;
+                        write!(f, "{:02X}", self.0[i])?;
                     } else {
-                        write!(f, ":{:.2X}", self.0[i])?;
+                        write!(f, ":{:02X}", self.0[i])?;
                     }
                 }
                 Ok(())
