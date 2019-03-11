@@ -155,7 +155,6 @@ impl Base {
 
     pub fn validate(public_key: &[u8], data: &[u8]) -> bool {
         // TODO: check length is valid
-        let id = &data[PAGE_HEADER_LEN..PAGE_HEADER_LEN+ID_LEN];
         let sig = &data[data.len()-SIGNATURE_LEN..];
         let body = &data[..data.len()-SIGNATURE_LEN];
 

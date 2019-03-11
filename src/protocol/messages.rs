@@ -143,7 +143,7 @@ impl Into<Base> for Request {
     fn into(self) -> Base {
 
         let kind: Kind;
-        let mut body = vec![];
+        let body;
 
         let mut builder = BaseBuilder::default();
 
@@ -300,7 +300,7 @@ impl Into<Base> for Response {
                 kind = Kind::ValuesFound;
                 body = id.to_vec();
                 // TODO
-                unimplemented!();
+
             },
         }
 
