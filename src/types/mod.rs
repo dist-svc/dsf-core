@@ -31,6 +31,7 @@ pub type EncryptedMeta = Array64;
 
 pub type Address = SocketAddr;
 
+//#[derive(Clone, PartialEq, Debug)]
 pub type Data = u64;
 
 

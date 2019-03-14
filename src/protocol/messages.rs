@@ -15,10 +15,24 @@ pub enum Message {
 }
 
 impl Message {
-    pub fn id(&self) -> RequestId {
+    pub fn request_id(&self) -> RequestId {
         match self {
             Message::Request(req) => req.id,
             Message::Response(resp) => resp.id,
+        }
+    }
+
+    pub fn from(&self) -> Id {
+        match self {
+            Message::Request(req) => req.from.clone(),
+            Message::Response(resp) => resp.from.clone(),
+        }
+    }
+
+    pub fn pub_key(&self) -> Option<PublicKey> {
+        match self {
+            Message::Request(req) => req.public_key.clone(),
+            Message::Response(resp) => resp.public_key.clone(),
         }
     }
 }
