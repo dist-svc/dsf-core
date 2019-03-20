@@ -1,8 +1,10 @@
 
-use std::fmt::Debug;
+use std::fmt;
 use std::net::SocketAddr;
 use std::ops::{Deref, DerefMut};
 use std::hash::{Hash, Hasher};
+
+use base64;
 
 pub const ID_LEN: usize = 32;
 pub type Id = Array32;
@@ -108,8 +110,17 @@ macro_rules! arr {
 
         impl Eq for $name {}
 
-        impl Debug for $name {
-            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        impl fmt::Debug for $name {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                let r: &[u8] = &self.0;
+                let encoded = base64::encode(&r);
+                write!(f, "`{}`", encoded)?;
+                Ok(())
+            }
+        }
+
+        impl fmt::UpperHex for $name {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 for i in 0..self.0.len() {
                     if i == 0 {
                         write!(f, "{:02X}", self.0[i])?;
