@@ -8,6 +8,7 @@ use crate::protocol::{Encode, Parse};
 use crate::protocol::header::Header;
 use crate::protocol::options::{Options, OptionsError};
 use crate::crypto;
+use crate::protocol::container::Container;
 
 #[derive(Clone, Builder, Debug, PartialEq)]
 pub struct Base {
@@ -164,109 +165,58 @@ impl Base {
     /// Parses an array containing a page into a page object
     pub fn parse<'a>(data: &'a [u8]) -> Result<(Base, usize), BaseError> 
     {
-        // Parse page header
-        let header_data = &data[0..PAGE_HEADER_LEN];
-        let (header, _) = Header::parse(header_data)?;
-        let _flags = header.flags();
+        let container = Container::new(data);
+        let n = container.len();
 
-        // Parse lengths from header
-        let data_len = NetworkEndian::read_u16(&header_data[6..8]) as usize;
-        let private_options_len = NetworkEndian::read_u16(&header_data[8..10]) as usize;
-        let public_options_len = NetworkEndian::read_u16(&header_data[10..12]) as usize;
-
-        // Parse ID for page
+        // Fetch ID for page
         let mut id = [0u8; ID_LEN];
-        id.clone_from_slice(&data[PAGE_HEADER_LEN..PAGE_HEADER_LEN+ID_LEN]);
+        id.clone_from_slice(container.id());
 
-        let page_len = PAGE_HEADER_LEN + ID_LEN + data_len + private_options_len + public_options_len + SIGNATURE_LEN;
-
-        // Fetch data ranges and check signature
-        let page_data = &data[..page_len-SIGNATURE_LEN];
-
+        // Fetch signature for page
         let mut signature = [0u8; SIGNATURE_LEN];
-        signature.clone_from_slice(&data[page_len-SIGNATURE_LEN..page_len]);
-
-
-        let mut index = PAGE_HEADER_LEN + ID_LEN;
-
-        let body_data = &data[index..index+data_len];
-        index += data_len;
-
-        let private_option_data = &page_data[index..index+private_options_len];
-        index += private_options_len;
-
-        let public_option_data = &page_data[index..index+public_options_len];
-        index += public_options_len;
+        signature.clone_from_slice(container.signature());
 
         // TODO: handle decryption here
+        let body_data = container.body();
+        // TODO: handle decryption here
+        let (private_options, _) = Options::parse_vec(container.private_options())?;
 
-        let (private_options, _) = Options::parse_vec(private_option_data)?;
-
-        let (public_options, _) = Options::parse_vec(public_option_data)?;
-
-        assert_eq!(index + SIGNATURE_LEN, page_len);
+        let (public_options, _) = Options::parse_vec(container.public_options())?;
 
         // Return page and options
         Ok((
             Base {
                 id: id.into(),
-                header,
+                header: Header::new(container.kind(), container.version(), container.flags()),
                 body: body_data.into(),
                 private_options,
                 public_options,
                 signature: Some(signature.into()),
             },
-            page_len,
+            n,
         ))
     }
 }
 
 impl Base {
-    pub fn encode<'a, S>(&mut self, mut signer: S, buff: &'a mut [u8]) -> Result<usize, BaseError> 
+    pub fn encode<'a, S, E>(&mut self, mut signer: S, buff: &'a mut [u8]) -> Result<usize, BaseError> 
     where 
-        S: FnMut(&[u8], &[u8]) -> Signature
+        S: FnMut(&[u8], &[u8]) -> Result<Signature, E>
     {
-        let mut i = PAGE_HEADER_LEN;
 
-        // Write ID
-        (&mut buff[PAGE_HEADER_LEN..PAGE_HEADER_LEN+ID_LEN]).copy_from_slice(&self.id);
-        i += ID_LEN;
+        // Build container and encode page
+        let (mut container, n) = Container::encode(buff, &self);
 
-        // Write data
-        (&mut buff[i..i+self.body.len()]).copy_from_slice(&self.body);
-        i += self.body.len();
+        // Calculate signature over written data (if sig does not already exist)
+        if let None = self.signature {
+            // Generate signature
+            let sig = container.sign(signer).map_err(|_e| BaseError::InvalidSignature )?;
 
-        // TODO: handle encryption here
-
-        // Write secret options
-        let private_options_len = { Options::encode_vec(&self.private_options, &mut buff[i..])?};
-        i += private_options_len;
-
-        // Write public options
-        let public_options_len = { Options::encode_vec(&self.public_options, &mut buff[i..])?};
-        i += public_options_len;
-
-        // Write header
-        {
-            let mut header_data = &mut buff[0..PAGE_HEADER_LEN];
-            self.header.encode(&mut header_data)?;
-
-            NetworkEndian::write_u16(&mut header_data[6..8], self.body().len() as u16);
-            NetworkEndian::write_u16(&mut header_data[8..10], private_options_len as u16);
-            NetworkEndian::write_u16(&mut header_data[10..12], public_options_len as u16);
+            // Attach signature to page object
+            self.signature = Some(sig.clone());
         }
 
-        // Calculate signature over written data
-        let signature = (signer)(&self.id, &buff[..i]);
-
-        // Attach signature to page object
-        self.signature = Some(signature.clone());
-
-        // Write signature
-        (&mut buff[i..i+SIGNATURE_LEN]).copy_from_slice(signature.as_ref());
-        i += SIGNATURE_LEN;
-
-        Ok(i)
+        Ok(n)
     }
 }
 
@@ -291,7 +241,7 @@ mod tests {
         let mut page = BaseBuilder::default().id(id).header(header).body(data).build().expect("Error building page");
 
         let mut buff = vec![0u8; 1024];
-        let n = page.encode(move |_id, data| crypto::pk_sign(&pri_key, data).unwrap(), &mut buff).expect("Error encoding page");
+        let n = page.encode(move |_id, data| crypto::pk_sign(&pri_key, data), &mut buff).expect("Error encoding page");
 
         let (decoded, m) = Base::parse(&buff[..n]).expect("Error decoding page");;
 

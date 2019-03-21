@@ -414,7 +414,7 @@ mod test {
 
         println!("Encoding service page");
         let mut buff = vec![0u8; 1024];
-        let n = page1.encode(|_id, d| service.sign(d).unwrap(), &mut buff).expect("Error encoding service page");
+        let n = page1.encode(|_id, d| service.sign(d).map_err(|_e| () ), &mut buff).expect("Error encoding service page");
 
         println!("Encoded service to {} bytes", n);
     

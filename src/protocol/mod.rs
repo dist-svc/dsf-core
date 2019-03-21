@@ -2,9 +2,13 @@
 pub mod helpers;
 pub mod options;
 pub mod header;
+
+pub mod container;
 pub mod base;
+
 pub mod page;
 pub mod messages;
+
 
 /// Parse trait for building parse-able objects
 pub trait Parse {

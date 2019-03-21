@@ -74,7 +74,7 @@ impl Options {
     }
 
     /// Encode a vector of options
-    pub fn encode_vec(options: &Vec<Options>, data: &mut [u8]) -> Result<usize, OptionsError> {
+    pub fn encode_vec(options: &[Options], data: &mut [u8]) -> Result<usize, OptionsError> {
         let mut i = 0;
 
         for o in options.iter() {

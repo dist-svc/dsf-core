@@ -6,7 +6,7 @@ use crate::types::{Id, ID_LEN, RequestId, Address, Kind, Flags, PublicKey, Error
 
 use crate::protocol::options::Options;
 use crate::protocol::base::{Base, BaseBuilder};
-
+use crate::protocol::page::Page;
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum Message {
@@ -33,6 +33,15 @@ impl Message {
         match self {
             Message::Request(req) => req.public_key.clone(),
             Message::Response(resp) => resp.public_key.clone(),
+        }
+    }
+}
+
+impl Into<Base> for Message {
+    fn into(self) -> Base {
+        match self {
+            Message::Request(req) => req.into(),
+            Message::Response(resp) => resp.into(),
         }
     }
 }
@@ -75,7 +84,7 @@ pub enum RequestKind {
     Ping,
     FindNode(Id),
     FindValue(Id),
-    Store(Id, Vec<u64>),
+    Store(Id, Vec<Page>),
 }
 
 impl Request {
@@ -130,7 +139,7 @@ impl TryFrom<Base> for Request {
                 let mut id = Id::default();
                 id.copy_from_slice(&body[0..ID_LEN]);
                 let _base = &body[ID_LEN..];
-                // TODO: store data
+                // TODO: parse pages and store
                 RequestKind::Store(id, vec![])
             },
             _ => {
@@ -178,10 +187,21 @@ impl Into<Base> for Request {
                 kind = Kind::FindValues;
                 body = id.to_vec();
             },
-            RequestKind::Store(id, _value) => {
+            RequestKind::Store(id, pages) => {
                 kind = Kind::Store;
+
+                let mut buff = vec![0u8; 4096];
+                let n = 0;
+                (&mut buff[n..ID_LEN]).copy_from_slice(id);
+
                 // TODO: store data
-                body = id.to_vec();
+                
+                for p in pages {
+                    let n = p.clone().encode(|_id, _data| Err(()) , &mut buff).unwrap();
+                }
+
+
+                body = buff[..n].to_vec();
             }
         }
 
@@ -329,23 +349,44 @@ impl Into<Base> for Response {
 mod tests {
 
     use super::*;
+    use crate::protocol::header::{HeaderBuilder};
 
     use crate::crypto;
     #[test]
-    fn test_encode_decode() {
-        let (pub_key, _pri_key) = crypto::new_pk().expect("Error generating new public/private key pair");
-        let _id = crypto::hash(&pub_key).expect("Error generating new ID");
-        let _fake_id = crypto::hash(&[0, 1, 2, 3, 4]).expect("Error generating fake target ID");
+    fn encode_decode_messages() {
+        let (pub_key, pri_key) = crypto::new_pk().expect("Error generating new public/private key pair");
+        let id = crypto::hash(&pub_key).expect("Error generating new ID");
+        let fake_id = crypto::hash(&[0, 1, 2, 3, 4]).expect("Error generating fake target ID");
+        let flags = Flags::default().set_address_request(true);
+
+        let header = HeaderBuilder::default().kind(Kind::Generic).build().expect("Error building page header");
+        let mut page = BaseBuilder::default().id(id.clone()).header(header).body(vec![]).build().expect("Error building page");
+
 
         let messages: Vec<Message> = vec![
-            //Message::ping(id, fake_id),
+            Message::Request(Request::new(id.clone(), RequestKind::Hello, flags.clone())),
+            Message::Request(Request::new(id.clone(), RequestKind::Ping, flags.clone())),
+            Message::Request(Request::new(id.clone(), RequestKind::FindNode(fake_id.clone()), flags.clone())),
+            Message::Request(Request::new(id.clone(), RequestKind::Store(id.clone(), vec![page.clone()]), flags.clone())),
         ];
 
-        let _buff = vec![0u8; 1024];
+        let mut buff = vec![0u8; 4096];
 
-        for _m in messages {
-            //let b: Base = m.clone().into();
+        for message in messages {
+            // Cast to base
+            let mut b: Base = message.clone().into();
+            // Encode base
+            let n = b.encode(|_id, data| crypto::pk_sign(&pri_key, data), &mut buff).unwrap();
+            // Parse base and check instances match
+            let (d, m)= Base::parse(&buff[..n]).unwrap();
 
+            assert_eq!(n, m);
+            assert_eq!(b, d);
+
+            // Cast to message and check instances match
+            let message2 = Message::try_from(d).unwrap();
+
+            assert_eq!(message, message2);
         }
 
     }
