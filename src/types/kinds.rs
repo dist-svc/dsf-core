@@ -6,9 +6,13 @@ pub enum Kind {
     None,
 
     // Pages
-    Peer,
     Generic,
+    Peer,
+    Replica,
     Private,
+
+    Primary(u16),
+    Secondary(u16),
 
     // Messages
     Hello,
@@ -32,31 +36,35 @@ pub enum Kind {
 pub mod kinds {
     pub const NONE          : u16 = 0x0000;
 
-    pub const KIND_MASK     : u16 = 0xe000;
+    pub const KIND_MASK     : u16 = 0xF000;
 
     pub const APP_FLAG      : u16 = 0x8000;
 
     // Page Kinds
-    pub const PAGE_FLAGS    : u16 = 0x0000;
-    pub const PEER          : u16 = 0x0001 | PAGE_FLAGS;
-    pub const GENERIC       : u16 = 0x0002 | PAGE_FLAGS;
-    pub const PRIVATE       : u16 = 0x0FFF | PAGE_FLAGS;
+    pub const PRIMARY_PAGE_FLAGS     : u16 = 0x0000;
+    pub const GENERIC        : u16 = 0x0001 | PRIMARY_PAGE_FLAGS;
+    pub const PEER           : u16 = 0x0002 | PRIMARY_PAGE_FLAGS;
+    pub const PRIVATE        : u16 = 0x0FFF | PRIMARY_PAGE_FLAGS;
+
+    pub const SECONDARY_PAGE_FLAGS     : u16 = 0x1000;
+    pub const REPLICA        : u16 = 0x0003 | SECONDARY_PAGE_FLAGS;
+    
 
     // Message Kinds
-    pub const REQUEST_FLAGS : u16 = 0x2000;
-    pub const HELLO         : u16 = 0x0000 | REQUEST_FLAGS;
-    pub const PING          : u16 = 0x0001 | REQUEST_FLAGS;
-    pub const FIND_NODES    : u16 = 0x0002 | REQUEST_FLAGS;
-    pub const FIND_VALUES   : u16 = 0x0003 | REQUEST_FLAGS;
-    pub const STORE         : u16 = 0x0004 | REQUEST_FLAGS;
+    pub const REQUEST_FLAGS  : u16 = 0x2000;
+    pub const HELLO          : u16 = 0x0000 | REQUEST_FLAGS;
+    pub const PING           : u16 = 0x0001 | REQUEST_FLAGS;
+    pub const FIND_NODES     : u16 = 0x0002 | REQUEST_FLAGS;
+    pub const FIND_VALUES    : u16 = 0x0003 | REQUEST_FLAGS;
+    pub const STORE          : u16 = 0x0004 | REQUEST_FLAGS;
 
-    pub const RESPONSE_FLAGS : u16 = 0x4000;
+    pub const RESPONSE_FLAGS : u16 = 0x3000;
     pub const STATUS         : u16 = 0x0000 | RESPONSE_FLAGS;
     pub const NO_RESULT      : u16 = 0x0001 | RESPONSE_FLAGS;
     pub const NODES_FOUND    : u16 = 0x0002 | RESPONSE_FLAGS;
     pub const VALUES_FOUND   : u16 = 0x0003 | RESPONSE_FLAGS;
     
-    pub const DATA_FLAGS    : u16 = 0x6000; 
+    pub const DATA_FLAGS    : u16 = 0x4000; 
 }
 
 impl Kind {
@@ -74,8 +82,29 @@ impl Kind {
     pub fn is_page(&self) -> bool {
         match self {
             Kind::Peer => true,
+            Kind::Replica => true,
             Kind::Generic => true,
             Kind::Private => true,
+            Kind::Primary(_v) => true,
+            Kind::Secondary(_v) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_primary_page(&self) -> bool {
+        match self {
+            Kind::Generic => true,
+            Kind::Peer => true,
+            Kind::Private => true,
+            Kind::Primary(_v) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_secondary_page(&self) -> bool {
+        match self {
+            Kind::Replica => true,
+            Kind::Secondary(_v) => true,
             _ => false,
         }
     }
@@ -120,8 +149,9 @@ impl From<u16> for Kind {
         match val {
             kinds::NONE         => Kind::None,
 
-            kinds::PEER         => Kind::Peer,
             kinds::GENERIC      => Kind::Generic,
+            kinds::PEER         => Kind::Peer,
+            kinds::REPLICA      => Kind::Replica,
             kinds::PRIVATE      => Kind::Private,
 
             kinds::HELLO        => Kind::Hello,
@@ -136,10 +166,11 @@ impl From<u16> for Kind {
             kinds::NO_RESULT    => Kind::NoResult,
 
             _ => {
-                if val & kinds::KIND_MASK == kinds::DATA_FLAGS {
-                    Kind::Data(val & !(kinds::KIND_MASK))
-                } else {
-                    Kind::Other(val & !(kinds::KIND_MASK))
+                match val & kinds::KIND_MASK {
+                    kinds::PRIMARY_PAGE_FLAGS   => Kind::Primary(val & !(kinds::KIND_MASK)),
+                    kinds::SECONDARY_PAGE_FLAGS => Kind::Secondary(val & !(kinds::KIND_MASK)),
+                    kinds::DATA_FLAGS           => Kind::Data(val & !(kinds::KIND_MASK)),
+                    _ => Kind::Other(val & !(kinds::KIND_MASK)),
                 }
             },
         }
@@ -153,11 +184,15 @@ impl Into<u16> for Kind {
 
             Kind::None          => kinds::NONE,
 
-            Kind::Peer          => kinds::PEER,
             Kind::Generic       => kinds::GENERIC,
+            Kind::Peer          => kinds::PEER,
+            Kind::Replica       => kinds::REPLICA,
             Kind::Private       => kinds::PRIVATE,
-            Kind::Hello         => kinds::HELLO,
 
+            Kind::Primary(v)    => v | kinds::PRIMARY_PAGE_FLAGS,
+            Kind::Secondary(v)  => v | kinds::SECONDARY_PAGE_FLAGS,
+
+            Kind::Hello         => kinds::HELLO,
             Kind::Ping          => kinds::PING,
             Kind::FindNodes     => kinds::FIND_NODES,
             Kind::FindValues    => kinds::FIND_VALUES,
@@ -185,23 +220,25 @@ mod tests {
         let tests = vec![
             (Kind::None,            0b0000_0000_0000_0000),
 
-            (Kind::Peer,            0b0000_0000_0000_0001),
-            (Kind::Generic,         0b0000_0000_0000_0010),
+            (Kind::Generic,         0b0000_0000_0000_0001),
+            (Kind::Peer,            0b0000_0000_0000_0010),
             (Kind::Private,         0b0000_1111_1111_1111),
 
+            (Kind::Replica,         0b0001_0000_0000_0011),
+            
             (Kind::Hello,           0b0010_0000_0000_0000),
             (Kind::Ping,            0b0010_0000_0000_0001),
             (Kind::FindNodes,       0b0010_0000_0000_0010),
             (Kind::FindValues,      0b0010_0000_0000_0011),
             (Kind::Store,           0b0010_0000_0000_0100),
 
-            (Kind::Status,          0b0100_0000_0000_0000),
-            (Kind::NoResult,        0b0100_0000_0000_0001),
-            (Kind::NodesFound,      0b0100_0000_0000_0010),
-            (Kind::ValuesFound,     0b0100_0000_0000_0011),
+            (Kind::Status,          0b0011_0000_0000_0000),
+            (Kind::NoResult,        0b0011_0000_0000_0001),
+            (Kind::NodesFound,      0b0011_0000_0000_0010),
+            (Kind::ValuesFound,     0b0011_0000_0000_0011),
             
 
-            (Kind::Data(0b1010),    0b0110_0000_0000_1010),
+            (Kind::Data(0b1010),    0b0100_0000_0000_1010),
 
             (Kind::Other(0b1010),   0b0000_0000_0000_1010)
         ];

@@ -142,18 +142,19 @@ impl Base {
 }
 
 impl Base {
+    #[deprecated]
     pub fn raw_id(data: &[u8]) -> Id {
         let mut id = [0u8; ID_LEN];
         id.clone_from_slice(&data[PAGE_HEADER_LEN..PAGE_HEADER_LEN+ID_LEN]);
         id.into()
     }
-
+    #[deprecated]
     pub fn raw_sig(data: &[u8]) -> Signature {
         let mut sig = [0u8; SIGNATURE_LEN];
         sig.clone_from_slice(&data[data.len()-SIGNATURE_LEN..]);
         sig.into()
     }
-
+    #[deprecated]
     pub fn validate(public_key: &[u8], data: &[u8]) -> bool {
         // TODO: check length is valid
         let sig = &data[data.len()-SIGNATURE_LEN..];
@@ -163,10 +164,9 @@ impl Base {
     }
 
     /// Parses an array containing a page into a page object
-    pub fn parse<'a>(data: &'a [u8]) -> Result<(Base, usize), BaseError> 
+    pub fn parse<'a, T: AsRef<[u8]>>(data: T) -> Result<(Base, usize), BaseError> 
     {
-        let container = Container::new(data);
-        let n = container.len();
+        let (container, n) = Container::from(data);
 
         // Fetch ID for page
         let mut id = [0u8; ID_LEN];
@@ -199,7 +199,7 @@ impl Base {
 }
 
 impl Base {
-    pub fn encode<'a, S, E>(&mut self, mut signer: S, buff: &'a mut [u8]) -> Result<usize, BaseError> 
+    pub fn encode<'a, S, E, T: AsRef<[u8]> + AsMut<[u8]>>(&mut self, mut signer: S, buff: T) -> Result<usize, BaseError> 
     where 
         S: FnMut(&[u8], &[u8]) -> Result<Signature, E>
     {

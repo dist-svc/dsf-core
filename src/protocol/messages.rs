@@ -8,6 +8,8 @@ use crate::protocol::options::Options;
 use crate::protocol::base::{Base, BaseBuilder};
 use crate::protocol::page::Page;
 
+use crate::protocol::{Parse, Encode};
+
 #[derive(Clone, PartialEq, Debug)]
 pub enum Message {
     Request(Request),

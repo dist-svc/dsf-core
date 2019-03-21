@@ -5,7 +5,7 @@ use std::ops::Add;
 
 use crate::types::{Id, Kind, Flags, Error, Address, PublicKey, PrivateKey, Signature, SecretKey};
 use crate::protocol::{options::Options};
-use crate::protocol::page::{Page, PageBuilder};
+use crate::protocol::page::{Page, PageBuilder, PageKind};
 use crate::protocol::messages::{Request, Response, RequestKind, ResponseKind};
 
 use crate::crypto;
@@ -129,7 +129,9 @@ impl Publisher for Service {
         let mut flags = Flags(0);
         flags.set_encrypted(self.encrypted);
 
-        Page::new(self.id.clone(), self.kind, flags, self.version, self.body.clone(), public_options, self.private_options.clone())
+        //Page::new(self.id.clone(), self.kind, flags, self.version, self.body.clone(), public_options, self.private_options.clone())
+
+        Page::new(self.id.clone(), flags, self.version, PageKind::primary(self.public_key.clone()), self.body.clone(), SystemTime::now(), SystemTime::now().add(Duration::from_secs(24 * 60 * 60)))
     }
 }
 
@@ -147,23 +149,22 @@ impl Subscriber for Service {
 
     /// Create a service instance from a given page
     fn load(page: &Page) -> Result<Service, Error> {
-        let header = page.header();
-        let body = page.body();
+
         let flags = header.flags();
+
+        let public_key = match page.kind() {
+            PageKind::Primary(primary) => primary.pub_key,
+            _ => {
+                err!("Attempted to load service from secondary page");
+                return Err(Error::UnexpectedPageType);
+            }
+        };
+
+        let body = page.body();
+
         let public_options = page.public_options();
         let private_options = page.private_options();
 
-        // Fetch public key from options
-        let public_key: PublicKey = match public_options.iter().find_map(|o| match o { Options::PubKey(pk) => Some(pk), _ => None } ) {
-            Some(pk) => pk.public_key.clone(),
-            None => return Err(Error::NoPublicKey)
-        };
-
-        // Check public key and ID match
-        let hash: Id = crypto::hash(&public_key).unwrap().into();
-        if &hash != page.id() {
-            return Err(Error::KeyIdMismatch)
-        }
 
         Ok(Service{
             id: page.id().clone(),
@@ -186,7 +187,7 @@ impl Subscriber for Service {
     /// Apply an upgrade to an existing service.
     /// This consumes a new page and updates the service instance
     fn apply(&mut self, update: &Page) -> Result<(), Error> {
-        let header = update.header();
+
         let body = update.body();
         let flags = header.flags();
         
@@ -197,20 +198,23 @@ impl Subscriber for Service {
         if update.id() != &self.id {
             return Err(Error::UnexpectedServiceId)
         }
-        if header.version() <= self.version {
+        if update.version() <= self.version {
             return Err(Error::InvalidServiceVersion)
         }
-        if header.kind() != self.kind {
+        if update.kind() != self.kind {
             return Err(Error::InvalidPageKind)
         }
-        if header.flags().secondary() {
+        if update.flags().secondary() {
             return Err(Error::ExpectedPrimaryPage)
         }
 
         // Fetch public key from options
-        let public_key: PublicKey = match public_options.iter().find_map(|o| match o { Options::PubKey(pk) => Some(pk), _ => None } ) {
-            Some(pk) => pk.public_key.clone(),
-            None => return Err(Error::NoPublicKey)
+        let public_key = match page.kind() {
+            PageKind::Primary(primary) => primary.pub_key,
+            _ => {
+                err!("Attempted to update service from secondary page");
+                return Err(Error::UnexpectedPageType);
+            }
         };
 
         // Check public key and ID match
@@ -223,7 +227,7 @@ impl Subscriber for Service {
             return Err(Error::PublicKeyChanged)
         }
 
-        self.version = header.version();
+        self.version = update.version();
         self.encrypted = flags.encrypted();
         self.body = body.to_vec();
         self.public_options = public_options.to_vec();
@@ -297,7 +301,11 @@ impl Service
         let mut flags = options.flags;
         flags.set_secondary(true);
 
-        Page::new(self.id.clone(), options.kind, options.flags, options.version, options.body, public_options, options.private_options)
+        //Page::new(self.id.clone(), options.kind, options.flags, options.version, options.body, public_options, options.private_options)
+
+        //Page::new(self.id.clone(), options.flags, options.version, PageKind::Secondary(self.id.clone()), options.body, SystemTime::now(), SystemTime::now().add(Duration::from_secs(24 * 60 * 60)))
+
+        unimplemented!();
     }
 
     pub fn public_key(&self) -> &PublicKey {

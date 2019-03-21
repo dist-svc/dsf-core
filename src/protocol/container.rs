@@ -21,10 +21,12 @@ pub struct Container<T: AsRef<[u8]>> {
 use crate::protocol::base::Base;
 
 impl <'a, T: AsRef<[u8]>> Container<T> {
-    /// Create a new container object
+    /// Create a new container object from an existing buffer
     /// This parses the header and splits the data into fields to simplify access
-    pub fn new(buff: T) -> Self {
-        Container{buff}
+    pub fn from(buff: T) -> (Self, usize) {
+        let c = Container{buff};
+        let n = c.len();
+        (c, n)
     }
 
     pub fn kind(&self) -> Kind {
