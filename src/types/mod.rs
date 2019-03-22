@@ -36,7 +36,6 @@ pub type Address = SocketAddr;
 //#[derive(Clone, PartialEq, Debug)]
 pub type Data = u64;
 
-
 pub mod kinds;
 pub use self::kinds::*;
 
@@ -45,6 +44,9 @@ pub use self::flags::*;
 
 pub mod errors;
 pub use self::errors::*;
+
+pub mod datetime;
+pub use self::datetime::DateTime;
 
 macro_rules! arr {
     ($name:ident, $len:expr) => (

@@ -1,12 +1,11 @@
 use std::io::{Cursor, Write, Read};
 use std::ops::Add;
 use std::str;
-use std::time::{Duration, SystemTime};
 use std::net::{SocketAddr, SocketAddrV4, SocketAddrV6};
 
 use byteorder::{ByteOrder, NetworkEndian, ReadBytesExt, WriteBytesExt};
 
-use crate::types::{Id, ID_LEN, PublicKey, PUBLIC_KEY_LEN, RequestId, REQUEST_ID_LEN};
+use crate::types::{Id, ID_LEN, PublicKey, PUBLIC_KEY_LEN, RequestId, REQUEST_ID_LEN, DateTime};
 use crate::protocol::{Encode, Parse};
 
 /// D-IoT Optional fields
@@ -99,11 +98,13 @@ impl Options {
         Options::Metadata(Metadata::new(key.clone(), value.clone()))
     }
 
-    pub fn issued(now: SystemTime) -> Options {
+    pub fn issued<T>(now: T) -> Options 
+    where T: Into<DateTime> {
         Options::Issued(Issued::new(now))
     }
 
-    pub fn expiry(when: SystemTime) -> Options {
+    pub fn expiry<T>(when: T) -> Options
+    where T: Into<DateTime>  {
         Options::Expiry(Expiry::new(when))
     }
 
@@ -546,25 +547,15 @@ impl From<Metadata> for Options {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Issued {
-    pub when: SystemTime,
+    pub when: DateTime,
 }
 
 impl Issued {
-    pub fn new(when: SystemTime) -> Issued {
-        Issued { when }
-    }
-
-    pub fn as_secs(&self) -> u64 {
-        let when = self.when.duration_since(SystemTime::UNIX_EPOCH).unwrap();
-        when.as_secs()
-    }
-}
-
-impl PartialEq for Issued {
-    fn eq(&self, other: &Issued) -> bool {
-        self.as_secs() == other.as_secs()
+    pub fn new<T>(when: T) -> Issued 
+    where T: Into<DateTime> {
+        Issued { when: when.into() }
     }
 }
 
@@ -575,8 +566,7 @@ impl Parse for Issued {
         let mut r = Cursor::new(data);
 
         let raw = r.read_u64::<NetworkEndian>()?;
-        let duration = Duration::from_secs(raw);
-        let when = SystemTime::UNIX_EPOCH.add(duration);
+        let when = DateTime::from_secs(raw);
 
         Ok((Issued { when }, r.position() as usize))
     }
@@ -590,32 +580,23 @@ impl Encode for Issued {
         w.write_u16::<NetworkEndian>(option_kinds::ISSUED)?;
         w.write_u16::<NetworkEndian>(8)?;
 
-        w.write_u64::<NetworkEndian>(self.as_secs())?;
+        w.write_u64::<NetworkEndian>(self.when.as_secs())?;
 
         Ok(w.position() as usize)
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Expiry {
-    pub when: SystemTime,
+    pub when: DateTime,
 }
 
 impl Expiry {
-    pub fn new(when: SystemTime) -> Expiry {
-        Expiry { when }
+    pub fn new<T>(when: T) -> Expiry 
+    where T: Into<DateTime> {
+        Expiry { when: when.into() }
     }
 
-    pub fn as_secs(&self) -> u64 {
-        let when = self.when.duration_since(SystemTime::UNIX_EPOCH).unwrap();
-        when.as_secs()
-    }
-}
-
-impl PartialEq for Expiry {
-    fn eq(&self, other: &Expiry) -> bool {
-        self.as_secs() == other.as_secs()
-    }
 }
 
 impl Parse for Expiry {
@@ -625,8 +606,7 @@ impl Parse for Expiry {
         let mut r = Cursor::new(data);
 
         let raw = r.read_u64::<NetworkEndian>()?;
-        let duration = Duration::from_secs(raw);
-        let when = SystemTime::UNIX_EPOCH.add(duration);
+        let when = DateTime::from_secs(raw);
 
         Ok((Expiry { when }, r.position() as usize))
     }
@@ -640,7 +620,7 @@ impl Encode for Expiry {
         w.write_u16::<NetworkEndian>(option_kinds::EXPIRY)?;
         w.write_u16::<NetworkEndian>(8)?;
 
-        w.write_u64::<NetworkEndian>(self.as_secs())?;
+        w.write_u64::<NetworkEndian>(self.when.as_secs())?;
 
         Ok(w.position() as usize)
     }
@@ -652,6 +632,7 @@ mod tests {
     use super::*;
 
     use std::net::{Ipv4Addr, Ipv6Addr};
+    use std::time::{SystemTime, Duration};
 
     #[test]
     fn encode_decode_option_types() {

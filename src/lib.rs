@@ -19,6 +19,8 @@ extern crate try_from;
 #[macro_use]
 extern crate log;
 
+extern crate chrono;
+
 pub mod types;
 pub mod crypto;
 pub mod service;

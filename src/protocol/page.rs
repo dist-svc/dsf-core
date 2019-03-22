@@ -33,10 +33,10 @@ pub struct Page {
     body: Vec<u8>,
 
     // Common options
-    #[builder(default = "SystemTime::now()")]
-    issued: SystemTime,
-    #[builder(default = "SystemTime::now().add(Duration::from_secs(24 * 60 * 60))")]
-    expiry: SystemTime,
+    #[builder(default = "SystemTime::now().into()")]
+    issued: DateTime,
+    #[builder(default = "SystemTime::now().add(Duration::from_secs(24 * 60 * 60)).into()")]
+    expiry: DateTime,
 
     // Encryption / Decryption
     #[builder(default = "None")]
@@ -53,7 +53,7 @@ impl Page {
     /// Create a new page
     pub fn new(id: Id, flags: Flags, version: u16, kind: Kind, info: PageInfo, body: Vec<u8>, issued: SystemTime, expiry: SystemTime) -> Self {
         Page{
-            id, flags, version, kind, info, body, issued, expiry, 
+            id, flags, version, kind, info, body, issued: issued.into(), expiry: expiry.into(), 
             public_options: vec![],
             private_options: vec![],
             encryption_key: None
@@ -139,7 +139,7 @@ impl PageBuilder {
     }
 
     pub fn valid_for(&mut self, d: Duration) -> &mut Self {
-        self.expiry = Some(SystemTime::now().add(d));
+        self.expiry = Some(SystemTime::now().add(d).into());
         self
     }
 }

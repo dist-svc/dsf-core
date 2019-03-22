@@ -4,7 +4,7 @@ use std::time::SystemTime;
 
 use byteorder::{ByteOrder, NetworkEndian};
 
-use crate::types::{Id, ID_LEN, Signature, SIGNATURE_LEN, Flags, Kind, PublicKey, RequestId, Address};
+use crate::types::{Id, ID_LEN, Signature, SIGNATURE_LEN, Flags, Kind, PublicKey, RequestId, Address, DateTime};
 use crate::protocol::{Encode, Parse};
 use crate::protocol::header::Header;
 use crate::protocol::options::{Options, OptionsError};
@@ -140,7 +140,7 @@ impl Base {
         })
     }
 
-    pub fn issued_option(&self) -> Option<SystemTime> {
+    pub fn issued_option(&self) -> Option<DateTime> {
         self.public_options().iter().find_map(|o| {
             match o { 
                 Options::Issued(t) => Some(t.when),
@@ -149,7 +149,7 @@ impl Base {
         })
     }
 
-    pub fn expiry_option(&self) -> Option<SystemTime> {
+    pub fn expiry_option(&self) -> Option<DateTime> {
         self.public_options().iter().find_map(|o| {
             match o { 
                 Options::Expiry(t) => Some(t.when),
