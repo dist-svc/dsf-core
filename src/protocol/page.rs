@@ -1,5 +1,6 @@
 
-use std::time::SystemTime;
+use std::time::{SystemTime, Duration};
+use std::ops::Add;
 
 use try_from::TryFrom;
 
@@ -18,31 +19,41 @@ use crate::crypto;
 pub struct Page {
     // Header
     id: Id,
+    
+    #[builder(default = "Flags::default()")]
     flags: Flags,
+    #[builder(default = "0")]
     version: u16,
 
-    kind: PageKind,
-
+    kind: Kind,
+    info: PageInfo,
+    
     // Body
+    #[builder(default = "vec![]")]
     body: Vec<u8>,
 
     // Common options
+    #[builder(default = "SystemTime::now()")]
     issued: SystemTime,
+    #[builder(default = "SystemTime::now().add(Duration::from_secs(24 * 60 * 60))")]
     expiry: SystemTime,
 
     // Encryption / Decryption
+    #[builder(default = "None")]
     encryption_key: Option<SecretKey>,
 
+    #[builder(default = "vec![]")]
     public_options: Vec<Options>,
+    #[builder(default = "vec![]")]
     private_options: Vec<Options>,
 }
 
 impl Page {
 
     /// Create a new page
-    pub fn new(id: Id, flags: Flags, version: u16, kind: PageKind, body: Vec<u8>, issued: SystemTime, expiry: SystemTime) -> Self {
+    pub fn new(id: Id, flags: Flags, version: u16, kind: Kind, info: PageInfo, body: Vec<u8>, issued: SystemTime, expiry: SystemTime) -> Self {
         Page{
-            id, kind, flags, version, body, issued, expiry, 
+            id, flags, version, kind, info, body, issued, expiry, 
             public_options: vec![],
             private_options: vec![],
             encryption_key: None
@@ -61,8 +72,12 @@ impl Page {
         self.version
     }
 
-    pub fn kind(&self) -> &PageKind {
-        &self.kind
+    pub fn kind(&self) -> Kind {
+        self.kind
+    }
+
+    pub fn info(&self) -> &PageInfo {
+        &self.info
     }
 
     pub fn body(&self) -> &[u8] {
@@ -106,10 +121,33 @@ impl Page {
     }
 }
 
+impl PageBuilder {
+    pub fn append_public_option(&mut self, o: Options) -> &mut Self {
+        match &mut self.public_options {
+            Some(opts) => opts.push(o),
+            None => self.public_options = Some(vec![o]),
+        }
+        self
+    }
+
+    pub fn append_private_option(&mut self, o: Options) -> &mut Self {
+        match &mut self.private_options {
+            Some(opts) => opts.push(o),
+            None => self.private_options = Some(vec![o]),
+        }
+        self
+    }
+
+    pub fn valid_for(&mut self, d: Duration) -> &mut Self {
+        self.expiry = Some(SystemTime::now().add(d));
+        self
+    }
+}
+
 
 impl Into<Base> for Page {
     fn into(self) -> Base {
-        let mut flags = Flags::default();
+        let mut flags = self.flags.clone();
 
         // Insert default options
         let mut default_options = vec![
@@ -118,11 +156,11 @@ impl Into<Base> for Page {
         ];
         
         // Add public fields for Primary and Secondary pages
-        match self.kind {
-            PageKind::Primary(primary) => {
+        match self.info {
+            PageInfo::Primary(primary) => {
                 default_options.push(Options::public_key(primary.pub_key));
             },
-            PageKind::Secondary(secondary) => {
+            PageInfo::Secondary(secondary) => {
                 default_options.push(Options::peer_id(secondary.peer_id));
             }
         }
@@ -138,7 +176,7 @@ impl Into<Base> for Page {
         }
 
         // Generate base object
-        Base::new(self.id, Kind::None, flags, self.version, self.body, public_options, self.private_options)
+        Base::new(self.id, self.kind, flags, self.version, self.body, public_options, self.private_options)
     }
 }
 
@@ -149,59 +187,84 @@ impl TryFrom<Base> for Page {
 
         let header = base.header();
         let body = base.body();
+
         let flags = header.flags();
         let kind = header.kind();
 
         let public_options = base.public_options();
         let private_options = base.private_options();
 
-        if kind.is_primary_page() {
+        let issued = match base.issued_option() {
+            Some(issued) => issued,
+            None => return Err(Error::Unimplemented),
+        };
+
+        let expiry = match base.expiry_option() {
+            Some(expiry) => expiry,
+            None => return Err(Error::Unimplemented),
+        };
+
+        let info = if kind.is_primary_page() {
             // Handle primary page parsing
 
             // Fetch public key from options
-            let public_key: PublicKey = match public_options.iter().find_map(|o| match o { Options::PubKey(pk) => Some(pk), _ => None } ) {
-                Some(pk) => pk.public_key.clone(),
+            let public_key: PublicKey = match base.pub_key_option() {
+                Some(pk) => pk,
                 None => return Err(Error::NoPublicKey)
             };
 
             // Check public key and ID match
             let hash: Id = crypto::hash(&public_key).unwrap().into();
-            if &hash != header.id() {
+            if &hash != base.id() {
                 return Err(Error::KeyIdMismatch)
             }
+
+            PageInfo::primary(public_key)
+
         } else if kind.is_secondary_page() {
             // Handle secondary page parsing
-            let peer_id: Id = match public_options.iter().find_map(|o| match o { Options::PeerId(id) => Some(id), _ => None } ) {
-                Some(id) => id.peer_id.clone(),
+            let peer_id = match base.peer_id_option() {
+                Some(id) => id,
                 None => return Err(Error::NoPublicKey)
             };
 
+            PageInfo::secondary(peer_id)
 
         } else {
-            err!("Attempted to convert non-page base object to page");
+            print!("Attempted to convert non-page base object ({:?}) to page", kind);
             return Err(Error::UnexpectedPageType);
-        }
+        };
 
-
-
-       unimplemented!();
+        Ok(Page{
+            id: base.id().clone(),
+            flags: header.flags(),
+            version: header.version(),
+            kind: header.kind(),
+            info,
+            body: body.to_vec(),
+            issued,
+            expiry,
+            encryption_key: None,
+            public_options: vec![],
+            private_options: vec![],
+        })
     }
 }
 
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum PageKind {
+pub enum PageInfo {
     Primary(Primary),
     Secondary(Secondary),
 }
 
-impl PageKind {
+impl PageInfo {
     pub fn primary(pub_key: PublicKey) -> Self {
-        PageKind::Primary(Primary{pub_key})
+        PageInfo::Primary(Primary{pub_key})
     }
 
     pub fn secondary(peer_id: Id) -> Self {
-        PageKind::Secondary(Secondary{peer_id})
+        PageInfo::Secondary(Secondary{peer_id})
     }
 }
 

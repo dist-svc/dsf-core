@@ -16,6 +16,9 @@ extern crate structopt;
 
 extern crate try_from;
 
+#[macro_use]
+extern crate log;
+
 pub mod types;
 pub mod crypto;
 pub mod service;

@@ -1,5 +1,6 @@
 
 use std::net::{SocketAddr};
+use std::time::SystemTime;
 
 use byteorder::{ByteOrder, NetworkEndian};
 
@@ -125,6 +126,33 @@ impl Base {
         self.public_options().iter().find_map(|o| {
             match o { 
                 Options::RequestId(req_id) => Some(req_id.request_id),
+                 _ => None 
+            } 
+        })
+    }
+
+    pub fn peer_id_option(&self) -> Option<Id> {
+        self.public_options().iter().find_map(|o| {
+            match o { 
+                Options::PeerId(peer_id) => Some(peer_id.peer_id.clone()),
+                 _ => None 
+            } 
+        })
+    }
+
+    pub fn issued_option(&self) -> Option<SystemTime> {
+        self.public_options().iter().find_map(|o| {
+            match o { 
+                Options::Issued(t) => Some(t.when),
+                 _ => None 
+            } 
+        })
+    }
+
+    pub fn expiry_option(&self) -> Option<SystemTime> {
+        self.public_options().iter().find_map(|o| {
+            match o { 
+                Options::Expiry(t) => Some(t.when),
                  _ => None 
             } 
         })

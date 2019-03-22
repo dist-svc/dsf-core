@@ -2,10 +2,12 @@
 
 use std::time::{Duration, SystemTime};
 use std::ops::Add;
+use try_from::TryInto;
 
 use crate::types::{Id, Kind, Flags, Error, Address, PublicKey, PrivateKey, Signature, SecretKey};
 use crate::protocol::{options::Options};
-use crate::protocol::page::{Page, PageBuilder, PageKind};
+use crate::protocol::base::{Base, BaseBuilder};
+use crate::protocol::page::{Page, PageBuilder, PageInfo};
 use crate::protocol::messages::{Request, Response, RequestKind, ResponseKind};
 
 use crate::crypto;
@@ -91,7 +93,7 @@ impl Default for Service {
         let id = crypto::hash(&public_key).unwrap().into();
 
         // Create service object
-        Service{id, kind: Kind::None, version: 0, body: vec![], public_options: vec![], private_options: vec![], public_key: public_key, private_key: Some(private_key), encrypted: false, secret_key: None}
+        Service{id, kind: Kind::Generic, version: 0, body: vec![], public_options: vec![], private_options: vec![], public_key: public_key, private_key: Some(private_key), encrypted: false, secret_key: None}
     }
 }
 
@@ -131,7 +133,7 @@ impl Publisher for Service {
 
         //Page::new(self.id.clone(), self.kind, flags, self.version, self.body.clone(), public_options, self.private_options.clone())
 
-        Page::new(self.id.clone(), flags, self.version, PageKind::primary(self.public_key.clone()), self.body.clone(), SystemTime::now(), SystemTime::now().add(Duration::from_secs(24 * 60 * 60)))
+        Page::new(self.id.clone(), flags, self.version, self.kind.into(), PageInfo::primary(self.public_key.clone()), self.body.clone(), SystemTime::now(), SystemTime::now().add(Duration::from_secs(24 * 60 * 60)))
     }
 }
 
@@ -150,12 +152,12 @@ impl Subscriber for Service {
     /// Create a service instance from a given page
     fn load(page: &Page) -> Result<Service, Error> {
 
-        let flags = header.flags();
+        let flags = page.flags();
 
-        let public_key = match page.kind() {
-            PageKind::Primary(primary) => primary.pub_key,
+        let public_key = match page.info() {
+            PageInfo::Primary(primary) => primary.pub_key.clone(),
             _ => {
-                err!("Attempted to load service from secondary page");
+                error!("Attempted to load service from secondary page");
                 return Err(Error::UnexpectedPageType);
             }
         };
@@ -168,8 +170,8 @@ impl Subscriber for Service {
 
         Ok(Service{
             id: page.id().clone(),
-            kind: header.kind(),
-            version: header.version(),
+            kind: page.kind().into(),
+            version: page.version(),
 
             body: body.to_vec(),
 
@@ -189,7 +191,7 @@ impl Subscriber for Service {
     fn apply(&mut self, update: &Page) -> Result<(), Error> {
 
         let body = update.body();
-        let flags = header.flags();
+        let flags = update.flags();
         
         let public_options = update.public_options();
         let private_options = update.private_options();
@@ -201,7 +203,7 @@ impl Subscriber for Service {
         if update.version() <= self.version {
             return Err(Error::InvalidServiceVersion)
         }
-        if update.kind() != self.kind {
+        if update.kind() != self.kind.into() {
             return Err(Error::InvalidPageKind)
         }
         if update.flags().secondary() {
@@ -209,10 +211,10 @@ impl Subscriber for Service {
         }
 
         // Fetch public key from options
-        let public_key = match page.kind() {
-            PageKind::Primary(primary) => primary.pub_key,
+        let public_key: PublicKey = match update.info() {
+            PageInfo::Primary(primary) => primary.pub_key.clone(),
             _ => {
-                err!("Attempted to update service from secondary page");
+                error!("Attempted to update service from secondary page");
                 return Err(Error::UnexpectedPageType);
             }
         };
@@ -303,7 +305,7 @@ impl Service
 
         //Page::new(self.id.clone(), options.kind, options.flags, options.version, options.body, public_options, options.private_options)
 
-        //Page::new(self.id.clone(), options.flags, options.version, PageKind::Secondary(self.id.clone()), options.body, SystemTime::now(), SystemTime::now().add(Duration::from_secs(24 * 60 * 60)))
+        //Page::new(self.id.clone(), options.flags, options.version, PageInfo::Secondary(self.id.clone()), options.body, SystemTime::now(), SystemTime::now().add(Duration::from_secs(24 * 60 * 60)))
 
         unimplemented!();
     }
@@ -321,12 +323,12 @@ impl Service
     }
 
     /// Generate a protocol message from a request object
-    pub fn build_request(&self, req: &Request) -> Page {
+    pub fn build_request(&self, req: &Request) -> Base {
         let kind: Kind;
         let mut flags = Flags(0);
         let mut body = vec![];
 
-        let mut builder = PageBuilder::default();
+        let mut builder = BaseBuilder::default();
 
         match &req.data {
             RequestKind::Hello => {
@@ -359,11 +361,11 @@ impl Service
 
 
     /// Generate a response message
-    pub fn build_response(&self, req: &Request, from: Address, resp: &Response) -> Page {
+    pub fn build_response(&self, req: &Request, from: Address, resp: &Response) -> Base {
         let kind: Kind;
         let flags = Flags(0);
 
-        let mut builder = PageBuilder::default();
+        let mut builder = BaseBuilder::default();
 
         match &resp.data {
             ResponseKind::Status => {
@@ -422,14 +424,18 @@ mod test {
 
         println!("Encoding service page");
         let mut buff = vec![0u8; 1024];
-        let n = page1.encode(|_id, d| service.sign(d).map_err(|_e| () ), &mut buff).expect("Error encoding service page");
+        let mut base1: Base = page1.clone().into();
+        let n = base1.encode(|_id, d| service.sign(d).map_err(|_e| () ), &mut buff).expect("Error encoding service page");
 
         println!("Encoded service to {} bytes", n);
     
         println!("Decoding service page");
-        let (page2, m) = Page::parse(&buff[..n]).expect("Error parsing service page");
-        assert_eq!(page1, page2);
+        let (base2, m) = Base::parse(&buff[..n]).expect("Error parsing service page");
+        assert_eq!(base1, base2);
         assert_eq!(n, m);
+        let page2: Page = base2.try_into().expect("Error converting base message to page");
+        assert_eq!(page1, page2);
+
 
         println!("Generating service replica");
         let mut replica = Service::load(&page2).expect("Error generating service replica");

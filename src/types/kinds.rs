@@ -3,16 +3,14 @@
 /// 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Kind {
-    None,
-
     // Pages
     Generic,
     Peer,
     Replica,
     Private,
 
-    Primary(u16),
-    Secondary(u16),
+    Primary(bool, u16),
+    Secondary(bool, u16),
 
     // Messages
     Hello,
@@ -25,18 +23,13 @@ pub enum Kind {
     ValuesFound,
     NoResult,
 
-    Data(u16),
-
-    // Other DSD / Unknown    
-    Other(u16),
-
-    Application(u16),
+    Data(bool, u16),
 }
 
 pub mod kinds {
     pub const NONE          : u16 = 0x0000;
 
-    pub const KIND_MASK     : u16 = 0xF000;
+    pub const KIND_MASK     : u16 = 0x7000;
 
     pub const APP_FLAG      : u16 = 0x8000;
 
@@ -74,8 +67,10 @@ impl Kind {
 
      pub fn is_application(&self) -> bool {
         match self {
-            Kind::Application(_) => true,
-            _ => false,
+            Kind::Primary(a, _v)    => *a,
+            Kind::Secondary(a, _v)  => *a,
+            Kind::Data(a, _v)       => *a,
+            _ => true,
         }
     }
 
@@ -85,8 +80,8 @@ impl Kind {
             Kind::Replica => true,
             Kind::Generic => true,
             Kind::Private => true,
-            Kind::Primary(_v) => true,
-            Kind::Secondary(_v) => true,
+            Kind::Primary(_a, _v) => true,
+            Kind::Secondary(_a, _v) => true,
             _ => false,
         }
     }
@@ -96,7 +91,7 @@ impl Kind {
             Kind::Generic => true,
             Kind::Peer => true,
             Kind::Private => true,
-            Kind::Primary(_v) => true,
+            Kind::Primary(_a, _v) => true,
             _ => false,
         }
     }
@@ -104,7 +99,7 @@ impl Kind {
     pub fn is_secondary_page(&self) -> bool {
         match self {
             Kind::Replica => true,
-            Kind::Secondary(_v) => true,
+            Kind::Secondary(_a, _v) => true,
             _ => false,
         }
     }
@@ -132,7 +127,7 @@ impl Kind {
 
     pub fn is_data(&self) -> bool {
         match self {
-            Kind::Data(_) => true,
+            Kind::Data(_a, _v) => true,
             _ => false,
         }
     }
@@ -141,13 +136,7 @@ impl Kind {
 
 impl From<u16> for Kind {
     fn from(val: u16) -> Kind {
-        // Short circuit for application messages
-        if val & kinds::APP_FLAG != 0 {
-            return Kind::Application(val)
-        }
-
         match val {
-            kinds::NONE         => Kind::None,
 
             kinds::GENERIC      => Kind::Generic,
             kinds::PEER         => Kind::Peer,
@@ -166,11 +155,14 @@ impl From<u16> for Kind {
             kinds::NO_RESULT    => Kind::NoResult,
 
             _ => {
+                let app = val & kinds::APP_FLAG != 0;
+                let v = (val & !(kinds::KIND_MASK | kinds::APP_FLAG));
+
                 match val & kinds::KIND_MASK {
-                    kinds::PRIMARY_PAGE_FLAGS   => Kind::Primary(val & !(kinds::KIND_MASK)),
-                    kinds::SECONDARY_PAGE_FLAGS => Kind::Secondary(val & !(kinds::KIND_MASK)),
-                    kinds::DATA_FLAGS           => Kind::Data(val & !(kinds::KIND_MASK)),
-                    _ => Kind::Other(val & !(kinds::KIND_MASK)),
+                    kinds::PRIMARY_PAGE_FLAGS   => Kind::Primary(app, v),
+                    kinds::SECONDARY_PAGE_FLAGS => Kind::Secondary(app, v),
+                    kinds::DATA_FLAGS           => Kind::Data(app, v),
+                    _ => panic!("unrecognized kind"),
                 }
             },
         }
@@ -180,17 +172,11 @@ impl From<u16> for Kind {
 impl Into<u16> for Kind {
     fn into(self) -> u16 {
         match self {
-            Kind::Application(v) => v | kinds::APP_FLAG,
-
-            Kind::None          => kinds::NONE,
 
             Kind::Generic       => kinds::GENERIC,
             Kind::Peer          => kinds::PEER,
             Kind::Replica       => kinds::REPLICA,
             Kind::Private       => kinds::PRIVATE,
-
-            Kind::Primary(v)    => v | kinds::PRIMARY_PAGE_FLAGS,
-            Kind::Secondary(v)  => v | kinds::SECONDARY_PAGE_FLAGS,
 
             Kind::Hello         => kinds::HELLO,
             Kind::Ping          => kinds::PING,
@@ -203,9 +189,28 @@ impl Into<u16> for Kind {
             Kind::ValuesFound   => kinds::VALUES_FOUND,
             Kind::NoResult      => kinds::NO_RESULT,
 
-            Kind::Data(v)       => v | kinds::DATA_FLAGS,
+            Kind::Primary(a, v)    => { 
+                if a {
+                    v | kinds::PRIMARY_PAGE_FLAGS | kinds::APP_FLAG
+                } else {
+                    v | kinds::PRIMARY_PAGE_FLAGS
+                }
+            },
+            Kind::Secondary(a, v)  => { 
+                if a {
+                    v | kinds::SECONDARY_PAGE_FLAGS | kinds::APP_FLAG
+                } else {
+                    v | kinds::SECONDARY_PAGE_FLAGS
+                }
+            },
 
-            Kind::Other(v)      => v,
+            Kind::Data(a, v)       => { 
+                if a {
+                    v | kinds::DATA_FLAGS | kinds::APP_FLAG
+                } else {
+                    v | kinds::DATA_FLAGS
+                }
+            },
         }
     }
 }
@@ -218,7 +223,6 @@ mod tests {
     #[test]
     fn test_kinds() {
         let tests = vec![
-            (Kind::None,            0b0000_0000_0000_0000),
 
             (Kind::Generic,         0b0000_0000_0000_0001),
             (Kind::Peer,            0b0000_0000_0000_0010),
@@ -237,10 +241,12 @@ mod tests {
             (Kind::NodesFound,      0b0011_0000_0000_0010),
             (Kind::ValuesFound,     0b0011_0000_0000_0011),
             
-
-            (Kind::Data(0b1010),    0b0100_0000_0000_1010),
-
-            (Kind::Other(0b1010),   0b0000_0000_0000_1010)
+            (Kind::Primary(false, 0b1010),      0b0000_0000_0000_1010),
+            (Kind::Primary(true, 0b1010),       0b1000_0000_0000_1010),
+            (Kind::Secondary(false, 0b1010),    0b0001_0000_0000_1010),
+            (Kind::Secondary(true, 0b1010),     0b1001_0000_0000_1010),
+            (Kind::Data(false, 0b1010),         0b0100_0000_0000_1010),
+            (Kind::Data(true, 0b1010),          0b1100_0000_0000_1010),
         ];
 
         for (t, v) in tests {

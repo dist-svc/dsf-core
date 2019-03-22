@@ -281,7 +281,7 @@ impl Encode for PubKey {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct PeerId {
-    peer_id: Id,
+    pub peer_id: Id,
 }
 
 impl PeerId {
@@ -548,7 +548,7 @@ impl From<Metadata> for Options {
 
 #[derive(Debug, Clone)]
 pub struct Issued {
-    when: SystemTime,
+    pub when: SystemTime,
 }
 
 impl Issued {
@@ -598,7 +598,7 @@ impl Encode for Issued {
 
 #[derive(Debug, Clone)]
 pub struct Expiry {
-    when: SystemTime,
+    pub when: SystemTime,
 }
 
 impl Expiry {

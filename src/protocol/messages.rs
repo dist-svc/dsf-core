@@ -199,7 +199,8 @@ impl Into<Base> for Request {
                 // TODO: store data
                 
                 for p in pages {
-                    let n = p.clone().encode(|_id, _data| Err(()) , &mut buff).unwrap();
+                    let mut b: Base = p.clone().into();
+                    let n = b.encode(|_id, _data| Err(()) , &mut buff).unwrap();
                 }
 
 
@@ -352,6 +353,7 @@ mod tests {
 
     use super::*;
     use crate::protocol::header::{HeaderBuilder};
+    use crate::protocol::page::{Page, PageBuilder, PageInfo};
 
     use crate::crypto;
     #[test]
@@ -361,8 +363,7 @@ mod tests {
         let fake_id = crypto::hash(&[0, 1, 2, 3, 4]).expect("Error generating fake target ID");
         let flags = Flags::default().set_address_request(true);
 
-        let header = HeaderBuilder::default().kind(Kind::Generic).build().expect("Error building page header");
-        let mut page = BaseBuilder::default().id(id.clone()).header(header).body(vec![]).build().expect("Error building page");
+        let mut page = PageBuilder::default().id(id.clone()).kind(Kind::Generic).info(PageInfo::primary(pub_key.clone())).build().expect("Error building page");
 
 
         let messages: Vec<Message> = vec![
