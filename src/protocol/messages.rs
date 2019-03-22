@@ -56,6 +56,7 @@ impl TryFrom<Base> for Message {
 
         // Check for DSD messages
         if !kind.is_dsd() {
+            println!("Error converting application-specific base object {:?} to message", kind);
             return Err(Error::InvalidMessageType)
         }
 
@@ -65,6 +66,7 @@ impl TryFrom<Base> for Message {
         } else if kind.is_response() {
             Ok(Message::Response(Response::try_from(base)?))
         } else {
+            println!("Error converting base object of kind {:?} to message", kind);
             Err(Error::InvalidMessageType)
         }
     }
@@ -145,6 +147,7 @@ impl TryFrom<Base> for Request {
                 RequestKind::Store(id, vec![])
             },
             _ => {
+                println!("Error converting base object of kind {:?} to request message", header.kind());
                 return Err(Error::InvalidMessageKind)
             }
         };
@@ -292,6 +295,7 @@ impl TryFrom<Base> for Response {
                 ResponseKind::ValuesFound(id, vec![])
             },
             _ => {
+                error!("Error converting base object of kind {:?} to response message", header.kind());
                 return Err(Error::InvalidMessageKind)
             }
         };
@@ -379,15 +383,15 @@ mod tests {
             // Cast to base
             let mut b: Base = message.clone().into();
             // Encode base
-            let n = b.encode(|_id, data| crypto::pk_sign(&pri_key, data), &mut buff).unwrap();
+            let n = b.encode(|_id, data| crypto::pk_sign(&pri_key, data), &mut buff).expect("error encoding message");
             // Parse base and check instances match
-            let (d, m)= Base::parse(&buff[..n]).unwrap();
+            let (d, m)= Base::parse(&buff[..n]).expect("error parsing message");
 
             assert_eq!(n, m);
             assert_eq!(b, d);
 
             // Cast to message and check instances match
-            let message2 = Message::try_from(d).unwrap();
+            let message2 = Message::try_from(d).expect("error converting base object to message");
 
             assert_eq!(message, message2);
         }

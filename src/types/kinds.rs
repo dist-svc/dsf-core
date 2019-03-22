@@ -70,7 +70,7 @@ impl Kind {
             Kind::Primary(a, _v)    => *a,
             Kind::Secondary(a, _v)  => *a,
             Kind::Data(a, _v)       => *a,
-            _ => true,
+            _ => false,
         }
     }
 
