@@ -156,7 +156,7 @@ impl From<u16> for Kind {
 
             _ => {
                 let app = val & kinds::APP_FLAG != 0;
-                let v = (val & !(kinds::KIND_MASK | kinds::APP_FLAG));
+                let v = val & !(kinds::KIND_MASK | kinds::APP_FLAG);
 
                 match val & kinds::KIND_MASK {
                     kinds::PRIMARY_PAGE_FLAGS   => Kind::Primary(app, v),

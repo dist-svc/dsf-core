@@ -1,5 +1,4 @@
 use std::io::{Cursor, Write, Read};
-use std::ops::Add;
 use std::str;
 use std::net::{SocketAddr, SocketAddrV4, SocketAddrV6};
 
@@ -632,7 +631,7 @@ mod tests {
     use super::*;
 
     use std::net::{Ipv4Addr, Ipv6Addr};
-    use std::time::{SystemTime, Duration};
+    use std::time::{SystemTime};
 
     #[test]
     fn encode_decode_option_types() {

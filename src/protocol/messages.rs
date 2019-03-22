@@ -8,8 +8,6 @@ use crate::protocol::options::Options;
 use crate::protocol::base::{Base, BaseBuilder};
 use crate::protocol::page::Page;
 
-use crate::protocol::{Parse, Encode};
-
 #[derive(Clone, PartialEq, Debug)]
 pub enum Message {
     Request(Request),
@@ -203,7 +201,7 @@ impl Into<Base> for Request {
                 
                 for p in pages {
                     let mut b: Base = p.clone().into();
-                    let n = b.encode(|_id, _data| Err(()) , &mut buff).unwrap();
+                    let _n = b.encode(|_id, _data| Err(()) , &mut buff).unwrap();
                 }
 
 
@@ -356,8 +354,7 @@ impl Into<Base> for Response {
 mod tests {
 
     use super::*;
-    use crate::protocol::header::{HeaderBuilder};
-    use crate::protocol::page::{Page, PageBuilder, PageInfo};
+    use crate::protocol::page::{PageBuilder, PageInfo};
 
     use crate::crypto;
     #[test]
@@ -367,7 +364,7 @@ mod tests {
         let fake_id = crypto::hash(&[0, 1, 2, 3, 4]).expect("Error generating fake target ID");
         let flags = Flags::default().set_address_request(true);
 
-        let mut page = PageBuilder::default().id(id.clone()).kind(Kind::Generic).info(PageInfo::primary(pub_key.clone())).build().expect("Error building page");
+        let page = PageBuilder::default().id(id.clone()).kind(Kind::Generic).info(PageInfo::primary(pub_key.clone())).build().expect("Error building page");
 
 
         let messages: Vec<Message> = vec![

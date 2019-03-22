@@ -6,7 +6,7 @@ use try_from::TryFrom;
 
 use crate::types::*;
 use crate::protocol::options::Options;
-use crate::protocol::base::{Base, BaseBuilder};
+use crate::protocol::base::{Base};
 use crate::protocol::container::Container;
 use crate::crypto;
 
@@ -95,7 +95,7 @@ impl Page {
 
 impl Page {
     pub fn decode_pages<T: AsRef<[u8]>>(buff: T) -> Result<Vec<Page>, ()> {
-        let mut pages = vec![];
+        let pages = vec![];
 
         let mut i = 0;
 
@@ -107,7 +107,7 @@ impl Page {
             }
 
             // Fetch container
-            let (c, n) = Container::from(d);
+            let (_c, n) = Container::from(d);
 
             // Validate signature
 
@@ -188,11 +188,11 @@ impl TryFrom<Base> for Page {
         let header = base.header();
         let body = base.body();
 
-        let flags = header.flags();
+        let _flags = header.flags();
         let kind = header.kind();
 
-        let public_options = base.public_options();
-        let private_options = base.private_options();
+        let _public_options = base.public_options();
+        let _private_options = base.private_options();
 
         let issued = match base.issued_option() {
             Some(issued) => issued,

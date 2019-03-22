@@ -2,12 +2,11 @@
 
 use std::time::{Duration, SystemTime};
 use std::ops::Add;
-use try_from::TryInto;
 
 use crate::types::{Id, Kind, Flags, Error, Address, PublicKey, PrivateKey, Signature, SecretKey};
 use crate::protocol::{options::Options};
 use crate::protocol::base::{Base, BaseBuilder};
-use crate::protocol::page::{Page, PageBuilder, PageInfo};
+use crate::protocol::page::{Page, PageInfo};
 use crate::protocol::messages::{Request, Response, RequestKind, ResponseKind};
 
 use crate::crypto;
@@ -405,6 +404,8 @@ mod test {
 
     use std::net::{SocketAddrV4, Ipv4Addr};
 
+    use try_from::TryInto;
+
     use super::*;
 
     #[test]
@@ -420,7 +421,7 @@ mod test {
                 .build().unwrap();
 
         println!("Generating service page");
-        let mut page1 = service.publish();
+        let page1 = service.publish();
 
         println!("Encoding service page");
         let mut buff = vec![0u8; 1024];

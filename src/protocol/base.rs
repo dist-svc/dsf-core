@@ -1,11 +1,7 @@
 
 use std::net::{SocketAddr};
-use std::time::SystemTime;
-
-use byteorder::{ByteOrder, NetworkEndian};
 
 use crate::types::{Id, ID_LEN, Signature, SIGNATURE_LEN, Flags, Kind, PublicKey, RequestId, Address, DateTime};
-use crate::protocol::{Encode, Parse};
 use crate::protocol::header::Header;
 use crate::protocol::options::{Options, OptionsError};
 use crate::crypto;
@@ -227,7 +223,7 @@ impl Base {
 }
 
 impl Base {
-    pub fn encode<'a, S, E, T: AsRef<[u8]> + AsMut<[u8]>>(&mut self, mut signer: S, buff: T) -> Result<usize, BaseError> 
+    pub fn encode<'a, S, E, T: AsRef<[u8]> + AsMut<[u8]>>(&mut self, signer: S, buff: T) -> Result<usize, BaseError> 
     where 
         S: FnMut(&[u8], &[u8]) -> Result<Signature, E>
     {

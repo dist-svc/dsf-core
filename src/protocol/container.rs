@@ -1,13 +1,10 @@
 
-use std::net::{SocketAddr};
 
 use byteorder::{ByteOrder, NetworkEndian};
 
-use crate::types::{Id, ID_LEN, Signature, SIGNATURE_LEN, Flags, Kind, PublicKey, RequestId, Address};
-use crate::protocol::{Encode, Parse};
-use crate::protocol::options::{Options, OptionsError};
-use crate::protocol::header::Header as HighLevelHeader;
-use crate::crypto;
+use crate::types::{ID_LEN, Signature, SIGNATURE_LEN, Flags, Kind};
+use crate::protocol::{Encode};
+use crate::protocol::options::{Options};
 
 const HEADER_LEN: usize = 12;
 
@@ -146,7 +143,9 @@ impl <'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
 
         // Write header
         let header = &mut data[0..12];
-        base.header().encode(header);
+        // TODO: un-unwrap this and bubble error?
+        // OR, change to infallible impl
+        base.header().encode(header).unwrap();
 
         NetworkEndian::write_u16(&mut header[6..8], body_len as u16);
         NetworkEndian::write_u16(&mut header[8..10], private_options_len as u16);
