@@ -304,9 +304,9 @@ impl Service
 
         //Page::new(self.id.clone(), options.kind, options.flags, options.version, options.body, public_options, options.private_options)
 
-        //Page::new(self.id.clone(), options.flags, options.version, PageInfo::Secondary(self.id.clone()), options.body, SystemTime::now(), SystemTime::now().add(Duration::from_secs(24 * 60 * 60)))
+        Page::new(self.id.clone(), options.flags, options.version, options.kind, PageInfo::secondary(self.id.clone()), options.body, SystemTime::now(), SystemTime::now().add(Duration::from_secs(24 * 60 * 60)))
 
-        unimplemented!();
+        //unimplemented!();
     }
 
     pub fn public_key(&self) -> &PublicKey {

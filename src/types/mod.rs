@@ -34,7 +34,8 @@ pub type EncryptedMeta = Array64;
 pub type Address = SocketAddr;
 
 //#[derive(Clone, PartialEq, Debug)]
-pub type Data = u64;
+use crate::protocol::page::Page;
+pub type Data = Page;
 
 pub mod kinds;
 pub use self::kinds::*;
