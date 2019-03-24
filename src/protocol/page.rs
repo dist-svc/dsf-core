@@ -46,6 +46,10 @@ pub struct Page {
     public_options: Vec<Options>,
     #[builder(default = "vec![]")]
     private_options: Vec<Options>,
+
+    // Signature (if signed or decoded)
+    #[builder(default = "None")]
+    signature: Option<Signature>,
 }
 
 impl Page {
@@ -56,7 +60,8 @@ impl Page {
             id, flags, version, kind, info, body, issued: issued.into(), expiry: expiry.into(), 
             public_options: vec![],
             private_options: vec![],
-            encryption_key: None
+            encryption_key: None,
+            signature: None,
         }
     }
 
@@ -90,6 +95,14 @@ impl Page {
 
     pub fn private_options(&self) -> &[Options] {
         &self.private_options
+    }
+
+    pub fn signature(&self) -> Option<Signature> {
+        self.signature.clone()
+    }
+
+    pub fn set_signature(&mut self, sig: Signature) {
+        self.signature = Some(sig);
     }
 }
 
@@ -148,6 +161,7 @@ impl PageBuilder {
 impl Into<Base> for Page {
     fn into(self) -> Base {
         let mut flags = self.flags.clone();
+        let sig = self.signature().clone();
 
         // Insert default options
         let mut default_options = vec![
@@ -176,7 +190,13 @@ impl Into<Base> for Page {
         }
 
         // Generate base object
-        Base::new(self.id, self.kind, flags, self.version, self.body, public_options, self.private_options)
+        let mut b = Base::new(self.id, self.kind, flags, self.version, self.body, public_options, self.private_options);
+
+        if let Some(sig) = sig {
+            b.set_signature(sig);
+        }
+    
+        b
     }
 }
 
@@ -187,19 +207,20 @@ impl TryFrom<Base> for Page {
 
         let header = base.header();
         let body = base.body();
+        let signature = base.signature();
 
         let _flags = header.flags();
         let kind = header.kind();
 
-        let _public_options = base.public_options();
-        let _private_options = base.private_options();
+        let mut public_options = base.public_options().to_vec();
+        let private_options = base.private_options().to_vec();
 
-        let issued = match base.issued_option() {
+        let issued = match Base::filter_issued_option(&mut public_options) {
             Some(issued) => issued,
             None => return Err(Error::Unimplemented),
         };
 
-        let expiry = match base.expiry_option() {
+        let expiry = match Base::filter_expiry_option(&mut public_options) {
             Some(expiry) => expiry,
             None => return Err(Error::Unimplemented),
         };
@@ -208,7 +229,7 @@ impl TryFrom<Base> for Page {
             // Handle primary page parsing
 
             // Fetch public key from options
-            let public_key: PublicKey = match base.pub_key_option() {
+            let public_key: PublicKey = match Base::filter_pub_key_option(&mut public_options) {
                 Some(pk) => pk,
                 None => return Err(Error::NoPublicKey)
             };
@@ -223,7 +244,7 @@ impl TryFrom<Base> for Page {
 
         } else if kind.is_secondary_page() {
             // Handle secondary page parsing
-            let peer_id = match base.peer_id_option() {
+            let peer_id = match Base::filter_peer_id_option(&mut public_options) {
                 Some(id) => id,
                 None => return Err(Error::NoPublicKey)
             };
@@ -245,8 +266,9 @@ impl TryFrom<Base> for Page {
             issued,
             expiry,
             encryption_key: None,
-            public_options: vec![],
-            private_options: vec![],
+            public_options: public_options,
+            private_options: private_options,
+            signature: signature.clone(),
         })
     }
 }

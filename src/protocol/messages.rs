@@ -140,9 +140,23 @@ impl TryFrom<Base> for Request {
             Kind::Store => {
                 let mut id = Id::default();
                 id.copy_from_slice(&body[0..ID_LEN]);
-                let _base = &body[ID_LEN..];
-                // TODO: parse pages and store
-                RequestKind::Store(id, vec![])
+                let mut i = ID_LEN;
+                
+
+                let mut pages = vec![];
+
+                while i < (body.len() - ID_LEN) {
+                    let (b, n) = Base::parse(&body[i..], |_id, _data, _sig| -> Result<bool, ()> { Ok(true) } )?;
+
+                    match Page::try_from(b) {
+                        Ok(p) => pages.push(p),
+                        Err(e) => println!("Error loading page from message: {:?}", e),
+                    };
+
+                    i += n;
+                }
+
+                RequestKind::Store(id, pages)
             },
             _ => {
                 println!("Error converting base object of kind {:?} to request message", header.kind());
@@ -151,13 +165,13 @@ impl TryFrom<Base> for Request {
         };
 
         // Fetch request id from options
-        let request_id = match base.req_id_option() {
+        let request_id = match Base::req_id_option(base.public_options()) {
             Some(req_id) => req_id,
             None => return Err(Error::NoRequestId)
         };
 
         // Fetch other key options
-        let public_key = base.pub_key_option();
+        let public_key = Base::pub_key_option(base.public_options());
 
         Ok(Request{from: base.id().clone(), id: request_id, data: data, flags: header.flags(), public_key })
     }
@@ -194,19 +208,28 @@ impl Into<Base> for Request {
                 kind = Kind::Store;
 
                 let mut buff = vec![0u8; 4096];
-                let mut n = 0;
-                (&mut buff[n..ID_LEN]).copy_from_slice(id);
-                n += ID_LEN;
+                let mut i = 0;
+                (&mut buff[i..ID_LEN]).copy_from_slice(id);
+                i += ID_LEN;
 
                 // TODO: store data
                 
                 for p in pages {
-                    //let mut b: Base = p.clone().into();
-                    //let _n = b.encode(|_id, _data| Err(()) , &mut buff).unwrap();
+                    // Check page has associated signature
+                    if let None = p.signature() {
+                        println!("cannot encode page without associated signature");
+                        continue;
+                    }
+
+                    // Convert and encode
+                    let mut b: Base = p.clone().into();
+                    let n = b.encode(|_id, _data| Err(()) , &mut buff[i..]).unwrap();
+
+                    i += n;
                 }
 
 
-                body = buff[..n].to_vec();
+                body = buff[..i].to_vec();
             }
         }
 
@@ -250,7 +273,6 @@ impl Response {
         }
     }
 
-
     pub fn with_remote_address(mut self, addr: Address) -> Self {
         self.remote_address = Some(addr);
         self
@@ -276,6 +298,9 @@ impl TryFrom<Base> for Response {
         let header = base.header();
         let body = base.body();
 
+        let mut public_options = base.public_options().to_vec();
+        let _private_options = base.private_options().to_vec();
+
         let data = match header.kind() {
             Kind::Status => {
                 ResponseKind::Status
@@ -300,15 +325,15 @@ impl TryFrom<Base> for Response {
         };
 
         // Fetch request id from options
-        let request_id = match base.req_id_option() {
+        let request_id = match Base::req_id_option(base.public_options()) {
             Some(req_id) => req_id,
             None => return Err(Error::NoRequestId)
         };
 
         // Fetch other key options
-        let public_key = base.pub_key_option();
+        let public_key = Base::filter_pub_key_option(&mut public_options);
 
-        let remote_address = base.address_option();
+        let remote_address = Base::filter_address_option(&mut public_options);
 
         Ok(Response{from: base.id().clone(), id: request_id, data: data, flags: header.flags(), public_key, remote_address })
     }
@@ -360,24 +385,31 @@ mod tests {
     use crate::crypto;
     #[test]
     fn encode_decode_messages() {
+        let mut buff = vec![0u8; 4096];
+
         let (pub_key, pri_key) = crypto::new_pk().expect("Error generating new public/private key pair");
         let id = crypto::hash(&pub_key).expect("Error generating new ID");
         let fake_id = crypto::hash(&[0, 1, 2, 3, 4]).expect("Error generating fake target ID");
         let flags = Flags::default().set_address_request(true);
 
-        let page = PageBuilder::default().id(id.clone()).kind(Kind::Generic).info(PageInfo::primary(pub_key.clone())).build().expect("Error building page");
+        // Create and sign page
+        let mut page = PageBuilder::default().id(id.clone()).kind(Kind::Generic).info(PageInfo::primary(pub_key.clone())).build().expect("Error building page");
+        let mut b: Base = page.clone().into();
+        b.encode(|_id, data| crypto::pk_sign(&pri_key, data), &mut buff).expect("Error signing page");
+        let sig = b.signature().clone().unwrap();
 
+        page.set_signature(sig);
 
         let messages: Vec<Message> = vec![
             Message::Request(Request::new(id.clone(), RequestKind::Hello, flags.clone())),
             Message::Request(Request::new(id.clone(), RequestKind::Ping, flags.clone())),
             Message::Request(Request::new(id.clone(), RequestKind::FindNode(fake_id.clone()), flags.clone())),
             // TODO: Finish request encoding
-            //Message::Request(Request::new(id.clone(), RequestKind::Store(id.clone(), vec![page.clone()]), flags.clone())),
+            Message::Request(Request::new(id.clone(), RequestKind::Store(id.clone(), vec![page.clone()]), flags.clone())),
             // TODO: Finish (and test) response encoding
         ];
 
-        let mut buff = vec![0u8; 4096];
+
 
         for message in messages {
             // Cast to base
@@ -385,7 +417,7 @@ mod tests {
             // Encode base
             let n = b.encode(|_id, data| crypto::pk_sign(&pri_key, data), &mut buff).expect("error encoding message");
             // Parse base and check instances match
-            let (d, m)= Base::parse(&buff[..n]).expect("error parsing message");
+            let (d, m)= Base::parse(&buff[..n], |_id, data, sig| crypto::pk_validate(&pub_key, sig, data) ).expect("error parsing message");
 
             assert_eq!(n, m);
             assert_eq!(b, d);

@@ -421,17 +421,20 @@ mod test {
                 .build().unwrap();
 
         println!("Generating service page");
-        let page1 = service.publish();
+        let mut page1 = service.publish();
 
         println!("Encoding service page");
         let mut buff = vec![0u8; 1024];
         let mut base1: Base = page1.clone().into();
         let n = base1.encode(|_id, d| service.sign(d).map_err(|_e| () ), &mut buff).expect("Error encoding service page");
+        // Append sig to page1
+        page1.set_signature(base1.signature().clone().unwrap());
 
         println!("Encoded service to {} bytes", n);
     
         println!("Decoding service page");
-        let (base2, m) = Base::parse(&buff[..n]).expect("Error parsing service page");
+        let s = service.clone();
+        let (base2, m) = Base::parse(&buff[..n], |_id, data, sig| s.validate(sig, data) ).expect("Error parsing service page");
         assert_eq!(base1, base2);
         assert_eq!(n, m);
         let page2: Page = base2.try_into().expect("Error converting base message to page");

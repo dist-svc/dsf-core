@@ -97,11 +97,25 @@ impl <'a, T: AsRef<[u8]>> Container<T> {
         
         let n = self.len() - SIGNATURE_LEN;
         let s = SIGNATURE_LEN;
+
         &data[n..n+s]
     }
 
     pub fn len(&self) -> usize {
         HEADER_LEN + ID_LEN + self.data_len() + self.private_options_len() + self.public_options_len() + SIGNATURE_LEN
+    }
+
+
+    pub fn verify<V, E>(&self, mut verifier: V) -> Result<bool, E> 
+    where
+        V: FnMut(&[u8], &[u8], &[u8]) -> Result<bool, E>
+    {
+        let len = self.len() - SIGNATURE_LEN;
+        let id = self.id();
+        let data = self.raw();
+        let sig = self.signature();
+
+        (verifier)(id, &data[..len], sig)
     }
 
     pub fn raw(&self) -> &[u8] {
@@ -147,6 +161,8 @@ impl <'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
         // OR, change to infallible impl
         base.header().encode(header).unwrap();
 
+        println!("Encoding lengths: ({}, {}, {})", body_len, private_options_len, public_options_len);
+
         NetworkEndian::write_u16(&mut header[6..8], body_len as u16);
         NetworkEndian::write_u16(&mut header[8..10], private_options_len as u16);
         NetworkEndian::write_u16(&mut header[10..12], public_options_len as u16);
@@ -176,7 +192,7 @@ impl <'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
     where
         S: FnMut(&[u8], &[u8]) -> Result<Signature, E>
     {
-        let len = self.len();
+        let len = self.len() - SIGNATURE_LEN;
         let id = self.id();
         let data = self.raw();
 
@@ -186,4 +202,11 @@ impl <'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
 
         Ok(sig)
     }
+
 }
+
+#[cfg(test)]
+mod test {
+
+}
+

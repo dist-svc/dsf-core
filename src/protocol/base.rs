@@ -101,6 +101,10 @@ impl Base {
         &self.signature
     }
 
+    pub fn set_signature(&mut self, sig: Signature) {
+        self.signature = Some(sig);
+    }
+
     pub fn append_public_option(&mut self, o: Options) {
         self.public_options.push(o);
     }
@@ -108,9 +112,12 @@ impl Base {
     pub fn append_private_option(&mut self, o: Options) {
         self.private_options.push(o);
     }
+}
 
-    pub fn pub_key_option(&self) -> Option<PublicKey> {
-        self.public_options().iter().find_map(|o| {
+// TODO: move these to the options module?
+impl Base {
+    pub fn pub_key_option(options: &[Options]) -> Option<PublicKey> {
+        options.iter().find_map(|o| {
             match o { 
                 Options::PubKey(pk) => Some(pk.public_key.clone()),
                  _ => None 
@@ -118,8 +125,22 @@ impl Base {
         })
     }
 
-    pub fn req_id_option(&self) -> Option<RequestId> {
-        self.public_options().iter().find_map(|o| {
+    pub fn filter_pub_key_option(options: &mut Vec<Options>) -> Option<PublicKey>
+    {
+        let o = Base::pub_key_option(&options);
+
+        (*options) = options.iter().filter_map(|o| {
+            match o { 
+                Options::PubKey(_) => None,
+                _ => Some(o.clone()), 
+            }
+        }).collect();
+
+        o
+    }
+
+    pub fn req_id_option(options: &[Options]) -> Option<RequestId> {
+        options.iter().find_map(|o| {
             match o { 
                 Options::RequestId(req_id) => Some(req_id.request_id),
                  _ => None 
@@ -127,8 +148,23 @@ impl Base {
         })
     }
 
-    pub fn peer_id_option(&self) -> Option<Id> {
-        self.public_options().iter().find_map(|o| {
+    pub fn filter_req_id_option(options: &mut Vec<Options>) -> Option<RequestId>
+    {
+        let o = Base::req_id_option(&options);
+
+        (*options) = options.iter().filter_map(|o| {
+            match o { 
+                Options::RequestId(_) => None,
+                _ => Some(o.clone()), 
+            }
+        }).collect();
+
+        o
+    }
+
+
+    pub fn peer_id_option(options: &[Options]) -> Option<Id> {
+        options.iter().find_map(|o| {
             match o { 
                 Options::PeerId(peer_id) => Some(peer_id.peer_id.clone()),
                  _ => None 
@@ -136,8 +172,23 @@ impl Base {
         })
     }
 
-    pub fn issued_option(&self) -> Option<DateTime> {
-        self.public_options().iter().find_map(|o| {
+    pub fn filter_peer_id_option(options: &mut Vec<Options>) -> Option<Id>
+    {
+        let o = Base::peer_id_option(&options);
+
+        (*options) = options.iter().filter_map(|o| {
+            match o { 
+                Options::PeerId(_) => None,
+                _ => Some(o.clone()), 
+            }
+        }).collect();
+
+        o
+    }
+
+
+    pub fn issued_option(options: &[Options]) -> Option<DateTime> {
+        options.iter().find_map(|o| {
             match o { 
                 Options::Issued(t) => Some(t.when),
                  _ => None 
@@ -145,8 +196,22 @@ impl Base {
         })
     }
 
-    pub fn expiry_option(&self) -> Option<DateTime> {
-        self.public_options().iter().find_map(|o| {
+    pub fn filter_issued_option(options: &mut Vec<Options>) -> Option<DateTime>
+    {
+        let o = Base::issued_option(&options);
+
+        (*options) = options.iter().filter_map(|o| {
+            match o { 
+                Options::Issued(_t) => None,
+                _ => Some(o.clone()), 
+            }
+        }).collect();
+
+        o
+    }
+
+    pub fn expiry_option(options: &[Options]) -> Option<DateTime> {
+        options.iter().find_map(|o| {
             match o { 
                 Options::Expiry(t) => Some(t.when),
                  _ => None 
@@ -154,14 +219,43 @@ impl Base {
         })
     }
 
-    pub fn address_option(&self) -> Option<Address> {
-        self.public_options().iter().find_map(|o| {
+    pub fn filter_expiry_option(options: &mut Vec<Options>) -> Option<DateTime>
+    {
+        let o = Base::expiry_option(&options);
+
+        (*options) = options.iter().filter_map(|o| {
+            match o { 
+                Options::Expiry(_t) => None,
+                _ => Some(o.clone()), 
+            }
+        }).collect();
+
+        o
+    }
+
+    pub fn address_option(options: &[Options]) -> Option<Address> {
+        options.iter().find_map(|o| {
             match o { 
                 Options::IPv4(addr) => Some(SocketAddr::V4(*addr)),
                 Options::IPv6(addr) => Some(SocketAddr::V6(*addr)),
                  _ => None 
             } 
         })
+    }
+
+    pub fn filter_address_option(options: &mut Vec<Options>) -> Option<Address>
+    {
+        let address = Base::address_option(&options);
+
+        (*options) = options.iter().filter_map(|o| {
+            match o { 
+                Options::IPv4(_addr) => None,
+                Options::IPv6(_addr) => None,
+                _ => Some(o.clone()), 
+            }
+        }).collect();
+
+        address
     }
 }
 
@@ -188,9 +282,18 @@ impl Base {
     }
 
     /// Parses an array containing a page into a page object
-    pub fn parse<'a, T: AsRef<[u8]>>(data: T) -> Result<(Base, usize), BaseError> 
+    /// fn v(id, data, sig)
+    pub fn parse<'a, V, E, T: AsRef<[u8]>>(data: T, verifier: V) -> Result<(Base, usize), BaseError>
+    where 
+        V: FnMut(&[u8], &[u8], &[u8]) -> Result<bool, E>
     {
+        // Build container over buffer
         let (container, n) = Container::from(data);
+
+        // Verify container contents
+        if !container.verify(verifier).map_err(|_e| BaseError::InvalidSignature )? {
+            return Err(BaseError::InvalidSignature);
+        }
 
         // Fetch ID for page
         let mut id = [0u8; ID_LEN];
@@ -267,7 +370,7 @@ mod tests {
         let mut buff = vec![0u8; 1024];
         let n = page.encode(move |_id, data| crypto::pk_sign(&pri_key, data), &mut buff).expect("Error encoding page");
 
-        let (decoded, m) = Base::parse(&buff[..n]).expect("Error decoding page");;
+        let (decoded, m) = Base::parse(&buff[..n], |_id, data, sig| crypto::pk_validate(&pub_key, sig, data) ).expect("Error decoding page");;
 
         assert_eq!(page, decoded);
         assert_eq!(n, m);
