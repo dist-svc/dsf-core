@@ -142,19 +142,7 @@ impl TryFrom<Base> for Request {
                 id.copy_from_slice(&body[0..ID_LEN]);
                 let mut i = ID_LEN;
                 
-
-                let mut pages = vec![];
-
-                while i < (body.len() - ID_LEN) {
-                    let (b, n) = Base::parse(&body[i..], |_id, _data, _sig| -> Result<bool, ()> { Ok(true) } )?;
-
-                    match Page::try_from(b) {
-                        Ok(p) => pages.push(p),
-                        Err(e) => println!("Error loading page from message: {:?}", e),
-                    };
-
-                    i += n;
-                }
+                let pages = Page::decode_pages(&body[i..]).unwrap();
 
                 RequestKind::Store(id, pages)
             },
@@ -211,23 +199,8 @@ impl Into<Base> for Request {
                 let mut i = 0;
                 (&mut buff[i..ID_LEN]).copy_from_slice(id);
                 i += ID_LEN;
-
-                // TODO: store data
-                
-                for p in pages {
-                    // Check page has associated signature
-                    if let None = p.signature() {
-                        println!("cannot encode page without associated signature");
-                        continue;
-                    }
-
-                    // Convert and encode
-                    let mut b: Base = p.clone().into();
-                    let n = b.encode(|_id, _data| Err(()) , &mut buff[i..]).unwrap();
-
-                    i += n;
-                }
-
+             
+                i += Page::encode_pages(pages, &mut buff[i..]).unwrap();
 
                 body = buff[..i].to_vec();
             }
@@ -316,7 +289,10 @@ impl TryFrom<Base> for Response {
             Kind::ValuesFound => {
                 let mut id = Id::default();
                 id.copy_from_slice(&body[0..ID_LEN]);
-                ResponseKind::ValuesFound(id, vec![])
+   
+                let pages = Page::decode_pages(&body[ID_LEN..]).unwrap();
+
+                ResponseKind::ValuesFound(id, pages)
             },
             _ => {
                 error!("Error converting base object of kind {:?} to response message", header.kind());
@@ -361,11 +337,16 @@ impl Into<Base> for Response {
                 body = id.to_vec();
                 // TODO
             },
-            ResponseKind::ValuesFound(id, _values) => {
+            ResponseKind::ValuesFound(id, pages) => {
                 kind = Kind::ValuesFound;
-                body = id.to_vec();
-                // TODO
 
+                let mut buff = vec![0; 4096];
+
+                (&mut buff[..ID_LEN]).copy_from_slice(id);
+             
+                let n = Page::encode_pages(pages, &mut buff[ID_LEN..]).unwrap();
+
+                body = buff[..n + ID_LEN].to_vec();
             },
         }
 
@@ -391,6 +372,7 @@ mod tests {
         let id = crypto::hash(&pub_key).expect("Error generating new ID");
         let fake_id = crypto::hash(&[0, 1, 2, 3, 4]).expect("Error generating fake target ID");
         let flags = Flags::default().set_address_request(true);
+        let request_id = 120;
 
         // Create and sign page
         let mut page = PageBuilder::default().id(id.clone()).kind(Kind::Generic).info(PageInfo::primary(pub_key.clone())).build().expect("Error building page");
@@ -403,11 +385,13 @@ mod tests {
             Message::Request(Request::new(id.clone(), RequestKind::Hello, flags.clone())),
             Message::Request(Request::new(id.clone(), RequestKind::Ping, flags.clone())),
             Message::Request(Request::new(id.clone(), RequestKind::FindNode(fake_id.clone()), flags.clone())),
-            // TODO: Finish request encoding
             Message::Request(Request::new(id.clone(), RequestKind::Store(id.clone(), vec![page.clone()]), flags.clone())),
-            // TODO: Finish (and test) response encoding
+            Message::Response(Response::new(id.clone(), request_id, ResponseKind::Status, flags.clone())),
+            // TODO: put node information here
+            Message::Response(Response::new(id.clone(), request_id, ResponseKind::NodesFound(fake_id.clone(), vec![]), flags.clone())),
+            Message::Response(Response::new(id.clone(), request_id, ResponseKind::ValuesFound(fake_id.clone(), vec![page.clone()]), flags.clone())),
+            Message::Response(Response::new(id.clone(), request_id, ResponseKind::NoResult, flags.clone())),
         ];
-
 
 
         for message in messages {

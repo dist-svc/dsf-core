@@ -107,30 +107,43 @@ impl Page {
 }
 
 impl Page {
-    pub fn decode_pages<T: AsRef<[u8]>>(buff: T) -> Result<Vec<Page>, ()> {
-        let pages = vec![];
-
+    pub fn decode_pages(buff: &[u8]) -> Result<Vec<Page>, Error> {
+        let mut pages = vec![];
         let mut i = 0;
 
-        loop {
-            // Fetch next chunk of data
-            let d = &buff.as_ref()[i..];
-            if d.len() == 0 {
-                break;
-            }
 
-            // Fetch container
-            let (_c, n) = Container::from(d);
+        while i < buff.len() {
+            let (b, n) = Base::parse(&buff[i..], |_id, _data, _sig| -> Result<bool, ()> { Ok(true) } )?;
 
-            // Validate signature
+            match Page::try_from(b) {
+                Ok(p) => pages.push(p),
+                Err(e) => println!("Error loading page from message: {:?}", e),
+            };
 
-            // Decode to page
-
-            // Update index
             i += n;
         }
 
         Ok(pages) 
+    }
+
+    pub fn encode_pages(pages: &[Page], buff: &mut [u8]) -> Result<usize, Error> {
+        let mut i = 0;
+
+        for p in pages {
+            // Check page has associated signature
+            if let None = p.signature() {
+                println!("cannot encode page without associated signature");
+                continue;
+            }
+
+            // Convert and encode
+            let mut b: Base = p.clone().into();
+            let n = b.encode(|_id, _data| Err(()) , &mut buff[i..]).unwrap();
+
+            i += n;
+        }
+
+        Ok(i)
     }
 }
 
