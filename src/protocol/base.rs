@@ -283,9 +283,9 @@ impl Base {
 
     /// Parses an array containing a page into a page object
     /// fn v(id, data, sig)
-    pub fn parse<'a, V, E, T: AsRef<[u8]>>(data: T, verifier: V) -> Result<(Base, usize), BaseError>
+    pub fn parse<'a, V, T: AsRef<[u8]>>(data: T, verifier: V) -> Result<(Base, usize), BaseError>
     where 
-        V: FnMut(&[u8], &[u8], &[u8]) -> Result<bool, E>
+        V: FnMut(&[u8], &[u8], &[u8]) -> Result<bool, ()>
     {
         // Build container over buffer
         let (container, n) = Container::from(data);

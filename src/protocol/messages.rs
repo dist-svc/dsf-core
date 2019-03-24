@@ -255,7 +255,7 @@ pub struct Response {
 pub enum ResponseKind {
     Status,
     NodesFound(Id, Vec<(Id, Address)>),
-    ValuesFound(Id, Vec<u64>),
+    ValuesFound(Id, Vec<Page>),
     NoResult,
 }
 
@@ -397,7 +397,6 @@ mod tests {
         let mut b: Base = page.clone().into();
         b.encode(|_id, data| crypto::pk_sign(&pri_key, data), &mut buff).expect("Error signing page");
         let sig = b.signature().clone().unwrap();
-
         page.set_signature(sig);
 
         let messages: Vec<Message> = vec![
