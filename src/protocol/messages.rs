@@ -227,7 +227,7 @@ pub struct Response {
 #[derive(Clone, PartialEq, Debug)]
 pub enum ResponseKind {
     Status,
-    NodesFound(Id, Vec<(Id, Address)>),
+    NodesFound(Id, Vec<(Id, Address, PublicKey)>),
     ValuesFound(Id, Vec<Page>),
     NoResult,
 }
@@ -283,8 +283,49 @@ impl TryFrom<Base> for Response {
             },
             Kind::NodesFound => {
                 let mut id = Id::default();
-                id.copy_from_slice(&body[0..ID_LEN]);
-                ResponseKind::NodesFound(id, vec![])
+                id.copy_from_slice(&body[..ID_LEN]);
+                
+                // Build options array from body
+                let (options, _n) = Options::parse_vec(&body[ID_LEN..]).unwrap();
+
+                let mut ids = options.iter().filter_map(|o| {
+                    match o {
+                        Options::PeerId(id) => Some(id.peer_id.clone()),
+                        _ => None,
+                    }
+                });
+
+                // Parse nodes from options (split by Id entry)
+                let nodes: Vec<_> = options.split(|o| {
+                    match o {
+                        Options::PeerId(_) => true,
+                        _ => false,
+                    }
+                }).filter_map(|opts| {
+                    if opts.len() == 0 {
+                        return None
+                    }
+
+                    let id = ids.next();
+
+                    let addr = Base::address_option(&opts);
+                    let key = Base::pub_key_option(&opts);
+
+                    println!("peer opts: {:?}", opts);
+                    println!("id: {:?} addr: {:?} key: {:?}", id, addr, key);
+
+                    match (id, addr, key) {
+                        (Some(id), Some(addr), Some(key)) => Some((id, addr, key)),
+                        _ => None,
+                    }
+
+                })
+                .collect();
+
+
+                println!("peers: {:?}", nodes);
+
+                ResponseKind::NodesFound(id, nodes)
             },
             Kind::ValuesFound => {
                 let mut id = Id::default();
@@ -319,34 +360,47 @@ impl Into<Base> for Response {
     fn into(self) -> Base {
 
         let kind: Kind;
-        let body: Vec<u8>;
+        let mut body: Vec<u8>;
+
+        let mut buff = vec![0; 4096];
 
         let mut builder = BaseBuilder::default();
 
-        match &self.data {
+        match self.data {
             ResponseKind::Status => {
                 kind = Kind::Status;
                 body = vec![];
+                
             },
             ResponseKind::NoResult => {
                 kind = Kind::NoResult;
+                //TODO?: (&mut body[..ID_LEN]).copy_from_slice(&id);
                 body = vec![];
             },
-            ResponseKind::NodesFound(id, _nodes) => {
+            ResponseKind::NodesFound(id, nodes) => {
                 kind = Kind::NodesFound;
-                body = id.to_vec();
-                // TODO
+                (&mut buff[..ID_LEN]).copy_from_slice(&id);
+                
+                // Build options list from nodes
+                let mut options = Vec::with_capacity(nodes.len() * 3);
+                for n in nodes {
+                    options.push(Options::peer_id(n.0));
+                    options.push(Options::address(n.1));
+                    options.push(Options::pub_key(n.2));
+                }
+
+                // Encode options list to body
+                let n = Options::encode_vec(&options, &mut buff[ID_LEN..]).unwrap();
+
+                body = buff[.. ID_LEN + n].to_vec();
             },
             ResponseKind::ValuesFound(id, pages) => {
                 kind = Kind::ValuesFound;
-
-                let mut buff = vec![0; 4096];
-
-                (&mut buff[..ID_LEN]).copy_from_slice(id);
+                (&mut buff[..ID_LEN]).copy_from_slice(&id);
              
-                let n = Page::encode_pages(pages, &mut buff[ID_LEN..]).unwrap();
+                let n = Page::encode_pages(&pages, &mut buff[ID_LEN..]).unwrap();
 
-                body = buff[..n + ID_LEN].to_vec();
+                body = buff[.. ID_LEN + n].to_vec();
             },
         }
 
@@ -359,6 +413,8 @@ impl Into<Base> for Response {
 
 #[cfg(test)]
 mod tests {
+
+    use std::net::{SocketAddr, IpAddr, Ipv4Addr};
 
     use super::*;
     use crate::protocol::page::{PageBuilder, PageInfo};
@@ -388,7 +444,7 @@ mod tests {
             Message::Request(Request::new(id.clone(), RequestKind::Store(id.clone(), vec![page.clone()]), flags.clone())),
             Message::Response(Response::new(id.clone(), request_id, ResponseKind::Status, flags.clone())),
             // TODO: put node information here
-            Message::Response(Response::new(id.clone(), request_id, ResponseKind::NodesFound(fake_id.clone(), vec![]), flags.clone())),
+            Message::Response(Response::new(id.clone(), request_id, ResponseKind::NodesFound(fake_id.clone(), vec![(fake_id.clone(), SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080), pub_key.clone())]), flags.clone())),
             Message::Response(Response::new(id.clone(), request_id, ResponseKind::ValuesFound(fake_id.clone(), vec![page.clone()]), flags.clone())),
             Message::Response(Response::new(id.clone(), request_id, ResponseKind::NoResult, flags.clone())),
         ];
