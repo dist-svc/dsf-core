@@ -1,6 +1,7 @@
 
 //use core::convert::TryFrom;
 use try_from::TryFrom;
+use slice_ext::SplitBefore;
 
 use crate::types::{Id, ID_LEN, RequestId, Address, Kind, Flags, PublicKey, Error};
 
@@ -140,9 +141,8 @@ impl TryFrom<Base> for Request {
             Kind::Store => {
                 let mut id = Id::default();
                 id.copy_from_slice(&body[0..ID_LEN]);
-                let mut i = ID_LEN;
                 
-                let pages = Page::decode_pages(&body[i..]).unwrap();
+                let pages = Page::decode_pages(&body[ID_LEN..]).unwrap();
 
                 RequestKind::Store(id, pages)
             },
@@ -196,13 +196,11 @@ impl Into<Base> for Request {
                 kind = Kind::Store;
 
                 let mut buff = vec![0u8; 4096];
-                let mut i = 0;
-                (&mut buff[i..ID_LEN]).copy_from_slice(id);
-                i += ID_LEN;
+                (&mut buff[..ID_LEN]).copy_from_slice(id);
              
-                i += Page::encode_pages(pages, &mut buff[i..]).unwrap();
+                let i = Page::encode_pages(pages, &mut buff[ID_LEN..]).unwrap();
 
-                body = buff[..i].to_vec();
+                body = buff[..ID_LEN + i].to_vec();
             }
         }
 
@@ -288,26 +286,14 @@ impl TryFrom<Base> for Response {
                 // Build options array from body
                 let (options, _n) = Options::parse_vec(&body[ID_LEN..]).unwrap();
 
-                let mut ids = options.iter().filter_map(|o| {
-                    match o {
-                        Options::PeerId(id) => Some(id.peer_id.clone()),
-                        _ => None,
-                    }
-                });
-
-                // Parse nodes from options (split by Id entry)
-                let nodes: Vec<_> = options.split(|o| {
+                let nodes: Vec<_> = (&options[..]).split_before(|o| {
                     match o {
                         Options::PeerId(_) => true,
                         _ => false,
                     }
                 }).filter_map(|opts| {
-                    if opts.len() == 0 {
-                        return None
-                    }
 
-                    let id = ids.next();
-
+                    let id = Base::peer_id_option(&opts);
                     let addr = Base::address_option(&opts);
                     let key = Base::pub_key_option(&opts);
 
@@ -316,12 +302,10 @@ impl TryFrom<Base> for Response {
 
                     match (id, addr, key) {
                         (Some(id), Some(addr), Some(key)) => Some((id, addr, key)),
+                        // TODO: warn here
                         _ => None,
                     }
-
-                })
-                .collect();
-
+                }).collect();
 
                 println!("peers: {:?}", nodes);
 
