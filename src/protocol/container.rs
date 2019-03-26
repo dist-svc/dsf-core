@@ -161,8 +161,7 @@ impl <'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
         // OR, change to infallible impl
         base.header().encode(header).unwrap();
 
-        println!("Encoding lengths: ({}, {}, {})", body_len, private_options_len, public_options_len);
-
+        // Write lengths
         NetworkEndian::write_u16(&mut header[6..8], body_len as u16);
         NetworkEndian::write_u16(&mut header[8..10], private_options_len as u16);
         NetworkEndian::write_u16(&mut header[10..12], public_options_len as u16);
