@@ -30,10 +30,24 @@ impl Message {
         }
     }
 
+    pub fn flags_mut(&mut self) -> &mut Flags {
+        match self {
+            Message::Request(req) => req.flags(),
+            Message::Response(resp) => resp.flags(),
+        }
+    }
+
     pub fn pub_key(&self) -> Option<PublicKey> {
         match self {
             Message::Request(req) => req.public_key.clone(),
             Message::Response(resp) => resp.public_key.clone(),
+        }
+    }
+
+    pub fn set_public_key(&mut self, pub_key: PublicKey) {
+        match self {
+            Message::Request(req) => req.public_key = Some(pub_key),
+            Message::Response(resp) => resp.public_key = Some(pub_key),
         }
     }
 }
@@ -100,6 +114,15 @@ impl Request {
 
             public_key: None,
         }
+    }
+
+    pub fn flags(&mut self) -> &mut Flags {
+        &mut self.flags
+    }
+
+
+    pub fn set_public_key(&mut self, pk: PublicKey) {
+        self.public_key = Some(pk);
     }
 
     pub fn with_public_key(mut self, pk: PublicKey) -> Self {
@@ -244,9 +267,17 @@ impl Response {
         }
     }
 
+    pub fn flags(&mut self) -> &mut Flags {
+        &mut self.flags
+    }
+
     pub fn with_remote_address(mut self, addr: Address) -> Self {
         self.remote_address = Some(addr);
         self
+    }
+
+    pub fn set_public_key(&mut self, pk: PublicKey) {
+        self.public_key = Some(pk);
     }
 
     pub fn with_public_key(mut self, pk: PublicKey) -> Self {
@@ -297,17 +328,12 @@ impl TryFrom<Base> for Response {
                     let addr = Base::address_option(&opts);
                     let key = Base::pub_key_option(&opts);
 
-                    println!("peer opts: {:?}", opts);
-                    println!("id: {:?} addr: {:?} key: {:?}", id, addr, key);
-
                     match (id, addr, key) {
                         (Some(id), Some(addr), Some(key)) => Some((id, addr, key)),
                         // TODO: warn here
                         _ => None,
                     }
                 }).collect();
-
-                println!("peers: {:?}", nodes);
 
                 ResponseKind::NodesFound(id, nodes)
             },
