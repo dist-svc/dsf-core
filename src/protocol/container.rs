@@ -148,18 +148,18 @@ impl <'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
         n += body_len;
 
         // Write private options
-        let private_options_len = { Options::encode_vec(base.private_options(), &mut data[n..]).unwrap() };
+        let private_options_len = { Options::encode_vec(base.private_options(), &mut data[n..]).expect("error encoding private options") };
         n += private_options_len;
 
         // Write public options
-        let public_options_len = { Options::encode_vec(base.public_options(), &mut data[n..]).unwrap() };
+        let public_options_len = { Options::encode_vec(base.public_options(), &mut data[n..]).expect("error encoding public options") };
         n += public_options_len;
 
         // Write header
         let header = &mut data[0..12];
         // TODO: un-unwrap this and bubble error?
         // OR, change to infallible impl
-        base.header().encode(header).unwrap();
+        base.header().encode(header).expect("error encoding header");
 
         // Write lengths
         NetworkEndian::write_u16(&mut header[6..8], body_len as u16);

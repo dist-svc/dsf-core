@@ -9,6 +9,8 @@ use crate::protocol::options::Options;
 use crate::protocol::base::{Base, BaseBuilder};
 use crate::protocol::page::Page;
 
+pub const BUFF_SIZE: usize = 10 * 1024;
+
 #[derive(Clone, PartialEq, Debug)]
 pub enum Message {
     Request(Request),
@@ -218,7 +220,7 @@ impl Into<Base> for Request {
             RequestKind::Store(id, pages) => {
                 kind = Kind::Store;
 
-                let mut buff = vec![0u8; 4096];
+                let mut buff = vec![0u8; BUFF_SIZE];
                 (&mut buff[..ID_LEN]).copy_from_slice(id);
              
                 let i = Page::encode_pages(pages, &mut buff[ID_LEN..]).unwrap();
@@ -372,7 +374,7 @@ impl Into<Base> for Response {
         let kind: Kind;
         let mut body: Vec<u8>;
 
-        let mut buff = vec![0; 4096];
+        let mut buff = vec![0; BUFF_SIZE];
 
         let mut builder = BaseBuilder::default();
 
@@ -432,7 +434,7 @@ mod tests {
     use crate::crypto;
     #[test]
     fn encode_decode_messages() {
-        let mut buff = vec![0u8; 4096];
+        let mut buff = vec![0u8; BUFF_SIZE];
 
         let (pub_key, pri_key) = crypto::new_pk().expect("Error generating new public/private key pair");
         let id = crypto::hash(&pub_key).expect("Error generating new ID");

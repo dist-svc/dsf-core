@@ -2,7 +2,7 @@
 use std::time::SystemTimeError;
 use std::io::{Error as IoError, ErrorKind as IoErrorKind};
 
-
+use crate::types::*;
 use crate::protocol::base::BaseError;
 
 #[derive(Debug, PartialEq, Clone)]
