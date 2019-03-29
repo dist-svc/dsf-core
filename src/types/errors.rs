@@ -29,6 +29,7 @@ pub enum Error {
     InvalidMessageType,
     InvalidJson,
     NoPeersFound,
+    NotFound,
     InvalidResponse,
     InvalidSignature,
     Base(BaseError),
