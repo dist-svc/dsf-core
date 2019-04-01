@@ -116,7 +116,7 @@ impl Page {
 
             match Page::try_from(b) {
                 Ok(p) => pages.push(p),
-                Err(e) => println!("Error loading page from message: {:?}", e),
+                Err(e) => error!("Error loading page from message: {:?}", e),
             };
 
             i += n;
@@ -131,7 +131,7 @@ impl Page {
         for p in pages {
             // Check page has associated signature
             if let None = p.signature() {
-                println!("cannot encode page without associated signature");
+                error!("cannot encode page without associated signature");
                 continue;
             }
 
@@ -264,7 +264,7 @@ impl TryFrom<Base> for Page {
             PageInfo::secondary(peer_id)
 
         } else {
-            print!("Attempted to convert non-page base object ({:?}) to page", kind);
+            error!("Attempted to convert non-page base object ({:?}) to page", kind);
             return Err(Error::UnexpectedPageType);
         };
 
