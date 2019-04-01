@@ -1,4 +1,6 @@
 
+use std::fmt;
+
 //use core::convert::TryFrom;
 use try_from::TryFrom;
 use slice_ext::SplitBefore;
@@ -97,7 +99,7 @@ pub struct Request {
     pub public_key: Option<PublicKey>,
 }
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq)]
 pub enum RequestKind {
     Hello,
     Ping,
@@ -236,6 +238,32 @@ impl Into<Base> for Request {
     }
 }
 
+
+impl fmt::Debug for RequestKind {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            RequestKind::Hello => write!(f, "status"),
+            RequestKind::Ping => {
+                write!(f, "Ping")
+            },
+            RequestKind::FindNode(id) => {
+                write!(f, "FindNode ({:?})", id)
+            },
+            RequestKind::FindValue(id) => {
+                write!(f, "FindValue ({:?})", id)
+            },
+            RequestKind::Store(id, values) => {
+                write!(f, "Store({:?}): [", id)?;
+                for v in values {
+                    write!(f, "\n    - {:?}", v)?;
+                }
+                write!(f, "]\n")
+            }
+        
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Response {
     pub from: Id,
@@ -247,7 +275,7 @@ pub struct Response {
     pub public_key: Option<PublicKey>,
 }
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq)]
 pub enum ResponseKind {
     Status,
     NodesFound(Id, Vec<(Id, Address, PublicKey)>),
@@ -285,6 +313,32 @@ impl Response {
     pub fn with_public_key(mut self, pk: PublicKey) -> Self {
         self.public_key = Some(pk);
         self
+    }
+}
+
+
+impl fmt::Debug for ResponseKind {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            ResponseKind::Status => write!(f, "status"),
+            ResponseKind::NodesFound(id, nodes) => {
+                write!(f, "NodesFound({:?}): [", id)?;
+                for n in nodes {
+                    write!(f, "\n    - {:?}", n)?;
+                }
+                write!(f, "]\n")
+            },
+            ResponseKind::ValuesFound(id, values) => {
+                write!(f, "ValuesFound({:?}): [", id)?;
+                for v in values {
+                    write!(f, "\n    - {:?}", v)?;
+                }
+                write!(f, "]\n")
+            },
+            ResponseKind::NoResult => {
+                write!(f, "NoResult")
+            }
+        }
     }
 }
 

@@ -96,7 +96,7 @@ impl Default for Service {
     }
 }
 
-trait Publisher {
+pub trait Publisher {
     /// Update allows services to be updated (and re-published)
     fn update<U>(&mut self, update_fn: U) 
         where U: Fn(&mut Vec<u8>, &mut Vec<Options>, &mut Vec<Options>);
@@ -136,7 +136,7 @@ impl Publisher for Service {
     }
 }
 
-trait Subscriber {
+pub trait Subscriber {
     type Service;
 
     /// Create a service replica from a given service page
