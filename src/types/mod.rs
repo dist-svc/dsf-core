@@ -3,6 +3,7 @@ use std::fmt;
 use std::net::SocketAddr;
 use std::ops::{Deref, DerefMut};
 use std::hash::{Hash, Hasher};
+use std::cmp::{PartialOrd, Ord, Ordering};
 
 use base64;
 
@@ -52,12 +53,18 @@ pub use self::datetime::DateTime;
 macro_rules! arr {
     ($name:ident, $len:expr) => (
         
-        #[derive(Clone)]
+        #[derive(Clone, Copy)]
         pub struct $name ([u8; $len]);
 
         impl AsRef<[u8]> for $name {
             fn as_ref(&self) -> &[u8] {
                 &self.0
+            }
+        }
+
+        impl AsMut<[u8]> for $name {
+            fn as_mut(&mut self) -> &mut [u8] {
+                &mut self.0
             }
         }
 
@@ -80,6 +87,19 @@ macro_rules! arr {
                 $name([0u8; $len])
             }
         }
+
+        impl Ord for $name {
+            fn cmp(&self, other: &Self) -> Ordering {
+                self.0.cmp(&other.0)
+            }
+        }
+
+        impl PartialOrd for $name {
+            fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+                Some(self.cmp(other))
+            }
+        }
+
 
         impl From<[u8; $len]> for $name {
             fn from(data: [u8; $len]) -> Self {

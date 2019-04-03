@@ -284,8 +284,8 @@ pub struct SecondaryOptions {
 
 impl Service
 {
-    pub fn id(&self) -> &Id {
-        &self.id
+    pub fn id(&self) -> Id {
+        self.id.clone()
     }
 
     /// Secondary generates a secondary page using this service to be attached to the provided service ID
@@ -309,8 +309,8 @@ impl Service
         //unimplemented!();
     }
 
-    pub fn public_key(&self) -> &PublicKey {
-        &self.public_key
+    pub fn public_key(&self) -> PublicKey {
+        self.public_key.clone()
     }
 
     pub fn encrypt(&self) {
