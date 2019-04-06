@@ -33,6 +33,7 @@ pub enum Error {
     InvalidResponse,
     InvalidSignature,
     Base(BaseError),
+    Timeout,
 }
 
 impl From<IoError> for Error {

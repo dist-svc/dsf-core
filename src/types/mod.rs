@@ -4,6 +4,7 @@ use std::net::SocketAddr;
 use std::ops::{Deref, DerefMut};
 use std::hash::{Hash, Hasher};
 use std::cmp::{PartialOrd, Ord, Ordering};
+use std::str::FromStr;
 
 use base64;
 
@@ -133,12 +134,18 @@ macro_rules! arr {
 
         impl Eq for $name {}
 
-        impl fmt::Debug for $name {
+        impl fmt::Display for $name {
             fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 let r: &[u8] = &self.0;
                 let encoded = base64::encode(&r);
-                write!(f, "`{}`", encoded)?;
+                write!(f, "{}", encoded)?;
                 Ok(())
+            }
+        }
+
+        impl fmt::Debug for $name {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                fmt::Display::fmt(self, f)
             }
         }
 
@@ -154,8 +161,42 @@ macro_rules! arr {
                 Ok(())
             }
         }
+
+        impl FromStr for $name {
+            type Err = base64::DecodeError;
+
+            fn from_str(s: &str) -> Result<Self, Self::Err> {
+                let mut data = [0u8; $len];
+                let decoded = base64::decode(s)?;
+                data.clone_from_slice(&decoded);
+                Ok(data.into())
+            }
+        }
     );
 }
 
+
 arr!(Array32, 32);
 arr!(Array64, 64);
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn encode_decode_array32() {
+
+        let a = Array32([0u8; 32]);
+
+        let b = a.to_string();
+
+        println!("B: {}", b);
+
+        let c = Array32::from_str(&b).unwrap();
+
+
+        assert_eq!(a, c);
+    }
+
+}
