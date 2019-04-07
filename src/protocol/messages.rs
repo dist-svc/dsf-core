@@ -99,7 +99,7 @@ pub struct Request {
     pub public_key: Option<PublicKey>,
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum RequestKind {
     Hello,
     Ping,
@@ -238,7 +238,7 @@ impl Into<Base> for Request {
     }
 }
 
-
+#[cfg(nope)]
 impl fmt::Debug for RequestKind {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -275,7 +275,7 @@ pub struct Response {
     pub public_key: Option<PublicKey>,
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum ResponseKind {
     Status,
     NodesFound(Id, Vec<(Id, Address, PublicKey)>),
@@ -316,7 +316,7 @@ impl Response {
     }
 }
 
-
+#[cfg(nope)]
 impl fmt::Debug for ResponseKind {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
