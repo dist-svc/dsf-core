@@ -10,6 +10,7 @@ extern crate sodiumoxide;
 #[macro_use]
 extern crate derive_builder;
 
+#[macro_use]
 extern crate serde_derive;
 
 extern crate structopt;

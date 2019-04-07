@@ -7,6 +7,8 @@ use std::cmp::{PartialOrd, Ord, Ordering};
 use std::str::FromStr;
 
 use base64;
+use serde::{Serialize, Serializer, Deserialize, Deserializer};
+use serde::de::{self, Visitor, MapAccess};
 
 pub const ID_LEN: usize = 32;
 pub type Id = Array32;
@@ -172,8 +174,48 @@ macro_rules! arr {
                 Ok(data.into())
             }
         }
+
+        impl Serialize for $name {
+            fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+            where
+                S: Serializer,
+            {
+                let encoded = self.to_string();
+                serializer.serialize_str(&encoded)
+            }
+        }
+
+
+        impl<'de> Deserialize<'de> for $name {
+            fn deserialize<D>(deserializer: D) -> Result<$name, D::Error>
+            where
+                D: Deserializer<'de>,
+            {
+                struct B64Visitor;
+
+                impl<'de> Visitor<'de> for B64Visitor {
+                    type Value = $name;
+
+                    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                        formatter.write_str("a base64 encoded string")
+                    }
+
+                    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+                    where
+                        E: de::Error,
+                    {
+                        $name::from_str(value).map_err(|_e| de::Error::custom("decoding b64") )
+                    }
+                }
+
+                deserializer.deserialize_str(B64Visitor)
+            }
+        }
+
     );
 }
+
+
 
 
 arr!(Array32, 32);
