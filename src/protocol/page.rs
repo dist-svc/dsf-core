@@ -300,6 +300,34 @@ impl PageInfo {
     pub fn secondary(peer_id: Id) -> Self {
         PageInfo::Secondary(Secondary{peer_id})
     }
+
+    pub fn is_primary(&self) -> bool {
+        match self {
+            PageInfo::Primary(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_secondary(&self) -> bool {
+        match self {
+            PageInfo::Secondary(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn pub_key(&self) -> Option<PublicKey> {
+        match self {
+            PageInfo::Primary(p) => Some(p.pub_key),
+            _ => None,
+        }
+    }
+
+    pub fn peer_id(&self) -> Option<Id> {
+        match self {
+            PageInfo::Secondary(s) => Some(s.peer_id),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]
