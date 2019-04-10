@@ -1,3 +1,5 @@
+//! Messages are a high level representation of messages used to communicate between peers
+//! to maintain the network, publish and subscribe to services, and exchange data.
 
 use std::fmt;
 
@@ -131,6 +133,11 @@ impl Request {
 
     pub fn with_public_key(mut self, pk: PublicKey) -> Self {
         self.public_key = Some(pk);
+        self
+    }
+
+    pub fn with_request_id(mut self, req_id: RequestId) -> Self {
+        self.id = req_id;
         self
     }
 }

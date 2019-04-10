@@ -1,9 +1,8 @@
+//! Header is a high level representation of the protocol header used in all DSD objects
 
 use std::io::{Cursor, Error as IoError};
 
-
 use byteorder::{NetworkEndian, ReadBytesExt, WriteBytesExt};
-
 
 use crate::types::{Kind, Flags};
 use crate::protocol::{Encode, Parse};

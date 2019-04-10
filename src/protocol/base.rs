@@ -1,3 +1,5 @@
+//! Base object is a common owned object that is used to represent pages / messages / data
+//! and can be encoded and decoded for wire communication.
 
 use std::net::{SocketAddr};
 
@@ -65,7 +67,6 @@ impl BaseBuilder {
     }
 }
 
-const PAGE_HEADER_LEN: usize = 12;
 
 impl Base {
     pub fn new(id: Id, kind: Kind, flags: Flags, version: u16, body: Vec<u8>, public_options: Vec<Options>, private_options: Vec<Options>) -> Base {
@@ -234,6 +235,9 @@ impl Base {
         address
     }
 }
+
+
+const PAGE_HEADER_LEN: usize = 16;
 
 impl Base {
     #[deprecated]

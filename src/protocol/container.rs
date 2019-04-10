@@ -1,4 +1,5 @@
-
+//! Container is a type that maps a byte array to fixed fields (and vice versa)
+//! for wire encoding.
 
 use byteorder::{ByteOrder, NetworkEndian};
 
@@ -17,6 +18,7 @@ pub struct Container<T: AsRef<[u8]>> {
 
 use crate::protocol::base::Base;
 
+/// Offsets for fixed fields in the protocol container
 mod offsets {
     pub const PROTO_VERSION: usize = 0;
     pub const APPLICATION_ID: usize = 2;
@@ -187,9 +189,9 @@ impl <'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
         base.header().encode(header).expect("error encoding header");
 
         // Write lengths
-        NetworkEndian::write_u16(&mut header[6..8], body_len as u16);
-        NetworkEndian::write_u16(&mut header[8..10], private_options_len as u16);
-        NetworkEndian::write_u16(&mut header[10..12], public_options_len as u16);
+        NetworkEndian::write_u16(&mut header[offsets::DATA_LEN..], body_len as u16);
+        NetworkEndian::write_u16(&mut header[offsets::PRIVATE_OPTIONS_LEN..], private_options_len as u16);
+        NetworkEndian::write_u16(&mut header[offsets::PUBLIC_OPTIONS_LEN..], public_options_len as u16);
 
         // Reserve signature (and write if existing)
         let signature = &mut data[n..n+SIGNATURE_LEN];
