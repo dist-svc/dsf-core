@@ -350,11 +350,7 @@ impl Service
                 kind = Kind::Store;
             }
         }
-
-        // Append request ID option
-        builder.append_public_option(Options::request_id(req.id));
-
-        builder.base(self.id().clone(), kind, 0, flags).body(body).build().unwrap()
+        builder.base(self.id().clone(), kind, req.id, flags).body(body).build().unwrap()
     }
 
 
@@ -387,10 +383,7 @@ impl Service
             builder.append_public_option(o);
         }
 
-        // Append request ID
-        builder.append_public_option(Options::request_id(resp.id));
-
-        builder.base(self.id().clone(), kind, 0, flags).build().unwrap()
+        builder.base(self.id().clone(), kind, req.id, flags).build().unwrap()
     }
 
 

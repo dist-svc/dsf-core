@@ -41,8 +41,8 @@ impl From<std::io::Error> for BaseError {
 }
 
 impl BaseBuilder {
-    pub fn base(&mut self, id: Id, kind: Kind, version: u16, flags: Flags) -> &mut Self {
-        let header = Header::new(kind, version, flags);
+    pub fn base(&mut self, id: Id, kind: Kind, index: u16, flags: Flags) -> &mut Self {
+        let header = Header::new(kind, index, flags);
         self.id = Some(id);
         self.header = Some(header);
         self
@@ -138,30 +138,6 @@ impl Base {
 
         o
     }
-
-    pub fn req_id_option(options: &[Options]) -> Option<RequestId> {
-        options.iter().find_map(|o| {
-            match o { 
-                Options::RequestId(req_id) => Some(req_id.request_id),
-                 _ => None 
-            } 
-        })
-    }
-
-    pub fn filter_req_id_option(options: &mut Vec<Options>) -> Option<RequestId>
-    {
-        let o = Base::req_id_option(&options);
-
-        (*options) = options.iter().filter_map(|o| {
-            match o { 
-                Options::RequestId(_) => None,
-                _ => Some(o.clone()), 
-            }
-        }).collect();
-
-        o
-    }
-
 
     pub fn peer_id_option(options: &[Options]) -> Option<Id> {
         options.iter().find_map(|o| {
@@ -314,7 +290,7 @@ impl Base {
         Ok((
             Base {
                 id: id.into(),
-                header: Header::new(container.kind(), container.version(), container.flags()),
+                header: Header::new(container.kind(), container.index(), container.flags()),
                 body: body_data.into(),
                 private_options,
                 public_options,

@@ -179,16 +179,10 @@ impl TryFrom<Base> for Request {
             }
         };
 
-        // Fetch request id from options
-        let request_id = match Base::req_id_option(base.public_options()) {
-            Some(req_id) => req_id,
-            None => return Err(Error::NoRequestId)
-        };
-
         // Fetch other key options
         let public_key = Base::pub_key_option(base.public_options());
 
-        Ok(Request{from: base.id().clone(), id: request_id, data: data, flags: header.flags(), public_key })
+        Ok(Request{from: base.id().clone(), id: header.index(), data: data, flags: header.flags(), public_key })
     }
 }
 
@@ -231,10 +225,7 @@ impl Into<Base> for Request {
             }
         }
 
-        // Append request ID option
-        builder.append_public_option(Options::request_id(self.id));
-
-        builder.base(self.from, kind, 0, self.flags).body(body).build().unwrap()
+        builder.base(self.from, kind, self.id, self.flags).body(body).build().unwrap()
     }
 }
 
@@ -407,18 +398,12 @@ impl TryFrom<Base> for Response {
             }
         };
 
-        // Fetch request id from options
-        let request_id = match Base::req_id_option(base.public_options()) {
-            Some(req_id) => req_id,
-            None => return Err(Error::NoRequestId)
-        };
-
         // Fetch other key options
         let public_key = Base::filter_pub_key_option(&mut public_options);
 
         let remote_address = Base::filter_address_option(&mut public_options);
 
-        Ok(Response{from: base.id().clone(), id: request_id, data: data, flags: header.flags(), public_key, remote_address })
+        Ok(Response{from: base.id().clone(), id: header.index(), data: data, flags: header.flags(), public_key, remote_address })
     }
 }
 
@@ -470,10 +455,7 @@ impl Into<Base> for Response {
             },
         }
 
-        // Append request ID option
-        builder.append_public_option(Options::request_id(self.id));
-
-        builder.base(self.from, kind, 0, self.flags).body(body).build().unwrap()
+        builder.base(self.from, kind, self.id, self.flags).body(body).build().unwrap()
     }
 }
 

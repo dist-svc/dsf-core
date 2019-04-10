@@ -271,7 +271,7 @@ impl TryFrom<Base> for Page {
         Ok(Page{
             id: base.id().clone(),
             flags: header.flags(),
-            version: header.version(),
+            version: header.index(),
             kind: header.kind(),
             info,
             body: body.to_vec(),

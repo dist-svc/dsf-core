@@ -13,7 +13,6 @@ pub enum Options {
     None,
     PubKey(PubKey),
     PeerId(PeerId),
-    RequestId(ReqId),
     Kind(Kind),
     Name(Name),
     IPv4(SocketAddrV4),
@@ -41,14 +40,13 @@ impl From<std::io::Error> for OptionsError {
 mod option_kinds {
     pub const PUBKEY:       u16 = 0x00; // Public Key
     pub const PEER_ID:      u16 = 0x01; // ID of Peer responsible for secondary page
-    pub const REQUEST_ID:   u16 = 0x02;
-    pub const KIND:         u16 = 0x03; // Service KIND in utf-8
-    pub const NAME:         u16 = 0x04; // Service NAME in utf-8
-    pub const ADDR_IPV4:    u16 = 0x05; // IPv4 service address
-    pub const ADDR_IPV6:    u16 = 0x06; // IPv6 service address
-    pub const ISSUED:       u16 = 0x07; // ISSUED option defines object creation time
-    pub const EXPIRY:       u16 = 0x08; // EXPIRY option defines object expiry time
-    pub const META:         u16 = 0x09; // META option supports generic metadata key:value pairs
+    pub const KIND:         u16 = 0x02; // Service KIND in utf-8
+    pub const NAME:         u16 = 0x03; // Service NAME in utf-8
+    pub const ADDR_IPV4:    u16 = 0x04; // IPv4 service address
+    pub const ADDR_IPV6:    u16 = 0x05; // IPv6 service address
+    pub const ISSUED:       u16 = 0x06; // ISSUED option defines object creation time
+    pub const EXPIRY:       u16 = 0x07; // EXPIRY option defines object expiry time
+    pub const META:         u16 = 0x08; // META option supports generic metadata key:value pairs
 }
 
 const OPTION_HEADER_LEN: usize = 4;
@@ -113,10 +111,6 @@ impl Options {
 
     pub fn public_key(public_key: PublicKey) -> Options {
         Options::PubKey(PubKey::new(public_key))
-    }
-
-    pub fn request_id(request_id: RequestId) -> Options {
-        Options::RequestId(ReqId::new(request_id))
     }
 
     pub fn address<T>(address: T) -> Options 
@@ -186,10 +180,6 @@ impl Parse for Options {
                 let (opt, n) = Expiry::parse(d)?;
                 Ok((Options::Expiry(opt), n + OPTION_HEADER_LEN))
             },
-            option_kinds::REQUEST_ID => {
-                let (opt, n) = ReqId::parse(d)?;
-                Ok((Options::RequestId(opt), n + OPTION_HEADER_LEN))
-            }
             _ => {
                 // Unrecognised option types (and None) are skipped
                 Ok((Options::None, OPTION_HEADER_LEN + option_len))
@@ -228,9 +218,6 @@ impl Encode for Options {
                 Ok(o.encode(data)?)
             },
             Options::Expiry(ref o) => {
-                Ok(o.encode(data)?)
-            },
-            Options::RequestId(ref o) => {
                 Ok(o.encode(data)?)
             },
             _ => {
@@ -314,45 +301,6 @@ impl Encode for PeerId {
         Ok(w.position() as usize)
     }
 }
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct ReqId {
-    pub request_id: RequestId,
-}
-
-impl ReqId {
-    pub fn new(request_id: RequestId) -> ReqId {
-        ReqId { request_id }
-    }
-}
-
-impl Parse for ReqId {
-    type Output = ReqId;
-    type Error = OptionsError;
-
-    fn parse(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
-        let mut r = Cursor::new(data);
-
-        let request_id = r.read_u64::<NetworkEndian>()?;
-
-        Ok((ReqId { request_id }, REQUEST_ID_LEN))
-    }
-}
-
-impl Encode for ReqId {
-    type Error = OptionsError;
-
-    fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
-        let mut w = Cursor::new(data);
-        
-        w.write_u16::<NetworkEndian>(option_kinds::REQUEST_ID)?;
-        w.write_u16::<NetworkEndian>(REQUEST_ID_LEN as u16)?;
-        w.write_u64::<NetworkEndian>(self.request_id)?;
-
-        Ok(w.position() as usize)
-    }
-}
-
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Kind {

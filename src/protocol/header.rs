@@ -12,11 +12,18 @@ use crate::protocol::{Encode, Parse};
 /// Header encodes information for a given page in the database
 #[derive(Clone, PartialEq, Debug, Builder)]
 pub struct Header {
+    #[builder(default = "0")]
+    protocol_version: u16,
+    #[builder(default = "0")]
+    application_id: u16,
+
     kind: Kind,
     #[builder(default = "Flags(0)")]
     flags: Flags,
+
     #[builder(default = "0")]
-    version: u16,
+    /// Index is the Page Version for Pages, or the Request ID for messages
+    index: u16,
 }
 
 impl HeaderBuilder {
@@ -29,8 +36,16 @@ impl HeaderBuilder {
 }
 
 impl Header {
-    pub fn new(kind: Kind, version: u16, flags: Flags) -> Header {
-        Header{kind, flags, version}
+    pub fn new(kind: Kind, index: u16, flags: Flags) -> Header {
+        Header{protocol_version: 0, application_id: 0, kind, flags, index}
+    }
+
+    pub fn protocol_version(&self) -> u16 {
+        self.protocol_version
+    }
+
+    pub fn application_id(&self) -> u16 {
+        self.application_id
     }
 
     pub fn kind(&self) -> Kind {
@@ -41,8 +56,8 @@ impl Header {
         self.flags
     }
 
-    pub fn version(&self) -> u16 {
-        self.version
+    pub fn index(&self) -> u16 {
+        self.index
     }
 }
 
@@ -53,11 +68,15 @@ impl Parse for Header {
     fn parse(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
         let mut r = Cursor::new(data);
         
+        let protocol_version = r.read_u16::<NetworkEndian>()?;
+        let application_id = r.read_u16::<NetworkEndian>()?;
         let kind = Kind::from(r.read_u16::<NetworkEndian>()?);
         let flags = r.read_u16::<NetworkEndian>()?.into();
-        let version = r.read_u16::<NetworkEndian>()?;
+        let index = r.read_u16::<NetworkEndian>()?;
 
-        Ok((Header {kind, flags, version}, r.position() as usize))
+        // TODO: validate incoming fields here
+
+        Ok((Header {protocol_version, application_id, kind, flags, index}, r.position() as usize))
     }
 }
 
@@ -67,9 +86,11 @@ impl Encode for Header {
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
         let mut w = Cursor::new(data);
         
+        w.write_u16::<NetworkEndian>(self.protocol_version)?;
+        w.write_u16::<NetworkEndian>(self.application_id)?;
         w.write_u16::<NetworkEndian>(self.kind.into())?;
         w.write_u16::<NetworkEndian>(self.flags.into())?;
-        w.write_u16::<NetworkEndian>(self.version)?;
+        w.write_u16::<NetworkEndian>(self.index)?;
 
         Ok(w.position() as usize)
     }

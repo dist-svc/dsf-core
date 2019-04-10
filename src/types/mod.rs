@@ -13,8 +13,8 @@ use serde::de::{self, Visitor, MapAccess};
 pub const ID_LEN: usize = 32;
 pub type Id = Array32;
 
-pub const REQUEST_ID_LEN: usize = 8;
-pub type RequestId = u64;
+pub const REQUEST_ID_LEN: usize = 2;
+pub type RequestId = u16;
 
 pub const PUBLIC_KEY_LEN: usize = 32;
 pub type PublicKey = Array32;
