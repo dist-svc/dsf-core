@@ -7,7 +7,7 @@ pub mod container;
 pub mod base;
 
 pub mod page;
-pub mod messages;
+pub mod net;
 
 
 /// Parse trait for building parse-able objects

@@ -8,7 +8,7 @@ use std::str::FromStr;
 
 use base64;
 use serde::{Serialize, Serializer, Deserialize, Deserializer};
-use serde::de::{self, Visitor, MapAccess};
+use serde::de::{self, Visitor};
 
 pub const ID_LEN: usize = 32;
 pub type Id = Array32;

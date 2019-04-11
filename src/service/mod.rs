@@ -7,7 +7,7 @@ use crate::types::{Id, Kind, Flags, Error, Address, PublicKey, PrivateKey, Signa
 use crate::protocol::{options::Options};
 use crate::protocol::base::{Base, BaseBuilder};
 use crate::protocol::page::{Page, PageInfo};
-use crate::protocol::messages::{Request, Response, RequestKind, ResponseKind};
+use crate::protocol::net::{Request, Response, RequestKind, ResponseKind};
 
 use crate::crypto;
 

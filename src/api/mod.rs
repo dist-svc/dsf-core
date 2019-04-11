@@ -5,11 +5,19 @@ use crate::service::Service;
 use crate::protocol::page::Page;
 
 /// Producer API trait used by service producers
+pub trait Creator {
+    type Error;
+
+    /// Register a service in the distributed database
+    fn create(&mut self) -> Future<Item=(), Error=Self::Error>;
+}
+
+/// Producer API trait used by service producers
 pub trait Producer {
     type Error;
 
     /// Register a service in the distributed database
-    fn register(s: &Page) -> Future<Item=(), Error=Self::Error>;
+    fn register(&mut self, s: &Page) -> Future<Item=(), Error=Self::Error>;
 }
 
 /// Consumer APi trait used by service consumers
@@ -19,7 +27,7 @@ pub trait Consumer {
 
     /// Locate a DIoT service in the distributed database
     /// This returns a future that will resolve to the desired service or an error
-    fn locate(id: Self::Id) -> Future<Item=Vec<Page>, Error=Self::Error>;
+    fn locate(&mut self, id: Self::Id) -> Future<Item=Vec<Page>, Error=Self::Error>;
 }
 
 
@@ -28,7 +36,7 @@ pub trait Publisher {
     type Error;
 
     /// Publish service data
-    fn publish(s: &Service, data: &Page) -> Future<Item=(), Error=Self::Error>;
+    fn publish(&mut self, s: &Service, data: &Page) -> Future<Item=(), Error=Self::Error>;
 }
 
 /// Subscriber API used by subscribers to service data
@@ -38,6 +46,6 @@ pub trait Subscriber {
 
     /// Locate a DIoT service in the distributed database
     /// This returns a future that will resolve to the desired service or an error
-    fn subscribe(service: &Service) -> Future<Item=Stream<Item=Service, Error=Self::Error>, Error=Self::Error>;
+    fn subscribe(&mut self, service: &Service) -> Future<Item=Stream<Item=Service, Error=Self::Error>, Error=Self::Error>;
 }
 

@@ -1,8 +1,6 @@
 //! Messages are a high level representation of messages used to communicate between peers
 //! to maintain the network, publish and subscribe to services, and exchange data.
 
-use std::fmt;
-
 //use core::convert::TryFrom;
 use try_from::TryFrom;
 use slice_ext::SplitBefore;

@@ -3,7 +3,7 @@
 
 use std::net::{SocketAddr};
 
-use crate::types::{Id, ID_LEN, Signature, SIGNATURE_LEN, Flags, Kind, PublicKey, RequestId, Address, DateTime};
+use crate::types::{Id, ID_LEN, Signature, SIGNATURE_LEN, Flags, Kind, PublicKey, Address, DateTime};
 use crate::protocol::header::Header;
 use crate::protocol::options::{Options, OptionsError};
 use crate::crypto;
