@@ -19,7 +19,10 @@ use crate::crypto;
 #[builder(default, build_fn(validate = "Self::validate"))]
 pub struct Service {
     id: Id,
+
+    application_id: u16,
     kind: Kind,
+
     version: u16,
 
     body: Vec<u8>,
@@ -92,7 +95,7 @@ impl Default for Service {
         let id = crypto::hash(&public_key).unwrap().into();
 
         // Create service object
-        Service{id, kind: Kind::Generic, version: 0, body: vec![], public_options: vec![], private_options: vec![], public_key: public_key, private_key: Some(private_key), encrypted: false, secret_key: None}
+        Service{id, application_id: 0, kind: Kind::Generic, version: 0, body: vec![], public_options: vec![], private_options: vec![], public_key: public_key, private_key: Some(private_key), encrypted: false, secret_key: None}
     }
 }
 
@@ -132,7 +135,7 @@ impl Publisher for Service {
 
         //Page::new(self.id.clone(), self.kind, flags, self.version, self.body.clone(), public_options, self.private_options.clone())
 
-        Page::new(self.id.clone(), flags, self.version, self.kind.into(), PageInfo::primary(self.public_key.clone()), self.body.clone(), SystemTime::now(), SystemTime::now().add(Duration::from_secs(24 * 60 * 60)))
+        Page::new(self.id.clone(), self.application_id, self.kind.into(), flags, self.version, PageInfo::primary(self.public_key.clone()), self.body.clone(), SystemTime::now(), SystemTime::now().add(Duration::from_secs(24 * 60 * 60)))
     }
 }
 
@@ -169,7 +172,10 @@ impl Subscriber for Service {
 
         Ok(Service{
             id: page.id().clone(),
+
+            application_id: page.application_id(),
             kind: page.kind().into(),
+
             version: page.version(),
 
             body: body.to_vec(),
@@ -304,13 +310,17 @@ impl Service
 
         //Page::new(self.id.clone(), options.kind, options.flags, options.version, options.body, public_options, options.private_options)
 
-        Page::new(self.id.clone(), options.flags, options.version, options.kind, PageInfo::secondary(self.id.clone()), options.body, SystemTime::now(), SystemTime::now().add(Duration::from_secs(24 * 60 * 60)))
+        Page::new(self.id.clone(), self.application_id, options.kind, options.flags, options.version, PageInfo::secondary(self.id.clone()), options.body, SystemTime::now(), SystemTime::now().add(Duration::from_secs(24 * 60 * 60)))
 
         //unimplemented!();
     }
 
     pub fn public_key(&self) -> PublicKey {
         self.public_key.clone()
+    }
+
+    pub fn secret_key(&self) -> Option<SecretKey> {
+        self.secret_key.clone()
     }
 
     pub fn encrypt(&self) {
@@ -350,7 +360,7 @@ impl Service
                 kind = Kind::Store;
             }
         }
-        builder.base(self.id().clone(), kind, req.id, flags).body(body).build().unwrap()
+        builder.base(self.id().clone(), 0, kind, req.id, flags).body(body).build().unwrap()
     }
 
 
@@ -383,7 +393,7 @@ impl Service
             builder.append_public_option(o);
         }
 
-        builder.base(self.id().clone(), kind, req.id, flags).build().unwrap()
+        builder.base(self.id().clone(), 0, kind, req.id, flags).build().unwrap()
     }
 
 

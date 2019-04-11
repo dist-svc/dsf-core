@@ -47,10 +47,10 @@ impl <'a, T: AsRef<[u8]>> Container<T> {
         Kind::from(NetworkEndian::read_u16(&data[offsets::PROTO_VERSION..]))
     }
 
-    pub fn application_id(&self) -> Flags {
+    pub fn application_id(&self) -> u16 {
         let data = self.buff.as_ref();
         
-        Flags::from(NetworkEndian::read_u16(&data[offsets::APPLICATION_ID..4]))
+        NetworkEndian::read_u16(&data[offsets::APPLICATION_ID..])
     }
 
     pub fn kind(&self) -> Kind {
@@ -132,7 +132,8 @@ impl <'a, T: AsRef<[u8]>> Container<T> {
         HEADER_LEN + ID_LEN + self.data_len() + self.private_options_len() + self.public_options_len() + SIGNATURE_LEN
     }
 
-
+    /// Verify the contents of a given container
+    /// This calls the provided verifier with the id, body, and signature and forwards the result to the caller
     pub fn verify<V, E>(&self, mut verifier: V) -> Result<bool, E> 
     where
         V: FnMut(&[u8], &[u8], &[u8]) -> Result<bool, E>

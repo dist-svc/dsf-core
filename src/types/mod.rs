@@ -103,6 +103,13 @@ macro_rules! arr {
             }
         }
 
+        impl From<&[u8]> for $name {
+            fn from(data: &[u8]) -> Self {
+                let mut a = [0u8; $len];
+                a.copy_from_slice(data);
+                a.into()
+            }
+        }
 
         impl From<[u8; $len]> for $name {
             fn from(data: [u8; $len]) -> Self {

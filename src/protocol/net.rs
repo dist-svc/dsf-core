@@ -230,7 +230,7 @@ impl Into<Base> for Request {
             }
         }
 
-        builder.base(self.from, kind, self.id, self.flags).body(body).build().unwrap()
+        builder.base(self.from, 0, kind, self.id, self.flags).body(body).build().unwrap()
     }
 }
 
@@ -460,7 +460,7 @@ impl Into<Base> for Response {
             },
         }
 
-        builder.base(self.from, kind, self.id, self.flags).body(body).build().unwrap()
+        builder.base(self.from, 0, kind, self.id, self.flags).body(body).build().unwrap()
     }
 }
 

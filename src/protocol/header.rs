@@ -13,10 +13,13 @@ use crate::protocol::{Encode, Parse};
 pub struct Header {
     #[builder(default = "0")]
     protocol_version: u16,
+
     #[builder(default = "0")]
     application_id: u16,
 
+    /// Object kind
     kind: Kind,
+    
     #[builder(default = "Flags(0)")]
     flags: Flags,
 
@@ -35,8 +38,8 @@ impl HeaderBuilder {
 }
 
 impl Header {
-    pub fn new(kind: Kind, index: u16, flags: Flags) -> Header {
-        Header{protocol_version: 0, application_id: 0, kind, flags, index}
+    pub fn new(application_id: u16, kind: Kind, index: u16, flags: Flags) -> Header {
+        Header{protocol_version: 0, application_id, kind, flags, index}
     }
 
     pub fn protocol_version(&self) -> u16 {
@@ -102,7 +105,7 @@ mod tests {
 
     #[test]
     fn test_encode_page_header() {
-        let h1 = Header::new(Kind::Generic, 1, 2.into());
+        let h1 = Header::new(0, Kind::Generic, 1, 2.into());
 
         let mut buff = [0u8; 1024];
         let n1 = h1.encode(&mut buff).expect("Header encoding failed");

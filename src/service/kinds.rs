@@ -1,9 +1,12 @@
 
 use std::collections::HashMap;
 
-pub enum ServiceKinds {
-    Generic(Generic),
-    Unknown(Unknown),
+pub enum ServiceKind {
+    Generic,
+    Peer,
+    Replica,
+    Unknown,
+    Private
 }
 
 pub struct Generic {

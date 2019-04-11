@@ -20,7 +20,10 @@ use crate::crypto;
 pub struct Page {
     // Header
     id: Id,
-    
+
+    #[builder(default = "0")]
+    application_id: u16,
+
     #[builder(default = "Flags::default()")]
     flags: Flags,
     #[builder(default = "0")]
@@ -56,9 +59,9 @@ pub struct Page {
 impl Page {
 
     /// Create a new page
-    pub fn new(id: Id, flags: Flags, version: u16, kind: Kind, info: PageInfo, body: Vec<u8>, issued: SystemTime, expiry: SystemTime) -> Self {
+    pub fn new(id: Id, application_id: u16, kind: Kind, flags: Flags, version: u16, info: PageInfo, body: Vec<u8>, issued: SystemTime, expiry: SystemTime) -> Self {
         Page{
-            id, flags, version, kind, info, body, issued: issued.into(), expiry: expiry.into(), 
+            id, application_id, kind, flags, version, info, body, issued: issued.into(), expiry: expiry.into(), 
             public_options: vec![],
             private_options: vec![],
             encryption_key: None,
@@ -70,16 +73,20 @@ impl Page {
         &self.id
     }
 
+    pub fn application_id(&self) -> u16 {
+        self.application_id
+    }
+
+    pub fn kind(&self) -> Kind {
+        self.kind
+    }
+
     pub fn flags(&self) -> Flags {
         self.flags
     }
 
     pub fn version(&self) -> u16 {
         self.version
-    }
-
-    pub fn kind(&self) -> Kind {
-        self.kind
     }
 
     pub fn info(&self) -> &PageInfo {
@@ -114,6 +121,7 @@ impl Page {
 
 
         while i < buff.len() {
+            // TODO: validate signatures!
             let (b, n) = Base::parse(&buff[i..], |_id, _data, _sig| -> Result<bool, ()> { Ok(true) } )?;
 
             match Page::try_from(b) {
@@ -204,7 +212,7 @@ impl Into<Base> for Page {
         }
 
         // Generate base object
-        let mut b = Base::new(self.id, self.kind, flags, self.version, self.body, public_options, self.private_options);
+        let mut b = Base::new(self.id, self.application_id, self.kind, flags, self.version, self.body, public_options, self.private_options);
 
         if let Some(sig) = sig {
             b.set_signature(sig);
@@ -272,9 +280,10 @@ impl TryFrom<Base> for Page {
 
         Ok(Page{
             id: base.id().clone(),
+            application_id: header.application_id(),
+            kind: header.kind(),
             flags: header.flags(),
             version: header.index(),
-            kind: header.kind(),
             info,
             body: body.to_vec(),
             issued,

@@ -6,7 +6,6 @@ use std::net::{SocketAddr};
 use crate::types::{Id, ID_LEN, Signature, SIGNATURE_LEN, Flags, Kind, PublicKey, Address, DateTime};
 use crate::protocol::header::Header;
 use crate::protocol::options::{Options, OptionsError};
-use crate::crypto;
 use crate::protocol::container::Container;
 
 #[derive(Clone, Builder, Debug, PartialEq)]
@@ -43,8 +42,8 @@ impl From<std::io::Error> for BaseError {
 }
 
 impl BaseBuilder {
-    pub fn base(&mut self, id: Id, kind: Kind, index: u16, flags: Flags) -> &mut Self {
-        let header = Header::new(kind, index, flags);
+    pub fn base(&mut self, id: Id, application_id: u16, kind: Kind, index: u16, flags: Flags) -> &mut Self {
+        let header = Header::new(application_id, kind, index, flags);
         self.id = Some(id);
         self.header = Some(header);
         self
@@ -69,8 +68,8 @@ impl BaseBuilder {
 
 
 impl Base {
-    pub fn new(id: Id, kind: Kind, flags: Flags, version: u16, body: Vec<u8>, public_options: Vec<Options>, private_options: Vec<Options>) -> Base {
-        let header = Header::new(kind, version, flags);
+    pub fn new(id: Id, application_id: u16, kind: Kind, flags: Flags, version: u16, body: Vec<u8>, public_options: Vec<Options>, private_options: Vec<Options>) -> Base {
+        let header = Header::new(application_id, kind, version, flags);
         Base{id, header, body, public_options, private_options, signature: None}
     }
 
@@ -236,31 +235,7 @@ impl Base {
     }
 }
 
-
-const PAGE_HEADER_LEN: usize = 16;
-
 impl Base {
-    #[deprecated]
-    pub fn raw_id(data: &[u8]) -> Id {
-        let mut id = [0u8; ID_LEN];
-        id.clone_from_slice(&data[PAGE_HEADER_LEN..PAGE_HEADER_LEN+ID_LEN]);
-        id.into()
-    }
-    #[deprecated]
-    pub fn raw_sig(data: &[u8]) -> Signature {
-        let mut sig = [0u8; SIGNATURE_LEN];
-        sig.clone_from_slice(&data[data.len()-SIGNATURE_LEN..]);
-        sig.into()
-    }
-    #[deprecated]
-    pub fn validate(public_key: &[u8], data: &[u8]) -> bool {
-        // TODO: check length is valid
-        let sig = &data[data.len()-SIGNATURE_LEN..];
-        let body = &data[..data.len()-SIGNATURE_LEN];
-
-        crypto::pk_validate(public_key, sig, body).unwrap()
-    }
-
     /// Parses an array containing a page into a page object
     /// fn v(id, data, sig)
     pub fn parse<'a, V, T: AsRef<[u8]>>(data: T, verifier: V) -> Result<(Base, usize), BaseError>
@@ -294,7 +269,7 @@ impl Base {
         Ok((
             Base {
                 id: id.into(),
-                header: Header::new(container.kind(), container.index(), container.flags()),
+                header: Header::new(container.application_id(), container.kind(), container.index(), container.flags()),
                 body: body_data.into(),
                 private_options,
                 public_options,
