@@ -71,8 +71,8 @@ impl TryFrom<Base> for Message {
     fn try_from(base: Base) -> Result<Message, Error> {
         let kind = base.header().kind();
 
-        // Check for DSD messages
-        if !kind.is_dsd() {
+        // Check for DSF messages
+        if !kind.is_dsf() {
             println!("Error converting application-specific base object {:?} to message", kind);
             return Err(Error::InvalidMessageType)
         }

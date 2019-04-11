@@ -61,7 +61,7 @@ pub mod kinds {
 }
 
 impl Kind {
-    pub fn is_dsd(&self) -> bool {
+    pub fn is_dsf(&self) -> bool {
         !self.is_application()
     }
 

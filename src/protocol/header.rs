@@ -1,4 +1,4 @@
-//! Header is a high level representation of the protocol header used in all DSD objects
+//! Header is a high level representation of the protocol header used in all DSF objects
 
 use std::io::{Cursor, Error as IoError};
 
