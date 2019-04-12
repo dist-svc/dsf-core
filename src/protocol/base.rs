@@ -114,8 +114,32 @@ impl Base {
     }
 }
 
+const PAGE_HEADER_LEN: usize = 16;
+use crate::crypto;
+
 // TODO: move these to the options module?
 impl Base {
+    #[deprecated]
+    pub fn raw_id(data: &[u8]) -> Id {
+        let mut id = [0u8; ID_LEN];
+        id.clone_from_slice(&data[PAGE_HEADER_LEN..PAGE_HEADER_LEN+ID_LEN]);
+        id.into()
+    }
+    #[deprecated]
+    pub fn raw_sig(data: &[u8]) -> Signature {
+        let mut sig = [0u8; SIGNATURE_LEN];
+        sig.clone_from_slice(&data[data.len()-SIGNATURE_LEN..]);
+        sig.into()
+    }
+    #[deprecated]
+    pub fn validate(public_key: &PublicKey, data: &[u8]) -> bool {
+        // TODO: check length is valid
+        let sig = Base::raw_sig(data);
+        let body = &data[..data.len()-SIGNATURE_LEN];
+
+        crypto::pk_validate(public_key, &sig, body).unwrap()
+    }
+
     pub fn pub_key_option(options: &[Options]) -> Option<PublicKey> {
         options.iter().find_map(|o| {
             match o { 
@@ -240,7 +264,7 @@ impl Base {
     /// fn v(id, data, sig)
     pub fn parse<'a, V, T: AsRef<[u8]>>(data: T, verifier: V) -> Result<(Base, usize), BaseError>
     where 
-        V: FnMut(&[u8], &[u8], &[u8]) -> Result<bool, ()>
+        V: FnMut(&Id, &Signature, &[u8]) -> Result<bool, ()>
     {
         // Build container over buffer
         let (container, n) = Container::from(data);
@@ -283,7 +307,7 @@ impl Base {
 impl Base {
     pub fn encode<'a, S, E, T: AsRef<[u8]> + AsMut<[u8]>>(&mut self, signer: S, buff: T) -> Result<usize, BaseError> 
     where 
-        S: FnMut(&[u8], &[u8]) -> Result<Signature, E>
+        S: FnMut(&Id, &[u8]) -> Result<Signature, E>
     {
 
         // Build container and encode page
@@ -293,6 +317,8 @@ impl Base {
         if let None = self.signature {
             // Generate signature
             let sig = container.sign(signer).map_err(|_e| BaseError::InvalidSignature )?;
+
+            info!("created sig: {:?}", sig);
 
             // Attach signature to page object
             self.signature = Some(sig.clone());
@@ -325,7 +351,7 @@ mod tests {
         let mut buff = vec![0u8; 1024];
         let n = page.encode(move |_id, data| crypto::pk_sign(&pri_key, data), &mut buff).expect("Error encoding page");
 
-        let (decoded, m) = Base::parse(&buff[..n], |_id, data, sig| crypto::pk_validate(&pub_key, sig, data) ).expect("Error decoding page");;
+        let (decoded, m) = Base::parse(&buff[..n], |_id, sig, data| crypto::pk_validate(&pub_key, sig, data) ).expect("Error decoding page");;
 
         assert_eq!(page, decoded);
         assert_eq!(n, m);

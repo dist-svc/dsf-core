@@ -12,13 +12,13 @@ use sodiumoxide::crypto::secretbox::xsalsa20poly1305::{NONCEBYTES, MACBYTES};
 
 use sodiumoxide::crypto::hash::sha256;
 
-use crate::types::{PublicKey, PrivateKey, Signature, SecretKey, CryptoHash};
+use crate::types::{Id, PublicKey, PrivateKey, Signature, SecretKey, CryptoHash};
 
 /// Signer trait, used for generating page signatures
 pub trait Signer {
     type Error;
 
-    fn sign(&mut self, id: &[u8], data: &[u8]) -> Result<Signature, Self::Error>;
+    fn sign(&mut self, id: &Id, data: &[u8]) -> Result<Signature, Self::Error>;
 }
 
 /// Validator trait, used for checking page signatures.
@@ -27,21 +27,21 @@ pub trait Signer {
 pub trait Validator {
     type Error;
 
-    fn validate(&self, id: &[u8], sig: &[u8], data: &[u8]) -> Result<bool, Self::Error>;
+    fn validate(&self, id: &Id, sig: &Signature, data: &[u8]) -> Result<bool, Self::Error>;
 }
 
 /// Encrypter trait, used to encrypt data for a given service
 pub trait Encrypter {
     type Error;
 
-    fn encrypt(&mut self, id: &[u8], key: &[u8], data: &mut [u8]) -> Result<(), Self::Error>;
+    fn encrypt(&mut self, id: &Id, key: &SecretKey, data: &mut [u8]) -> Result<(), Self::Error>;
 }
 
 /// Decrypter trait, used to decrypt data for a given service
 pub trait Decrypter {
     type Error;
 
-    fn decrypt(&mut self, id: &[u8], key: &[u8], data: &mut [u8]) -> Result<(), Self::Error>;
+    fn decrypt(&mut self, id: &Id, key: &SecretKey, data: &mut [u8]) -> Result<(), Self::Error>;
 }
 
 
@@ -50,7 +50,7 @@ pub fn new_pk() -> Result<(PublicKey, PrivateKey), ()> {
      Ok((public_key.0.into(), private_key.0.into()))
 }
 
-pub fn pk_sign(private_key: &[u8], data: &[u8]) -> Result<Signature, ()> {
+pub fn pk_sign(private_key: &PrivateKey, data: &[u8]) -> Result<Signature, ()> {
      // Parse key from provided slice
      let private_key = SodiumPrivateKey::from_slice(private_key).unwrap();
      // Generate signature
@@ -59,7 +59,7 @@ pub fn pk_sign(private_key: &[u8], data: &[u8]) -> Result<Signature, ()> {
      Ok(sig.0.into())
 }
 
-pub fn pk_validate(public_key: &[u8], signature: &[u8], data: &[u8]) -> Result<bool, ()> {
+pub fn pk_validate(public_key: &PublicKey, signature: &Signature, data: &[u8]) -> Result<bool, ()> {
      // Parse key from provided slice
      let public_key = SodiumPublicKey::from_slice(public_key).unwrap();
      // Parse signature from provided slice
@@ -75,7 +75,7 @@ pub fn new_sk() -> Result<SecretKey, ()> {
      Ok(key.0.into())
 }
 
-pub fn sk_encrypt(secret_key: &[u8], message: &mut [u8]) -> Result<[u8; SK_META], ()> {
+pub fn sk_encrypt(secret_key: &SecretKey, message: &mut [u8]) -> Result<[u8; SK_META], ()> {
      let secret_key = SodiumSecretKey::from_slice(secret_key).unwrap();
      let nonce = secretbox::gen_nonce();
 
@@ -90,7 +90,7 @@ pub fn sk_encrypt(secret_key: &[u8], message: &mut [u8]) -> Result<[u8; SK_META]
      Ok(meta)
 }
 
-pub fn sk_decrypt(secret_key: &[u8], meta: &[u8], message: &mut [u8]) -> Result<(), ()> {
+pub fn sk_decrypt(secret_key: &SecretKey, meta: &[u8], message: &mut [u8]) -> Result<(), ()> {
      let secret_key = SodiumSecretKey::from_slice(secret_key).unwrap();
 
      // Parse encryption metadata
@@ -120,11 +120,11 @@ mod test {
 
           let signature = pk_sign(&private, &data).expect("Error generating signature");
           
-          let valid = pk_validate(&public, signature.as_ref(), &data).expect("Error validating signature");
+          let valid = pk_validate(&public, &signature, &data).expect("Error validating signature");
           assert_eq!(true, valid);
 
           data[3] = 100;
-          let valid = pk_validate(&public, signature.as_ref(), &data).expect("Error validating signature");
+          let valid = pk_validate(&public, &signature, &data).expect("Error validating signature");
           assert_eq!(false, valid);
     }
 

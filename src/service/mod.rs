@@ -247,7 +247,7 @@ impl Subscriber for Service {
 /// Service Cryptographic Methods
 pub trait Crypto {
     fn sign(&mut self, data: &[u8]) -> Result<Signature, Error>;
-    fn validate(&self, signature: &[u8], data: &[u8]) -> Result<bool, Error>;
+    fn validate(&self, signature: &Signature, data: &[u8]) -> Result<bool, Error>;
 }
 
 impl Crypto for Service {
@@ -264,7 +264,7 @@ impl Crypto for Service {
 
     /// Validate a signature against the service public key.
     /// This returns true on success, false for an invalid signature, and an error if an internal fault occurs
-    fn validate(&self, signature: &[u8], data: &[u8]) -> Result<bool, Error> {
+    fn validate(&self, signature: &Signature, data: &[u8]) -> Result<bool, Error> {
         let valid = crypto::pk_validate(&self.public_key, signature, data).unwrap();
         Ok(valid)
     }
@@ -437,7 +437,7 @@ mod test {
     
         println!("Decoding service page");
         let s = service.clone();
-        let (base2, m) = Base::parse(&buff[..n], |_id, data, sig| s.validate(sig, data).map_err(|e| panic!(e) ) ).expect("Error parsing service page");
+        let (base2, m) = Base::parse(&buff[..n], |_id, sig, data| s.validate(sig, data).map_err(|e| panic!(e) ) ).expect("Error parsing service page");
         assert_eq!(base1, base2);
         assert_eq!(n, m);
         let page2: Page = base2.try_into().expect("Error converting base message to page");

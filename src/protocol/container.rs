@@ -3,7 +3,7 @@
 
 use byteorder::{ByteOrder, NetworkEndian};
 
-use crate::types::{ID_LEN, Signature, SIGNATURE_LEN, Flags, Kind};
+use crate::types::{Id, ID_LEN, Signature, SIGNATURE_LEN, Flags, Kind};
 use crate::protocol::{Encode};
 use crate::protocol::options::{Options};
 
@@ -95,6 +95,7 @@ impl <'a, T: AsRef<[u8]>> Container<T> {
         &data[offsets::ID..offsets::BODY]
     }
 
+    /// Return the body of data
     pub fn body(&self) -> &[u8] {
         let data = self.buff.as_ref();
         
@@ -103,6 +104,7 @@ impl <'a, T: AsRef<[u8]>> Container<T> {
         &data[n..n+s]
     }
 
+    /// Return the private options section data
     pub fn private_options(&self) -> &[u8] {
         let data = self.buff.as_ref();
         
@@ -111,6 +113,7 @@ impl <'a, T: AsRef<[u8]>> Container<T> {
         &data[n..n+s]
     }
 
+    /// Return the public options section data
     pub fn public_options(&self) -> &[u8] {
         let data = self.buff.as_ref();
         
@@ -119,6 +122,15 @@ impl <'a, T: AsRef<[u8]>> Container<T> {
         &data[n..n+s]
     }
 
+    /// Return the signed portion of the message for signing or verification
+    pub fn signed(&self) -> &[u8] {
+        let data = self.buff.as_ref();
+        let n = self.len();
+
+        &data[..n-SIGNATURE_LEN]
+    }
+
+    /// Return the signature portion of the message for verification
     pub fn signature(&self) -> &[u8] {
         let data = self.buff.as_ref();
         
@@ -136,21 +148,22 @@ impl <'a, T: AsRef<[u8]>> Container<T> {
     /// This calls the provided verifier with the id, body, and signature and forwards the result to the caller
     pub fn verify<V, E>(&self, mut verifier: V) -> Result<bool, E> 
     where
-        V: FnMut(&[u8], &[u8], &[u8]) -> Result<bool, E>
+        V: FnMut(&Id, &Signature, &[u8]) -> Result<bool, E>
     {
-        let len = self.len() - SIGNATURE_LEN;
-        let id = self.id();
-        let data = self.raw();
-        let sig = self.signature();
+        let id: Id = self.id().into();
+        let data = self.signed();
+        let sig: Signature = self.signature().into();
 
-        (verifier)(id, &data[..len], sig)
+        (verifier)(&id, &sig, &data)
     }
 
     pub fn raw(&self) -> &[u8] {
         let data = self.buff.as_ref();
+        let len = self.len();
         
-        &data
+        &data[0..len]
     }
+
 
 }
 
@@ -209,21 +222,18 @@ impl <'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
         let n = self.len() - SIGNATURE_LEN;
         let data = self.buff.as_mut();
         
-        let s = SIGNATURE_LEN;
-
-        data[n..n+s].copy_from_slice(signature);
+        data[n..n+SIGNATURE_LEN].copy_from_slice(signature);
     }
 
     /// Sign the message with the given signer
     pub fn sign<S, E>(&mut self, mut signer: S) -> Result<Signature, E>
     where
-        S: FnMut(&[u8], &[u8]) -> Result<Signature, E>
+        S: FnMut(&Id, &[u8]) -> Result<Signature, E>
     {
         let len = self.len() - SIGNATURE_LEN;
-        let id = self.id();
-        let data = self.raw();
-
-        let sig = (signer)(id, &data[0..len])?;
+        let id: Id = self.id().into();
+        let data = self.signed();
+        let sig = (signer)(&id, data)?;
 
         self.set_signature(&sig);
 
