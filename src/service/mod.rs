@@ -11,6 +11,11 @@ use crate::protocol::net::{Request, Response, RequestKind, ResponseKind};
 
 use crate::crypto;
 
+pub mod info;
+pub mod kinds;
+
+mod builder;
+
 /// Generic Service Type.
 /// This provides the basis for all services in DSR.
 /// 
@@ -37,53 +42,7 @@ pub struct Service {
     secret_key: Option<SecretKey>,
 }
 
-impl ServiceBuilder {
-    /// Validate service options prior to building
-    fn validate(&self) -> Result<(), String> {
-        // Ensure a secret key is available if private options are used
-        if let Some(private_opts) = &self.private_options {
-            if private_opts.len() > 0 && self.secret_key.is_none() {
-                return Err("Private options cannot be used without specifying or creating an associated secret key".to_owned());
-            }
-        }
 
-        Ok(())
-    }
-
-    /// Setup a peer service.
-    /// This is equivalent to .kind(Kind::Peer)
-    pub fn peer(&mut self) -> &mut Self {
-        let mut new = self;
-        new.kind = Some(Kind::Peer);
-        new
-    }
-
-    /// Setup a generic service.
-    /// This is equivalent to .kind(Kind::Generic)
-    pub fn generic(&mut self) -> &mut Self {
-        let mut new = self;
-        new.kind = Some(Kind::Generic);
-        new
-    }
-
-    /// Setup a private service.
-    /// This is equivalent to .kind(Kind::Private)
-    pub fn private(&mut self) -> &mut Self {
-        let mut new = self;
-        new.kind = Some(Kind::Private);
-        new
-    }
-
-    /// Generate a new encrypted service
-    /// this is equivalent to .secret_key(crypto::new_sk().unwrap()).encrypted(true);
-    pub fn encrypt(&mut self) -> &mut Self {
-        let mut new = self;
-        let secret_key = crypto::new_sk().unwrap();
-        new.secret_key = Some(Some(secret_key));
-        new.encrypted = Some(true);
-        new
-    }
-}
 
 impl Default for Service {
     /// Create a default / blank Service for further initialisation.
@@ -248,6 +207,9 @@ impl Subscriber for Service {
 pub trait Crypto {
     fn sign(&mut self, data: &[u8]) -> Result<Signature, Error>;
     fn validate(&self, signature: &Signature, data: &[u8]) -> Result<bool, Error>;
+
+    fn encrypt(&mut self, data: &[u8]) -> Result<Vec<u8>, Error>;
+    fn decrypt(&self, data: &[u8]) -> Result<Vec<u8>, Error>;
 }
 
 impl Crypto for Service {
@@ -267,6 +229,26 @@ impl Crypto for Service {
     fn validate(&self, signature: &Signature, data: &[u8]) -> Result<bool, Error> {
         let valid = crypto::pk_validate(&self.public_key, signature, data).unwrap();
         Ok(valid)
+    }
+
+    fn encrypt(&mut self, data: &[u8]) -> Result<Vec<u8>, Error> {
+        if let Some(secret_key) = &self.secret_key {
+            //let encrypted = crypto::sk_encrypt(&secret_key, data).unwrap();
+            //Ok(encrypted)
+            Err(Error::Unimplemented)
+        } else {
+            Err(Error::NoPrivateKey)
+        }
+    }
+
+    fn decrypt(&self, data: &[u8]) -> Result<Vec<u8>, Error> {
+        if let Some(secret_key) = &self.secret_key {
+            //let encrypted = crypto::sk_encrypt(&secret_key, data).unwrap();
+            //Ok(encrypted)
+            Err(Error::Unimplemented)
+        } else {
+            Err(Error::NoPrivateKey)
+        }
     }
 }
 
