@@ -318,7 +318,7 @@ impl Base {
             // Generate signature
             let sig = container.sign(signer).map_err(|_e| BaseError::InvalidSignature )?;
 
-            info!("created sig: {:?}", sig);
+            trace!("created sig: {:?}", sig);
 
             // Attach signature to page object
             self.signature = Some(sig.clone());

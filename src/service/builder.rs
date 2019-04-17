@@ -2,6 +2,7 @@
 
 use crate::types::{Kind};
 use crate::crypto;
+use crate::protocol::options::Options;
 
 pub use super::ServiceBuilder;
 
@@ -51,5 +52,21 @@ impl ServiceBuilder {
         new.secret_key = Some(Some(secret_key));
         new.encrypted = Some(true);
         new
+    }
+
+    pub fn append_public_option(&mut self, o: Options) -> &mut Self {
+        match &mut self.public_options {
+            Some(opts) => opts.push(o),
+            None => self.public_options = Some(vec![o]),
+        }
+        self
+    }
+
+     pub fn append_private_option(&mut self, o: Options) -> &mut Self {
+        match &mut self.private_options {
+            Some(opts) => opts.push(o),
+            None => self.private_options = Some(vec![o]),
+        }
+        self
     }
 }

@@ -301,6 +301,10 @@ impl Service
         self.public_key.clone()
     }
 
+    pub fn private_key(&self) -> Option<PrivateKey> {
+        self.private_key.clone()
+    }
+
     pub fn secret_key(&self) -> Option<SecretKey> {
         self.secret_key.clone()
     }
