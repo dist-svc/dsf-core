@@ -34,3 +34,16 @@ pub trait WireEncode {
 
     fn encode(&mut self, buff: &mut [u8]) -> Result<usize, Self::Error>;
 }
+
+/// Parse trait for building parse-able objects
+pub trait WireDecode {
+    /// Output type returned from parsing
+    type Output;
+    /// Error type returned on parse error
+    type Error;
+    /// Context used in decoding
+    type Ctx;
+
+    /// Parse method consumes a slice and returns an object and the remaining slice.
+    fn decode(ctx: Self::Ctx, buff: &[u8]) -> Result<(Self::Output, usize), Self::Error>;
+}

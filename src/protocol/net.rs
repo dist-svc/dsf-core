@@ -5,7 +5,7 @@
 use try_from::TryFrom;
 use slice_ext::SplitBefore;
 
-use crate::types::{Id, ID_LEN, RequestId, Address, Kind, Flags, PublicKey, Error};
+use crate::types::{Id, ID_LEN, RequestId, Address, Kind, Flags, PublicKey, Signature, Error};
 
 use crate::protocol::options::Options;
 use crate::protocol::base::{Base, BaseBuilder};
@@ -56,6 +56,7 @@ impl Message {
     }
 }
 
+
 impl Into<Base> for Message {
     fn into(self) -> Base {
         match self {
@@ -63,6 +64,20 @@ impl Into<Base> for Message {
             Message::Response(resp) => resp.into(),
         }
     }
+}
+
+impl Message {
+    /// Parses an array containing a page into a page object
+    /// fn v(id, data, sig)
+    pub fn parse<'a, V, T: AsRef<[u8]>>(data: T, verifier: V) -> Result<(Base, usize), Error>
+    where 
+        V: FnMut(&Id, &Signature, &[u8]) -> Result<bool, ()>
+    {
+        let (mut b, n) = Base::parse(data, verifier)?;
+
+        Ok((b, n))
+    }
+
 }
 
 impl TryFrom<Base> for Message {
@@ -174,6 +189,8 @@ impl TryFrom<Base> for Request {
                 let mut id = Id::default();
                 id.copy_from_slice(&body[0..ID_LEN]);
                 
+                // Perhaps i should not fetch pages until later..?
+                // And also sign them earlier..?
                 let pages = Page::decode_pages(&body[ID_LEN..]).unwrap();
 
                 RequestKind::Store(id, pages)

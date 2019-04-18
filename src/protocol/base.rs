@@ -348,7 +348,6 @@ impl Base {
             (None, Some(key)) => {
                 let sig = container.sign(|_id, data| crypto::pk_sign(&key, data))
                     .map_err(|_e| BaseError::InvalidSignature )?;
-
                 self.set_signature(sig);
             },
             (None, None) => {
