@@ -94,7 +94,17 @@ impl Publisher for Service {
 
         //Page::new(self.id.clone(), self.kind, flags, self.version, self.body.clone(), public_options, self.private_options.clone())
 
-        Page::new(self.id.clone(), self.application_id, self.kind.into(), flags, self.version, PageInfo::primary(self.public_key.clone()), self.body.clone(), SystemTime::now(), SystemTime::now().add(Duration::from_secs(24 * 60 * 60)))
+        let mut p = Page::new(self.id.clone(), self.application_id, self.kind.into(), flags, self.version, PageInfo::primary(self.public_key.clone()), self.body.clone(), SystemTime::now(), SystemTime::now().add(Duration::from_secs(24 * 60 * 60)));
+
+        if let Some(key) = self.private_key {
+            p.set_private_key(key);
+        }
+        
+        if let Some(key) = self.secret_key {
+            p.set_encryption_key(key);
+        }
+    
+        p
     }
 }
 
@@ -163,6 +173,9 @@ impl Subscriber for Service {
         // Check fields match
         if update.id() != &self.id {
             return Err(Error::UnexpectedServiceId)
+        }
+        if update.version() == self.version {
+            return Ok(())
         }
         if update.version() <= self.version {
             return Err(Error::InvalidServiceVersion)
@@ -292,9 +305,11 @@ impl Service
 
         //Page::new(self.id.clone(), options.kind, options.flags, options.version, options.body, public_options, options.private_options)
 
-        Page::new(self.id.clone(), self.application_id, options.kind, options.flags, options.version, PageInfo::secondary(self.id.clone()), options.body, SystemTime::now(), SystemTime::now().add(Duration::from_secs(24 * 60 * 60)))
+        let mut p = Page::new(self.id.clone(), self.application_id, options.kind, options.flags, options.version, PageInfo::secondary(self.id.clone()), options.body, SystemTime::now(), SystemTime::now().add(Duration::from_secs(24 * 60 * 60)));
 
-        //unimplemented!();
+        p.set_private_key(self.private_key.unwrap());
+
+        p
     }
 
     pub fn public_key(&self) -> PublicKey {
@@ -346,6 +361,9 @@ impl Service
                 kind = Kind::Store;
             }
         }
+
+        builder.private_key(self.private_key);
+
         builder.base(self.id().clone(), 0, kind, req.id, flags).body(body).build().unwrap()
     }
 
@@ -379,6 +397,8 @@ impl Service
             builder.append_public_option(o);
         }
 
+        builder.private_key(self.private_key);
+
         builder.base(self.id().clone(), 0, kind, req.id, flags).build().unwrap()
     }
 
@@ -394,6 +414,8 @@ mod test {
     use std::net::{SocketAddrV4, Ipv4Addr};
 
     use try_from::TryInto;
+
+    use crate::protocol::WireEncode;
 
     use super::*;
 
@@ -414,17 +436,18 @@ mod test {
 
         println!("Encoding service page");
         let mut buff = vec![0u8; 1024];
-        let mut base1: Base = page1.clone().into();
-        let n = base1.encode(|_id, d| service.sign(d).map_err(|_e| () ), &mut buff).expect("Error encoding service page");
+        let n = WireEncode::encode(&mut page1, &mut buff).expect("Error encoding service page");
         // Append sig to page1
-        page1.set_signature(base1.signature().clone().unwrap());
+        //page1.set_signature(base1.signature().clone().unwrap());
+
+        // Clear private data from encoded pages
+        page1.clean();
 
         println!("Encoded service to {} bytes", n);
     
         println!("Decoding service page");
         let s = service.clone();
         let (base2, m) = Base::parse(&buff[..n], |_id, sig, data| s.validate(sig, data).map_err(|e| panic!(e) ) ).expect("Error parsing service page");
-        assert_eq!(base1, base2);
         assert_eq!(n, m);
         let page2: Page = base2.try_into().expect("Error converting base message to page");
         assert_eq!(page1, page2);

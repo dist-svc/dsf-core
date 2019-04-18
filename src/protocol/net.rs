@@ -485,7 +485,7 @@ mod tests {
 
         // Create and sign page
         let mut page = PageBuilder::default().id(id.clone()).kind(Kind::Generic).info(PageInfo::primary(pub_key.clone())).build().expect("Error building page");
-        let mut b: Base = page.clone().into();
+        let mut b = Base::from(&page);
         b.encode(|_id, data| crypto::pk_sign(&pri_key, data), &mut buff).expect("Error signing page");
         let sig = b.signature().clone().unwrap();
         page.set_signature(sig);

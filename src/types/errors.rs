@@ -19,6 +19,7 @@ pub enum Error {
     InvalidServiceVersion,
     NoPrivateKey,
     NoPublicKey,
+    NoSignature,
     ExpectedPrimaryPage,
     KeyIdMismatch,
     PublicKeyChanged,

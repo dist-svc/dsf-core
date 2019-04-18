@@ -7,6 +7,7 @@ use std::ops::Add;
 use try_from::TryFrom;
 
 use crate::types::*;
+use crate::protocol::WireEncode;
 use crate::protocol::options::Options;
 use crate::protocol::base::Base;
 use crate::crypto;
@@ -42,10 +43,6 @@ pub struct Page {
     #[builder(default = "SystemTime::now().add(Duration::from_secs(24 * 60 * 60)).into()")]
     expiry: DateTime,
 
-    // Encryption / Decryption
-    #[builder(default = "None")]
-    encryption_key: Option<SecretKey>,
-
     #[builder(default = "vec![]")]
     public_options: Vec<Options>,
     #[builder(default = "vec![]")]
@@ -54,6 +51,14 @@ pub struct Page {
     // Signature (if signed or decoded)
     #[builder(default = "None")]
     signature: Option<Signature>,
+
+    // Private key (for signing when required)
+    #[builder(default = "None")]
+    private_key: Option<PrivateKey>,
+
+    // Encryption key (for encryption where specified)
+    #[builder(default = "None")]
+    encryption_key: Option<SecretKey>,
 }
 
 impl Page {
@@ -64,8 +69,10 @@ impl Page {
             id, application_id, kind, flags, version, info, body, issued: issued.into(), expiry: expiry.into(), 
             public_options: vec![],
             private_options: vec![],
-            encryption_key: None,
+            
             signature: None,
+            private_key: None,
+            encryption_key: None,
         }
     }
 
@@ -112,6 +119,19 @@ impl Page {
     pub fn set_signature(&mut self, sig: Signature) {
         self.signature = Some(sig);
     }
+
+    pub fn set_private_key(&mut self, private_key: PrivateKey) {
+        self.private_key = Some(private_key);
+    }
+
+    pub fn set_encryption_key(&mut self, secret_key: SecretKey) {
+        self.encryption_key = Some(secret_key);
+    }
+
+    pub fn clean(&mut self) {
+        self.encryption_key = None;
+        self.private_key = None;
+    }
 }
 
 impl Page {
@@ -140,14 +160,17 @@ impl Page {
 
         for p in pages {
             // Check page has associated signature
-            if let None = p.signature() {
-                error!("cannot encode page without associated signature");
-                continue;
-            }
+            match (p.signature, p.private_key) {
+                (None, None) => {
+                    error!("cannot encode page without associated signature or private key");
+                    continue;
+                }
+                _ => (),
+            };
 
             // Convert and encode
-            let mut b: Base = p.clone().into();
-            let n = b.encode(|_id, _data| Err(()) , &mut buff[i..]).unwrap();
+            let mut b = Base::from(p);
+            let n = b.encode(|_id, _data| Err(Error::NoSignature) , &mut buff[i..])?;
 
             i += n;
         }
@@ -179,20 +202,19 @@ impl PageBuilder {
     }
 }
 
-
-impl Into<Base> for Page {
-    fn into(self) -> Base {
-        let mut flags = self.flags.clone();
-        let sig = self.signature().clone();
+impl From<&Page> for Base {
+    fn from(page: &Page) -> Base {
+        let mut flags = page.flags.clone();
+        let sig = page.signature().clone();
 
         // Insert default options
         let mut default_options = vec![
-            Options::issued(self.issued),
-            Options::expiry(self.expiry),
+            Options::issued(page.issued),
+            Options::expiry(page.expiry),
         ];
         
         // Add public fields for Primary and Secondary pages
-        match self.info {
+        match &page.info {
             PageInfo::Primary(primary) => {
                 default_options.push(Options::public_key(primary.pub_key));
             },
@@ -203,22 +225,46 @@ impl Into<Base> for Page {
 
         // Add additional public options
         // TODO: ideally these should be specified by type rather than an arbitrary list
-        let mut public_options = self.public_options.clone();
+        let mut public_options = page.public_options.clone();
         public_options.append(&mut default_options);
 
         // Enable encryption if key is provided
-        if let Some(_key) = self.encryption_key {
+        if let Some(_key) = page.encryption_key {
             flags.set_encrypted(true);
         }
 
         // Generate base object
-        let mut b = Base::new(self.id, self.application_id, self.kind, flags, self.version, self.body, public_options, self.private_options);
+        let mut b = Base::new(page.id, page.application_id, page.kind, flags, page.version, page.body.clone(), public_options, page.private_options.clone());
 
         if let Some(sig) = sig {
             b.set_signature(sig);
         }
+
+        if let Some(key) = page.private_key {
+            b.set_private_key(key);
+        }
+        if let Some(key) = page.encryption_key {
+            b.set_encryption_key(key);
+        }
     
         b
+    }
+}
+
+impl WireEncode for Page {
+    type Error = Error;
+
+    fn encode(&mut self, buff: &mut [u8]) -> Result<usize, Error> {
+        let mut b = Base::from(&*self);
+
+        let res = b.encode(|_id, _data| Err(()), buff)
+            .map_err(|e| panic!(e) );
+
+        if let Some(sig) = b.signature() {
+            self.set_signature(sig.clone());
+        }
+
+        res
     }
 }
 
@@ -288,10 +334,11 @@ impl TryFrom<Base> for Page {
             body: body.to_vec(),
             issued,
             expiry,
-            encryption_key: None,
             public_options: public_options,
             private_options: private_options,
             signature: signature.clone(),
+            private_key: None,
+            encryption_key: None,
         })
     }
 }

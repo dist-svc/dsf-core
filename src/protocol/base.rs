@@ -3,7 +3,8 @@
 
 use std::net::{SocketAddr};
 
-use crate::types::{Id, ID_LEN, Signature, SIGNATURE_LEN, Flags, Kind, PublicKey, Address, DateTime};
+use crate::types::{Id, ID_LEN, Signature, SIGNATURE_LEN, Flags, Kind, PublicKey, PrivateKey, SecretKey, Address, DateTime};
+use crate::protocol::WireEncode;
 use crate::protocol::header::Header;
 use crate::protocol::options::{Options, OptionsError};
 use crate::protocol::container::Container;
@@ -20,6 +21,10 @@ pub struct Base {
     public_options: Vec<Options>,
     #[builder(default = "None")]
     signature:      Option<Signature>,
+    #[builder(default = "None")]
+    private_key:      Option<PrivateKey>,
+    #[builder(default = "None")]
+    encryption_key:   Option<SecretKey>,
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -27,6 +32,16 @@ pub enum BaseError {
     Io(std::io::ErrorKind),
     Options(OptionsError),
     InvalidSignature,
+}
+
+use crate::protocol::page;
+use crate::protocol::net;
+
+pub enum Parent<'a, 'b, 'c> {
+    None,
+    page(&'a page::Page),
+    request(&'b net::Request),
+    response(&'c net::Response),
 }
 
 impl From<OptionsError> for BaseError {
@@ -70,7 +85,7 @@ impl BaseBuilder {
 impl Base {
     pub fn new(id: Id, application_id: u16, kind: Kind, flags: Flags, version: u16, body: Vec<u8>, public_options: Vec<Options>, private_options: Vec<Options>) -> Base {
         let header = Header::new(application_id, kind, version, flags);
-        Base{id, header, body, public_options, private_options, signature: None}
+        Base{id, header, body, public_options, private_options, signature: None, private_key: None, encryption_key: None}
     }
 
     pub fn id(&self) -> &Id {
@@ -105,12 +120,25 @@ impl Base {
         self.signature = Some(sig);
     }
 
+    pub fn set_private_key(&mut self, private_key: PrivateKey) {
+        self.private_key = Some(private_key);
+    }
+
+    pub fn set_encryption_key(&mut self, secret_key: SecretKey) {
+        self.encryption_key = Some(secret_key);
+    }
+
     pub fn append_public_option(&mut self, o: Options) {
         self.public_options.push(o);
     }
 
     pub fn append_private_option(&mut self, o: Options) {
         self.private_options.push(o);
+    }
+
+    pub fn clean(&mut self) {
+        self.encryption_key = None;
+        self.private_key = None;
     }
 }
 
@@ -298,6 +326,8 @@ impl Base {
                 private_options,
                 public_options,
                 signature: Some(signature.into()),
+                private_key: None,
+                encryption_key: None,
             },
             n,
         ))
@@ -313,15 +343,19 @@ impl Base {
         // Build container and encode page
         let (mut container, n) = Container::encode(buff, &self);
 
-        // Calculate signature over written data (if sig does not already exist)
-        if let None = self.signature {
-            // Generate signature
-            let sig = container.sign(signer).map_err(|_e| BaseError::InvalidSignature )?;
+        match (self.signature, self.private_key) {
+            (Some(sig), _) => (),
+            (None, Some(key)) => {
+                let sig = container.sign(|_id, data| crypto::pk_sign(&key, data))
+                    .map_err(|_e| BaseError::InvalidSignature )?;
 
-            trace!("created sig: {:?}", sig);
-
-            // Attach signature to page object
-            self.signature = Some(sig.clone());
+                self.set_signature(sig);
+            },
+            (None, None) => {
+                let sig = container.sign(signer)
+                    .map_err(|_e| BaseError::InvalidSignature )?;
+                self.set_signature(sig);
+            }
         }
 
         Ok(n)

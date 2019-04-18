@@ -28,3 +28,9 @@ pub trait Encode {
     fn encode(&self, buff: &mut [u8]) -> Result<usize, Self::Error>;
 }
 
+
+pub trait WireEncode {
+    type Error;
+
+    fn encode(&mut self, buff: &mut [u8]) -> Result<usize, Self::Error>;
+}
