@@ -135,19 +135,50 @@ impl Page {
 }
 
 impl Page {
-    pub fn decode_pages(buff: &[u8]) -> Result<Vec<Page>, Error> {
+    pub fn decode_pages<V>(buff: &[u8], key_source: V) -> Result<Vec<Page>, Error> 
+    where 
+        V: Fn(&Id) -> Option<PublicKey>
+    {
         let mut pages = vec![];
         let mut i = 0;
 
+        // Last key used to cache the previous primary key to decode secondary pages published by a service in a single message.
+        let mut last_key: Option<(Id, PublicKey)> = None;
 
         while i < buff.len() {
-            // TODO: validate signatures!
-            let (b, n) = Base::parse(&buff[i..], |_id| -> Option<PublicKey> { None } )?;
+            // TODO: validate signatures against existing services!
+            let (b, n) = Base::parse(&buff[i..], |id| {
+                // se key_source first
+                if let Some(key) = (key_source)(id) {
+                   return Some(key)
+                };
 
-            match Page::try_from(b) {
-                Ok(p) => pages.push(p),
-                Err(e) => error!("Error loading page from message: {:?}", e),
+                // Check for last entry second
+                if let Some(prev) = last_key {
+                    if &prev.0 == id {
+                        return Some(prev.1)
+                    }
+                }
+
+                // Fail if no public key is found
+                None
+            } )?;
+
+            let page = match Page::try_from(b) {
+                Ok(p) => p,
+                Err(e) => {
+                    error!("Error loading page from message: {:?}", e);
+                    continue;
+                },
             };
+
+            // Cache key for next run
+            if let Some(key) = page.info().pub_key() {
+                last_key = Some((page.id().clone(), key));
+            }
+
+            // Push page to parsed list
+            pages.push(page);
 
             i += n;
         }

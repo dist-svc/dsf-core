@@ -69,21 +69,25 @@ impl Into<Base> for Message {
 impl Message {
     /// Parses an array containing a page into a page object
     /// fn v(id, data, sig)
-    pub fn parse<'a, V, T: AsRef<[u8]>>(data: T, key_source: V) -> Result<(Base, usize), Error>
+    pub fn parse<'a, V, T: AsRef<[u8]>>(data: T, key_source: V) -> Result<(Message, usize), Error>
     where 
-        V: FnMut(&Id) -> Option<PublicKey>
+        V: Fn(&Id) -> Option<PublicKey>
     {
-        let (mut b, n) = Base::parse(data, key_source)?;
+        let (mut b, n) = Base::parse(data, &key_source)?;
 
-        Ok((b, n))
+        let m = Message::convert(b, &key_source)?;
+
+        Ok((m, n))
     }
 
 }
 
-impl TryFrom<Base> for Message {
-    type Err = Error;
+impl Message {
 
-    fn try_from(base: Base) -> Result<Message, Error> {
+    pub fn convert<V>(base: Base, mut key_source: V) -> Result<Message, Error> 
+    where 
+        V: FnMut (&Id) -> Option<PublicKey>
+    {
         let kind = base.header().kind();
 
         // Check for DSF messages
@@ -94,9 +98,9 @@ impl TryFrom<Base> for Message {
 
         // Parse request and response types
         if kind.is_request() {
-            Ok(Message::Request(Request::try_from(base)?))
+            Ok(Message::Request(Request::convert(base, key_source)?))
         } else if kind.is_response() {
-            Ok(Message::Response(Response::try_from(base)?))
+            Ok(Message::Response(Response::convert(base, key_source)?))
         } else {
             println!("Error converting base object of kind {:?} to message", kind);
             Err(Error::InvalidMessageType)
@@ -161,10 +165,12 @@ impl PartialEq for Request {
     }
 }
 
-impl TryFrom<Base> for Request {
-    type Err = Error;
+impl Request {
 
-    fn try_from(base: Base) -> Result<Request, Error> {
+    pub fn convert<V>(base: Base, mut key_source: V) -> Result<Request, Error> 
+    where 
+        V: FnMut (&Id) -> Option<PublicKey>
+    {
         let header = base.header();
         let body = base.body();
 
@@ -191,7 +197,7 @@ impl TryFrom<Base> for Request {
                 
                 // Perhaps i should not fetch pages until later..?
                 // And also sign them earlier..?
-                let pages = Page::decode_pages(&body[ID_LEN..]).unwrap();
+                let pages = Page::decode_pages(&body[ID_LEN..], |_id| None ).unwrap();
 
                 RequestKind::Store(id, pages)
             },
@@ -362,10 +368,12 @@ impl PartialEq for Response {
 }
 
 
-impl TryFrom<Base> for Response {
-    type Err = Error;
+impl Response {
 
-    fn try_from(base: Base) -> Result<Response, Error> {
+    pub fn convert<V>(base: Base, mut key_source: V) -> Result<Response, Error> 
+    where 
+        V: FnMut (&Id) -> Option<PublicKey>
+    {
         let header = base.header();
         let body = base.body();
 
@@ -410,7 +418,7 @@ impl TryFrom<Base> for Response {
                 let mut id = Id::default();
                 id.copy_from_slice(&body[0..ID_LEN]);
    
-                let pages = Page::decode_pages(&body[ID_LEN..]).unwrap();
+                let pages = Page::decode_pages(&body[ID_LEN..], |_id| None ).unwrap();
 
                 ResponseKind::ValuesFound(id, pages)
             },
@@ -532,7 +540,7 @@ mod tests {
             assert_eq!(b, d);
 
             // Cast to message and check instances match
-            let message2 = Message::try_from(d).expect("error converting base object to message");
+            let message2 = Message::convert(d, |_id| Some(pub_key) ).expect("error converting base object to message");
 
             assert_eq!(message, message2);
         }
