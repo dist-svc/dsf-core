@@ -69,11 +69,11 @@ impl Into<Base> for Message {
 impl Message {
     /// Parses an array containing a page into a page object
     /// fn v(id, data, sig)
-    pub fn parse<'a, V, T: AsRef<[u8]>>(data: T, verifier: V) -> Result<(Base, usize), Error>
+    pub fn parse<'a, V, T: AsRef<[u8]>>(data: T, key_source: V) -> Result<(Base, usize), Error>
     where 
-        V: FnMut(&Id, &Signature, &[u8]) -> Result<bool, ()>
+        V: FnMut(&Id) -> Option<PublicKey>
     {
-        let (mut b, n) = Base::parse(data, verifier)?;
+        let (mut b, n) = Base::parse(data, key_source)?;
 
         Ok((b, n))
     }
@@ -526,7 +526,7 @@ mod tests {
             // Encode base
             let n = b.encode(|_id, data| crypto::pk_sign(&pri_key, data), &mut buff).expect("error encoding message");
             // Parse base and check instances match
-            let (d, m)= Base::parse(&buff[..n], |_id, sig, data| crypto::pk_validate(&pub_key, sig, data) ).expect("error parsing message");
+            let (d, m)= Base::parse(&buff[..n], |_id| Some(pub_key) ).expect("error parsing message");
 
             assert_eq!(n, m);
             assert_eq!(b, d);

@@ -447,7 +447,8 @@ mod test {
     
         println!("Decoding service page");
         let s = service.clone();
-        let (base2, m) = Base::parse(&buff[..n], |_id, sig, data| s.validate(sig, data).map_err(|e| panic!(e) ) ).expect("Error parsing service page");
+        let pub_key = s.public_key();
+        let (base2, m) = Base::parse(&buff[..n], |_id| Some(pub_key) ).expect("Error parsing service page");
         assert_eq!(n, m);
         let page2: Page = base2.try_into().expect("Error converting base message to page");
         assert_eq!(page1, page2);

@@ -32,6 +32,9 @@ pub enum BaseError {
     Io(std::io::ErrorKind),
     Options(OptionsError),
     InvalidSignature,
+    NoPublicKey,
+    ValidateError,
+    PublicKeyIdMismatch,
 }
 
 use crate::protocol::page;
@@ -288,44 +291,84 @@ impl Base {
 }
 
 impl Base {
-    /// Parses an array containing a page into a page object
-    /// fn v(id, data, sig)
-    pub fn parse<'a, V, T: AsRef<[u8]>>(data: T, verifier: V) -> Result<(Base, usize), BaseError>
+    /// Parses a data array into a base object using the pubkey_source to locate 
+    /// a key for validation
+    pub fn parse<'a, V, T: AsRef<[u8]>>(data: T, mut pubkey_source: V) -> Result<(Base, usize), BaseError>
     where 
-        V: FnMut(&Id, &Signature, &[u8]) -> Result<bool, ()>
+        V: FnMut(&Id) -> Option<PublicKey>
     {
+        let mut verified = false;
+
         // Build container over buffer
         let (container, n) = Container::from(data);
 
-        // Verify container contents
-        if !container.verify(verifier).map_err(|_e| BaseError::InvalidSignature )? {
-            return Err(BaseError::InvalidSignature);
-        }
-
         // Fetch ID for page
-        let mut id = [0u8; ID_LEN];
-        id.clone_from_slice(container.id());
+        let id: Id = container.id().into();
 
         // Fetch signature for page
-        let mut signature = [0u8; SIGNATURE_LEN];
-        signature.clone_from_slice(container.signature());
+        let signature: Signature = container.signature().into();
+
+        // Lookup public key
+        let public_key = (pubkey_source)(&id);
+       
+
+        // Validate immediately if pubkey is known
+        if let Some(key) = public_key {
+            // Check ID matches key
+            if id != crypto::hash(&key).unwrap() {
+                return Err(BaseError::PublicKeyIdMismatch);
+            }
+
+            // Validate message body against key
+            verified = crypto::pk_validate(&key, &signature, container.signed()).map_err(|_e| BaseError::ValidateError )?;
+
+            // Stop processing if signature is invalid
+            if !verified {
+                return Err(BaseError::InvalidSignature);
+            }
+        }
+
+        // Fetch public options        
+        let (public_options, _) = Options::parse_vec(container.public_options())?;
+
+        // Late validation for self-signed objects from unknown sources
+        if !verified {
+            // Fetch public key option from object
+            let public_key = match Base::pub_key_option(&public_options) {
+                Some(key) => key,
+                None => return Err(BaseError::NoPublicKey)
+            };
+
+            // Check ID matches key
+            if id != crypto::hash(&public_key).unwrap() {
+                return Err(BaseError::PublicKeyIdMismatch);
+            }
+
+            // Verify body
+            verified = crypto::pk_validate(&public_key, &signature, container.signed()).map_err(|_e| BaseError::ValidateError )?;
+
+            // Stop processing on verification error
+            if !verified {
+                return Err(BaseError::InvalidSignature);
+            }
+        }
+
 
         // TODO: handle decryption here
         let body_data = container.body();
         // TODO: handle decryption here
         let (private_options, _) = Options::parse_vec(container.private_options())?;
 
-        let (public_options, _) = Options::parse_vec(container.public_options())?;
 
         // Return page and options
         Ok((
             Base {
-                id: id.into(),
+                id: id,
                 header: Header::new(container.application_id(), container.kind(), container.index(), container.flags()),
                 body: body_data.into(),
                 private_options,
                 public_options,
-                signature: Some(signature.into()),
+                signature: Some(signature),
                 private_key: None,
                 encryption_key: None,
             },
@@ -384,7 +427,7 @@ mod tests {
         let mut buff = vec![0u8; 1024];
         let n = page.encode(move |_id, data| crypto::pk_sign(&pri_key, data), &mut buff).expect("Error encoding page");
 
-        let (decoded, m) = Base::parse(&buff[..n], |_id, sig, data| crypto::pk_validate(&pub_key, sig, data) ).expect("Error decoding page");;
+        let (decoded, m) = Base::parse(&buff[..n], |_id| Some(pub_key) ).expect("Error decoding page");;
 
         assert_eq!(page, decoded);
         assert_eq!(n, m);

@@ -142,7 +142,7 @@ impl Page {
 
         while i < buff.len() {
             // TODO: validate signatures!
-            let (b, n) = Base::parse(&buff[i..], |_id, _data, _sig| -> Result<bool, ()> { Ok(true) } )?;
+            let (b, n) = Base::parse(&buff[i..], |_id| -> Option<PublicKey> { None } )?;
 
             match Page::try_from(b) {
                 Ok(p) => pages.push(p),
