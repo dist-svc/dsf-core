@@ -146,7 +146,8 @@ pub struct LocateOptions {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LocateInfo {
-    pub created: bool,
+    pub origin: bool,
+    pub updated: bool,
 }
 
 

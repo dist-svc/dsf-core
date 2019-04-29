@@ -289,6 +289,14 @@ impl Service
         self.id.clone()
     }
 
+    pub fn is_origin(&self) -> bool {
+        match (self.private_key, self.encrypted, self.secret_key) {
+            (Some(_), false, _) => true,
+            (Some(_), true, Some(_)) => true,
+            _ => false,
+        }
+    }
+
     /// Secondary generates a secondary page using this service to be attached to the provided service ID
     pub fn secondary(&self, options: SecondaryOptions) -> Page {
         let mut default_options = vec![
