@@ -4,9 +4,9 @@ use std::io::{Error as IoError, ErrorKind as IoErrorKind};
 
 use crate::protocol::base::BaseError;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum Error {
-    IO(IoErrorKind),
+    IO,
     Time,
     InvalidOption,
     InvalidOptionLength,
@@ -39,7 +39,8 @@ pub enum Error {
 
 impl From<IoError> for Error {
     fn from(e: IoError) -> Error {
-        Error::IO(e.kind())
+        error!("io error: {}", e);
+        Error::IO
     }
 }
 

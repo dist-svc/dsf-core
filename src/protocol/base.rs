@@ -29,9 +29,9 @@ pub struct Base {
     encryption_key:   Option<SecretKey>,
 }
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum BaseError {
-    Io(std::io::ErrorKind),
+    Io,
     Options(OptionsError),
     InvalidSignature,
     NoPublicKey,
@@ -57,7 +57,8 @@ impl From<OptionsError> for BaseError {
 
 impl From<std::io::Error> for BaseError {
     fn from(e: std::io::Error) -> BaseError {
-        BaseError::Io(e.kind())
+        error!("io error: {}", e);
+        BaseError::Io
     }
 }
 

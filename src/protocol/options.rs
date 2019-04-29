@@ -22,9 +22,9 @@ pub enum Options {
     Metadata(Metadata),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum OptionsError {
-    IO(std::io::ErrorKind),
+    IO,
     InvalidMetadata,
     InvalidOptionLength,
     Unimplemented,
@@ -32,7 +32,8 @@ pub enum OptionsError {
 
 impl From<std::io::Error> for OptionsError {
     fn from(e: std::io::Error) -> OptionsError {
-        OptionsError::IO(e.kind())
+        error!("io error: {}", e);
+        OptionsError::IO
     }
 }
 
