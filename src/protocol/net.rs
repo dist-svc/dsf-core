@@ -2,10 +2,10 @@
 //! to maintain the network, publish and subscribe to services, and exchange data.
 
 //use core::convert::TryFrom;
-use try_from::TryFrom;
+
 use slice_ext::SplitBefore;
 
-use crate::types::{Id, ID_LEN, RequestId, Address, Kind, Flags, PublicKey, Signature, Error};
+use crate::types::{Id, ID_LEN, RequestId, Address, Kind, Flags, PublicKey, Error};
 
 use crate::protocol::options::Options;
 use crate::protocol::base::{Base, BaseBuilder};
@@ -73,7 +73,7 @@ impl Message {
     where 
         V: Fn(&Id) -> Option<PublicKey>
     {
-        let (mut b, n) = Base::parse(data, &key_source)?;
+        let (b, n) = Base::parse(data, &key_source)?;
 
         let m = Message::convert(b, &key_source)?;
 
@@ -84,7 +84,7 @@ impl Message {
 
 impl Message {
 
-    pub fn convert<V>(base: Base, mut key_source: V) -> Result<Message, Error> 
+    pub fn convert<V>(base: Base, key_source: V) -> Result<Message, Error> 
     where 
         V: FnMut (&Id) -> Option<PublicKey>
     {
@@ -167,7 +167,7 @@ impl PartialEq for Request {
 
 impl Request {
 
-    pub fn convert<V>(base: Base, mut key_source: V) -> Result<Request, Error> 
+    pub fn convert<V>(base: Base, _key_source: V) -> Result<Request, Error> 
     where 
         V: FnMut (&Id) -> Option<PublicKey>
     {
@@ -370,7 +370,7 @@ impl PartialEq for Response {
 
 impl Response {
 
-    pub fn convert<V>(base: Base, mut key_source: V) -> Result<Response, Error> 
+    pub fn convert<V>(base: Base, _key_source: V) -> Result<Response, Error> 
     where 
         V: FnMut (&Id) -> Option<PublicKey>
     {

@@ -244,8 +244,8 @@ impl Crypto for Service {
         Ok(valid)
     }
 
-    fn encrypt(&mut self, data: &[u8]) -> Result<Vec<u8>, Error> {
-        if let Some(secret_key) = &self.secret_key {
+    fn encrypt(&mut self, _data: &[u8]) -> Result<Vec<u8>, Error> {
+        if let Some(_secret_key) = &self.secret_key {
             //let encrypted = crypto::sk_encrypt(&secret_key, data).unwrap();
             //Ok(encrypted)
             Err(Error::Unimplemented)
@@ -254,8 +254,8 @@ impl Crypto for Service {
         }
     }
 
-    fn decrypt(&self, data: &[u8]) -> Result<Vec<u8>, Error> {
-        if let Some(secret_key) = &self.secret_key {
+    fn decrypt(&self, _data: &[u8]) -> Result<Vec<u8>, Error> {
+        if let Some(_secret_key) = &self.secret_key {
             //let encrypted = crypto::sk_encrypt(&secret_key, data).unwrap();
             //Ok(encrypted)
             Err(Error::Unimplemented)

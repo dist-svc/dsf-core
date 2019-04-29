@@ -192,7 +192,7 @@ mod test {
      #[test]
      fn test_encrypt_decrypt2() {
          let secret = new_sk().expect("Error generating secret key");
-         let mut data = vec!(0, 1, 2, 3, 4, 5, 6, 7, 8, 9);
+         let data = vec!(0, 1, 2, 3, 4, 5, 6, 7, 8, 9);
      
          let mut buff = data.clone();
          buff.append(&mut vec![0u8; 128]);

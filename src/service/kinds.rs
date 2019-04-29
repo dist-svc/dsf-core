@@ -10,13 +10,13 @@ pub enum ServiceKind {
 }
 
 pub struct Generic {
-    name: String,
-    addresses: Vec<String>,
-    meta: HashMap<String, String>,
+    pub name: String,
+    pub addresses: Vec<String>,
+    pub meta: HashMap<String, String>,
 }
 
 pub struct Unknown {
-    body: Vec<u8>,
+    pub body: Vec<u8>,
 }
 
 

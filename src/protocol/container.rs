@@ -230,7 +230,7 @@ impl <'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
     where
         S: FnMut(&Id, &[u8]) -> Result<Signature, E>
     {
-        let len = self.len() - SIGNATURE_LEN;
+        let _len = self.len() - SIGNATURE_LEN;
         let id: Id = self.id().into();
         let data = self.signed();
         let sig = (signer)(&id, data)?;

@@ -3,11 +3,13 @@
 
 use std::net::{SocketAddr};
 
-use crate::types::{Id, ID_LEN, Signature, SIGNATURE_LEN, Flags, Kind, PublicKey, PrivateKey, SecretKey, Address, DateTime};
-use crate::protocol::WireEncode;
+use crate::types::{Id, Signature, Flags, Kind, PublicKey, PrivateKey, SecretKey, Address, DateTime};
 use crate::protocol::header::Header;
 use crate::protocol::options::{Options, OptionsError};
 use crate::protocol::container::Container;
+
+use crate::crypto;
+
 
 #[derive(Clone, Builder, Debug, PartialEq)]
 pub struct Base {
@@ -42,9 +44,9 @@ use crate::protocol::net;
 
 pub enum Parent<'a, 'b, 'c> {
     None,
-    page(&'a page::Page),
-    request(&'b net::Request),
-    response(&'c net::Response),
+    Page(&'a page::Page),
+    Request(&'b net::Request),
+    Response(&'c net::Response),
 }
 
 impl From<OptionsError> for BaseError {
@@ -145,31 +147,9 @@ impl Base {
     }
 }
 
-const PAGE_HEADER_LEN: usize = 16;
-use crate::crypto;
-
 // TODO: move these to the options module?
 impl Base {
-    #[deprecated]
-    pub fn raw_id(data: &[u8]) -> Id {
-        let mut id = [0u8; ID_LEN];
-        id.clone_from_slice(&data[PAGE_HEADER_LEN..PAGE_HEADER_LEN+ID_LEN]);
-        id.into()
-    }
-    #[deprecated]
-    pub fn raw_sig(data: &[u8]) -> Signature {
-        let mut sig = [0u8; SIGNATURE_LEN];
-        sig.clone_from_slice(&data[data.len()-SIGNATURE_LEN..]);
-        sig.into()
-    }
-    #[deprecated]
-    pub fn validate(public_key: &PublicKey, data: &[u8]) -> bool {
-        // TODO: check length is valid
-        let sig = Base::raw_sig(data);
-        let body = &data[..data.len()-SIGNATURE_LEN];
 
-        crypto::pk_validate(public_key, &sig, body).unwrap()
-    }
 
     pub fn pub_key_option(options: &[Options]) -> Option<PublicKey> {
         options.iter().find_map(|o| {
@@ -387,7 +367,7 @@ impl Base {
         let (mut container, n) = Container::encode(buff, &self);
 
         match (self.signature, self.private_key) {
-            (Some(sig), _) => (),
+            (Some(_sig), _) => (),
             (None, Some(key)) => {
                 let sig = container.sign(|_id, data| crypto::pk_sign(&key, data))
                     .map_err(|_e| BaseError::InvalidSignature )?;
