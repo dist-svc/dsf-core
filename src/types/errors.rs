@@ -31,6 +31,7 @@ pub enum Error {
     NoPeersFound,
     NotFound,
     InvalidResponse,
+    UnknownService,
     InvalidSignature,
     Base(BaseError),
     Timeout,

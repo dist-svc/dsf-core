@@ -48,7 +48,7 @@ pub struct CreateOptions {
     /// Application ID    
     pub application_id: u16,
 
-    #[structopt(short = "p", long = "page-kind")]
+    #[structopt(short = "k", long = "page-kind")]
     /// Page Kind (defaults to Generic)
     pub page_kind: Option<u16>,
 
@@ -64,9 +64,9 @@ pub struct CreateOptions {
     /// Service Metadata key:value pairs
     pub metadata: Vec<(String, String)>,
 
-    #[structopt(short = "e", long = "encrypted")]
-    /// Indicate the service should be encrypted
-    pub encrypted: bool,
+    #[structopt(short = "p", long = "public")]
+    /// Indicate the service should be public (unencrypted)
+    pub public: bool,
 
     #[structopt(long = "register")]
     /// Indicate the service should be registered following creation
@@ -81,7 +81,7 @@ impl Default for CreateOptions {
             body: None,
             addresses: vec![],
             metadata: vec![],
-            encrypted: true,
+            public: false,
             register: false,
         }
     }
@@ -99,6 +99,7 @@ pub struct CreateInfo {
     pub id: Id,
     pub secret_key: Option<SecretKey>,
 }
+
 
 /// Producer API trait used by service producers
 pub trait Register {
