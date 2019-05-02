@@ -20,7 +20,7 @@ mod builder;
 /// This provides the basis for all services in DSR.
 /// 
 /// Services should be constructed using the ServiceBuilder type
-#[derive(Clone, Builder)]
+#[derive(Clone, Debug, Builder, Serialize, Deserialize)]
 #[builder(default, build_fn(validate = "Self::validate"))]
 pub struct Service {
     id: Id,

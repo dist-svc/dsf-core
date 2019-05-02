@@ -8,7 +8,7 @@ use crate::types::{Id, ID_LEN, PublicKey, PUBLIC_KEY_LEN, DateTime};
 use crate::protocol::{Encode, Parse};
 
 /// D-IoT Optional fields
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Options {
     None,
     PubKey(PubKey),
@@ -230,7 +230,7 @@ impl Encode for Options {
 }
 
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PubKey {
     pub public_key: PublicKey,
 }
@@ -267,7 +267,7 @@ impl Encode for PubKey {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PeerId {
     pub peer_id: Id,
 }
@@ -303,7 +303,7 @@ impl Encode for PeerId {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Kind {
     value: String,
 }
@@ -342,7 +342,7 @@ impl Encode for Kind {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Name {
     value: String,
 }
@@ -442,7 +442,7 @@ impl Encode for SocketAddrV6 {
 }
 
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Metadata {
     key: String,
     value: String,
@@ -495,7 +495,7 @@ impl From<Metadata> for Options {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Issued {
     pub when: DateTime,
 }
@@ -534,7 +534,7 @@ impl Encode for Issued {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Expiry {
     pub when: DateTime,
 }

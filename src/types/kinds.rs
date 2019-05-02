@@ -1,7 +1,7 @@
 
 /// Page Kinds.
 /// 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
 pub enum Kind {
     // Pages
     Generic,
