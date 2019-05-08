@@ -11,8 +11,14 @@ use crate::protocol::net::{Request, Response, RequestKind, ResponseKind};
 
 use crate::crypto;
 
-pub mod info;
 pub mod kinds;
+
+// Service extensions
+pub mod publisher;
+pub use publisher::Publisher;
+
+pub mod subscriber;
+pub use subscriber::Subscriber;
 
 mod builder;
 
@@ -42,8 +48,6 @@ pub struct Service {
     secret_key: Option<SecretKey>,
 }
 
-
-
 impl Default for Service {
     /// Create a default / blank Service for further initialisation.
     fn default() -> Service {
@@ -58,217 +62,28 @@ impl Default for Service {
     }
 }
 
-pub trait Publisher {
-    /// Update allows services to be updated (and re-published)
-    fn update<U>(&mut self, update_fn: U) 
-        where U: Fn(&mut Vec<u8>, &mut Vec<Options>, &mut Vec<Options>);
-    /// Publish generates a page for publishing for the given service.
-    fn publish(&self) -> Page;
-}
+#[derive(Clone, Builder)]
+pub struct DataOptions {
+    #[builder(default = "Kind::Generic")]
+    data_kind: Kind,
+    #[builder(default = "Flags(0)")]
+    flags: Flags,
+    #[builder(default = "0")]
+    version: u16,
 
-impl Publisher for Service {
-    /// Update a service.
-    /// This allows in-place editing of descriptors and options and causes an update of the service version number.
-    fn update<U>(&mut self, update_fn: U) 
-        where U: Fn(&mut Vec<u8>, &mut Vec<Options>, &mut Vec<Options>)
-    {
-        update_fn(&mut self.body, &mut self.public_options, &mut self.private_options);
-        self.version += 1;
-    }
+    #[builder(default = "vec![]")]
+    body: Vec<u8>,
 
-    /// Publish generates a page for publishing for the given service.
-    fn publish(&self) -> Page {
-        // Insert default options
-        // TODO: is this the right place to do this? Should they be deduplicated?
-        let mut default_options = vec![
-            Options::issued(SystemTime::now()),
-            Options::expiry(SystemTime::now().add(Duration::from_secs(24 * 60 * 60))),
-            Options::public_key(self.public_key.clone()),
-        ];
-
-        let mut public_options = self.public_options.clone();
-        public_options.append(&mut default_options);
-
-        let mut flags = Flags(0);
-        flags.set_encrypted(self.encrypted);
-
-        //Page::new(self.id.clone(), self.kind, flags, self.version, self.body.clone(), public_options, self.private_options.clone())
-
-        let mut p = Page::new(self.id.clone(), self.application_id, self.kind.into(), flags, self.version, PageInfo::primary(self.public_key.clone()), self.body.clone(), SystemTime::now(), SystemTime::now().add(Duration::from_secs(24 * 60 * 60)));
-
-        if let Some(key) = self.private_key {
-            p.set_private_key(key);
-        }
-        
-        if let Some(key) = self.secret_key {
-            p.set_encryption_key(key);
-        }
-    
-        p
-    }
-}
-
-pub trait Subscriber {
-    type Service;
-
-    /// Create a service replica from a given service page
-    fn load(page: &Page) -> Result<Self::Service, Error>;
-    /// Apply an updated page to an existing service instance
-    fn apply(&mut self, update: &Page) -> Result<(), Error>;
-}
-
-impl Subscriber for Service {
-    type Service = Service;
-
-    /// Create a service instance from a given page
-    fn load(page: &Page) -> Result<Service, Error> {
-
-        let flags = page.flags();
-
-        let public_key = match page.info() {
-            PageInfo::Primary(primary) => primary.pub_key.clone(),
-            _ => {
-                error!("Attempted to load service from secondary page");
-                return Err(Error::UnexpectedPageType);
-            }
-        };
-
-        let body = page.body();
-
-        let public_options = page.public_options();
-        let private_options = page.private_options();
-
-
-        Ok(Service{
-            id: page.id().clone(),
-
-            application_id: page.application_id(),
-            kind: page.kind().into(),
-
-            version: page.version(),
-
-            body: body.to_vec(),
-
-            public_options: public_options.to_vec(),
-            private_options: private_options.to_vec(),
-
-            public_key,
-            private_key: None,
-
-            encrypted: flags.encrypted(),
-            secret_key: None,
-        })
-    }
-
-    /// Apply an upgrade to an existing service.
-    /// This consumes a new page and updates the service instance
-    fn apply(&mut self, update: &Page) -> Result<(), Error> {
-
-        let body = update.body();
-        let flags = update.flags();
-        
-        let public_options = update.public_options();
-        let private_options = update.private_options();
-
-        // Check fields match
-        if update.id() != &self.id {
-            return Err(Error::UnexpectedServiceId)
-        }
-        if update.version() == self.version {
-            return Ok(())
-        }
-        if update.version() <= self.version {
-            return Err(Error::InvalidServiceVersion)
-        }
-        if update.kind() != self.kind.into() {
-            return Err(Error::InvalidPageKind)
-        }
-        if update.flags().secondary() {
-            return Err(Error::ExpectedPrimaryPage)
-        }
-
-        // Fetch public key from options
-        let public_key: PublicKey = match update.info() {
-            PageInfo::Primary(primary) => primary.pub_key.clone(),
-            _ => {
-                error!("Attempted to update service from secondary page");
-                return Err(Error::UnexpectedPageType);
-            }
-        };
-
-        // Check public key and ID match
-        if self.id != crypto::hash(&public_key).unwrap() {
-            return Err(Error::KeyIdMismatch)
-        }
-
-        // Check public key hasn't changed
-        if self.public_key != public_key {
-            return Err(Error::PublicKeyChanged)
-        }
-
-        self.version = update.version();
-        self.encrypted = flags.encrypted();
-        self.body = body.to_vec();
-        self.public_options = public_options.to_vec();
-        self.private_options = private_options.to_vec();
-    
-        Ok(())
-    }
-}
-
-/// Service Cryptographic Methods
-pub trait Crypto {
-    fn sign(&mut self, data: &[u8]) -> Result<Signature, Error>;
-    fn validate(&self, signature: &Signature, data: &[u8]) -> Result<bool, Error>;
-
-    fn encrypt(&mut self, data: &[u8]) -> Result<Vec<u8>, Error>;
-    fn decrypt(&self, data: &[u8]) -> Result<Vec<u8>, Error>;
-}
-
-impl Crypto for Service {
-    /// Sign the provided data with the associated service key.
-    /// This returns an error if the service does not have an attached service private key
-    fn sign(&mut self, data: &[u8]) -> Result<Signature, Error> {
-        if let Some(private_key) = &self.private_key {
-            let sig = crypto::pk_sign(&private_key, data).unwrap();
-            Ok(sig)
-        } else {
-            Err(Error::NoPrivateKey)
-        }
-    }
-
-    /// Validate a signature against the service public key.
-    /// This returns true on success, false for an invalid signature, and an error if an internal fault occurs
-    fn validate(&self, signature: &Signature, data: &[u8]) -> Result<bool, Error> {
-        let valid = crypto::pk_validate(&self.public_key, signature, data).unwrap();
-        Ok(valid)
-    }
-
-    fn encrypt(&mut self, _data: &[u8]) -> Result<Vec<u8>, Error> {
-        if let Some(_secret_key) = &self.secret_key {
-            //let encrypted = crypto::sk_encrypt(&secret_key, data).unwrap();
-            //Ok(encrypted)
-            Err(Error::Unimplemented)
-        } else {
-            Err(Error::NoPrivateKey)
-        }
-    }
-
-    fn decrypt(&self, _data: &[u8]) -> Result<Vec<u8>, Error> {
-        if let Some(_secret_key) = &self.secret_key {
-            //let encrypted = crypto::sk_encrypt(&secret_key, data).unwrap();
-            //Ok(encrypted)
-            Err(Error::Unimplemented)
-        } else {
-            Err(Error::NoPrivateKey)
-        }
-    }
+    #[builder(default = "vec![]")]
+    public_options: Vec<Options>,
+    #[builder(default = "vec![]")]
+    private_options: Vec<Options>,
 }
 
 #[derive(Clone, Builder)]
 pub struct SecondaryOptions {
     #[builder(default = "Kind::Generic")]
-    kind: Kind,
+    page_kind: Kind,
     #[builder(default = "Flags(0)")]
     flags: Flags,
     #[builder(default = "0")]
@@ -297,6 +112,26 @@ impl Service
         }
     }
 
+    pub fn data(&self, options: DataOptions) -> Page {
+        let mut default_options = vec![
+            Options::peer_id(self.id.clone()),
+            Options::issued(SystemTime::now()),
+            Options::expiry(SystemTime::now().add(Duration::from_secs(24 * 60 * 60))),
+        ];
+
+        let mut public_options = options.public_options.clone();
+        public_options.append(&mut default_options);
+
+        let mut flags = options.flags;
+        flags.set_secondary(true);
+
+        let mut p = Page::new(self.id.clone(), self.application_id, options.data_kind, options.flags, options.version, PageInfo::secondary(self.id.clone()), options.body, SystemTime::now(), SystemTime::now().add(Duration::from_secs(24 * 60 * 60)));
+
+        p.set_private_key(self.private_key.unwrap());
+
+        p
+    }
+
     /// Secondary generates a secondary page using this service to be attached to the provided service ID
     pub fn secondary(&self, options: SecondaryOptions) -> Page {
         let mut default_options = vec![
@@ -311,9 +146,7 @@ impl Service
         let mut flags = options.flags;
         flags.set_secondary(true);
 
-        //Page::new(self.id.clone(), options.kind, options.flags, options.version, options.body, public_options, options.private_options)
-
-        let mut p = Page::new(self.id.clone(), self.application_id, options.kind, options.flags, options.version, PageInfo::secondary(self.id.clone()), options.body, SystemTime::now(), SystemTime::now().add(Duration::from_secs(24 * 60 * 60)));
+        let mut p = Page::new(self.id.clone(), self.application_id, options.page_kind, options.flags, options.version, PageInfo::secondary(self.id.clone()), options.body, SystemTime::now(), SystemTime::now().add(Duration::from_secs(24 * 60 * 60)));
 
         p.set_private_key(self.private_key.unwrap());
 
@@ -339,6 +172,8 @@ impl Service
     pub fn decrypt(&self) {
         
     }
+
+
 
     /// Generate a protocol message from a request object
     pub fn build_request(&self, req: &Request) -> Base {
@@ -415,6 +250,55 @@ impl Service
 
 
 
+/// Service Cryptographic Methods
+pub trait Crypto {
+    fn sign(&mut self, data: &[u8]) -> Result<Signature, Error>;
+    fn validate(&self, signature: &Signature, data: &[u8]) -> Result<bool, Error>;
+
+    fn encrypt(&mut self, data: &[u8]) -> Result<Vec<u8>, Error>;
+    fn decrypt(&self, data: &[u8]) -> Result<Vec<u8>, Error>;
+}
+
+impl Crypto for Service {
+    /// Sign the provided data with the associated service key.
+    /// This returns an error if the service does not have an attached service private key
+    fn sign(&mut self, data: &[u8]) -> Result<Signature, Error> {
+        if let Some(private_key) = &self.private_key {
+            let sig = crypto::pk_sign(&private_key, data).unwrap();
+            Ok(sig)
+        } else {
+            Err(Error::NoPrivateKey)
+        }
+    }
+
+    /// Validate a signature against the service public key.
+    /// This returns true on success, false for an invalid signature, and an error if an internal fault occurs
+    fn validate(&self, signature: &Signature, data: &[u8]) -> Result<bool, Error> {
+        let valid = crypto::pk_validate(&self.public_key, signature, data).unwrap();
+        Ok(valid)
+    }
+
+    fn encrypt(&mut self, _data: &[u8]) -> Result<Vec<u8>, Error> {
+        if let Some(_secret_key) = &self.secret_key {
+            //let encrypted = crypto::sk_encrypt(&secret_key, data).unwrap();
+            //Ok(encrypted)
+            Err(Error::Unimplemented)
+        } else {
+            Err(Error::NoPrivateKey)
+        }
+    }
+
+    fn decrypt(&self, _data: &[u8]) -> Result<Vec<u8>, Error> {
+        if let Some(_secret_key) = &self.secret_key {
+            //let encrypted = crypto::sk_encrypt(&secret_key, data).unwrap();
+            //Ok(encrypted)
+            Err(Error::Unimplemented)
+        } else {
+            Err(Error::NoPrivateKey)
+        }
+    }
+}
+
 
 #[cfg(test)]
 mod test {
@@ -424,6 +308,8 @@ mod test {
     use try_from::TryInto;
 
     use crate::protocol::WireEncode;
+    use crate::service::subscriber::Subscriber;
+    use crate::service::publisher::Publisher;
 
     use super::*;
 

@@ -26,6 +26,35 @@ pub enum Kind {
     Data(bool, u16),
 }
 
+#[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
+pub enum PageKind {
+    Generic,
+    Peer,
+    Replica,
+    Private,
+    Application(u16),
+}
+
+#[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
+pub enum MessageKind {
+    Hello,
+    Status,
+    Ping,
+    FindNodes,
+    FindValues,
+    Store,
+    NodesFound,
+    ValuesFound,
+    NoResult,
+    Application(u16),
+}
+
+#[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
+pub enum DataKind {
+    Generic,
+    Application(u16),
+}
+
 pub mod kinds {
     pub const NONE          : u16 = 0x0000;
 
@@ -57,7 +86,7 @@ pub mod kinds {
     pub const NODES_FOUND    : u16 = 0x0002 | RESPONSE_FLAGS;
     pub const VALUES_FOUND   : u16 = 0x0003 | RESPONSE_FLAGS;
     
-    pub const DATA_FLAGS    : u16 = 0x4000; 
+    pub const DATA_FLAGS     : u16 = 0x4000; 
 }
 
 impl Kind {
@@ -224,22 +253,24 @@ mod tests {
     fn test_kinds() {
         let tests = vec![
 
-            (Kind::Generic,         0b0000_0000_0000_0001),
-            (Kind::Peer,            0b0000_0000_0000_0010),
-            (Kind::Private,         0b0000_1111_1111_1111),
-
-            (Kind::Replica,         0b0001_0000_0000_0011),
             
-            (Kind::Hello,           0b0010_0000_0000_0000),
-            (Kind::Ping,            0b0010_0000_0000_0001),
-            (Kind::FindNodes,       0b0010_0000_0000_0010),
-            (Kind::FindValues,      0b0010_0000_0000_0011),
-            (Kind::Store,           0b0010_0000_0000_0100),
+            (Kind::Private,                     0b0000_1111_1111_1111),
 
-            (Kind::Status,          0b0011_0000_0000_0000),
-            (Kind::NoResult,        0b0011_0000_0000_0001),
-            (Kind::NodesFound,      0b0011_0000_0000_0010),
-            (Kind::ValuesFound,     0b0011_0000_0000_0011),
+            // Pages
+            (Kind::Generic,                     0b0000_0000_0000_0001),
+            (Kind::Peer,                        0b0000_0000_0000_0010),
+            (Kind::Replica,                     0b0000_0000_0000_0011),
+            
+            (Kind::Hello,                       0b0100_0000_0000_0000),
+            (Kind::Ping,                        0b0100_0000_0000_0001),
+            (Kind::FindNodes,                   0b0100_0000_0000_0010),
+            (Kind::FindValues,                  0b0100_0000_0000_0011),
+            (Kind::Store,                       0b0100_0000_0000_0100),
+
+            (Kind::Status,                      0b1000_0000_0000_0000),
+            (Kind::NoResult,                    0b1000_0000_0000_0001),
+            (Kind::NodesFound,                  0b1000_0000_0000_0010),
+            (Kind::ValuesFound,                 0b1000_0000_0000_0011),
             
             (Kind::Primary(false, 0b1010),      0b0000_0000_0000_1010),
             (Kind::Primary(true, 0b1010),       0b1000_0000_0000_1010),
