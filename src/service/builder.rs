@@ -1,6 +1,6 @@
 
 
-use crate::types::{Kind};
+use crate::types::{PageKind};
 use crate::crypto;
 use crate::protocol::options::Options;
 
@@ -24,7 +24,7 @@ impl ServiceBuilder {
     /// This is equivalent to .kind(Kind::Peer)
     pub fn peer(&mut self) -> &mut Self {
         let mut new = self;
-        new.kind = Some(Kind::Peer);
+        new.kind = Some(PageKind::Peer);
         new
     }
 
@@ -32,7 +32,7 @@ impl ServiceBuilder {
     /// This is equivalent to .kind(Kind::Generic)
     pub fn generic(&mut self) -> &mut Self {
         let mut new = self;
-        new.kind = Some(Kind::Generic);
+        new.kind = Some(PageKind::Generic);
         new
     }
 
@@ -40,7 +40,7 @@ impl ServiceBuilder {
     /// This is equivalent to .kind(Kind::Private)
     pub fn private(&mut self) -> &mut Self {
         let mut new = self;
-        new.kind = Some(Kind::Private);
+        new.kind = Some(PageKind::Private);
         new
     }
 

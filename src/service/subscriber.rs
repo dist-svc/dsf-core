@@ -1,5 +1,6 @@
 use std::time::{Duration, SystemTime};
 use std::ops::Add;
+use std::convert::TryInto;
 
 use crate::types::{Id, Kind, Flags, Error, Address, PublicKey, PrivateKey, Signature, SecretKey};
 use crate::protocol::{options::Options};
@@ -46,7 +47,7 @@ impl Subscriber for Service {
             id: page.id().clone(),
 
             application_id: page.application_id(),
-            kind: page.kind().into(),
+            kind: page.kind().try_into().unwrap(),
 
             version: page.version(),
 

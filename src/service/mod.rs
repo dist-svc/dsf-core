@@ -3,7 +3,7 @@
 use std::time::{Duration, SystemTime};
 use std::ops::Add;
 
-use crate::types::{Id, Kind, Flags, Error, Address, PublicKey, PrivateKey, Signature, SecretKey};
+use crate::types::{Id, Kind, MessageKind, PageKind, Flags, Error, Address, PublicKey, PrivateKey, Signature, SecretKey};
 use crate::protocol::{options::Options};
 use crate::protocol::base::{Base, BaseBuilder};
 use crate::protocol::page::{Page, PageInfo};
@@ -32,7 +32,7 @@ pub struct Service {
     id: Id,
 
     application_id: u16,
-    kind: Kind,
+    kind: PageKind,
 
     version: u16,
 
@@ -58,13 +58,13 @@ impl Default for Service {
         let id = crypto::hash(&public_key).unwrap().into();
 
         // Create service object
-        Service{id, application_id: 0, kind: Kind::Generic, version: 0, body: vec![], public_options: vec![], private_options: vec![], public_key: public_key, private_key: Some(private_key), encrypted: false, secret_key: None}
+        Service{id, application_id: 0, kind: PageKind::Generic, version: 0, body: vec![], public_options: vec![], private_options: vec![], public_key: public_key, private_key: Some(private_key), encrypted: false, secret_key: None}
     }
 }
 
 #[derive(Clone, Builder)]
 pub struct DataOptions {
-    #[builder(default = "Kind::Generic")]
+    #[builder(default = "Kind(0)")]
     data_kind: Kind,
     #[builder(default = "Flags(0)")]
     flags: Flags,
@@ -82,7 +82,7 @@ pub struct DataOptions {
 
 #[derive(Clone, Builder)]
 pub struct SecondaryOptions {
-    #[builder(default = "Kind::Generic")]
+    #[builder(default = "Kind(0)")]
     page_kind: Kind,
     #[builder(default = "Flags(0)")]
     flags: Flags,
@@ -177,7 +177,7 @@ impl Service
 
     /// Generate a protocol message from a request object
     pub fn build_request(&self, req: &Request) -> Base {
-        let kind: Kind;
+        let kind: MessageKind;
         let mut flags = Flags(0);
         let mut body = vec![];
 
@@ -185,52 +185,52 @@ impl Service
 
         match &req.data {
             RequestKind::Hello => {
-                kind = Kind::Hello;
+                kind = MessageKind::Hello;
                 flags.set_address_request(true);
             },
             RequestKind::Ping => {
-                kind = Kind::Ping;
+                kind = MessageKind::Ping;
                 flags.set_address_request(true);
             },
             RequestKind::FindNode(id) => {
-                kind = Kind::FindNodes;
+                kind = MessageKind::FindNodes;
                 body = id.to_vec();
             },
             RequestKind::FindValue(id) => {
-                kind = Kind::FindValues;
+                kind = MessageKind::FindValues;
                 body = id.to_vec();
             },
             RequestKind::Store(_id, _value) => {
-                kind = Kind::Store;
+                kind = MessageKind::Store;
             }
         }
 
         builder.private_key(self.private_key);
 
-        builder.base(self.id().clone(), 0, kind, req.id, flags).body(body).build().unwrap()
+        builder.base(self.id().clone(), 0, kind.into(), req.id, flags).body(body).build().unwrap()
     }
 
 
 
     /// Generate a response message
     pub fn build_response(&self, req: &Request, from: Address, resp: &Response) -> Base {
-        let kind: Kind;
+        let kind: MessageKind;
         let flags = Flags(0);
 
         let mut builder = BaseBuilder::default();
 
         match &resp.data {
             ResponseKind::Status => {
-                kind = Kind::Status;
+                kind = MessageKind::Status;
             },
             ResponseKind::NodesFound(_id, _nodes) => {
-                kind = Kind::NodesFound;
+                kind = MessageKind::NodesFound;
             },
             ResponseKind::ValuesFound(_id, _values) => {
-                kind = Kind::ValuesFound;
+                kind = MessageKind::ValuesFound;
             },
             ResponseKind::NoResult => {
-                kind = Kind::NoResult;
+                kind = MessageKind::NoResult;
             }
         };
 
@@ -242,7 +242,7 @@ impl Service
 
         builder.private_key(self.private_key);
 
-        builder.base(self.id().clone(), 0, kind, req.id, flags).build().unwrap()
+        builder.base(self.id().clone(), 0, kind.into(), req.id, flags).build().unwrap()
     }
 
 
@@ -319,7 +319,7 @@ mod test {
 
         println!("Creating new service");
         let mut service = ServiceBuilder::default()
-                .kind(Kind::Generic)
+                .kind(PageKind::Generic.into())
                 .public_options(vec![Options::name("Test Service")])
                 .private_options(vec![Options::address(socket)])
                 .encrypt()

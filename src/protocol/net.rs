@@ -1,11 +1,11 @@
 //! Messages are a high level representation of messages used to communicate between peers
 //! to maintain the network, publish and subscribe to services, and exchange data.
 
-//use core::convert::TryFrom;
+use core::convert::TryFrom;
 
 use slice_ext::SplitBefore;
 
-use crate::types::{Id, ID_LEN, RequestId, Address, Kind, Flags, PublicKey, Error};
+use crate::types::{Id, ID_LEN, RequestId, Address, Kind, MessageKind, Flags, PublicKey, Error};
 
 use crate::protocol::options::Options;
 use crate::protocol::base::{Base, BaseBuilder};
@@ -88,10 +88,12 @@ impl Message {
     where 
         V: FnMut (&Id) -> Option<PublicKey>
     {
-        let kind = base.header().kind();
+        let header = base.header();
+        let app_id = header.application_id();
+        let kind = header.kind();
 
         // Check for DSF messages
-        if !kind.is_dsf() {
+        if app_id != 0 {
             println!("Error converting application-specific base object {:?} to message", kind);
             return Err(Error::InvalidMessageType)
         }
@@ -174,24 +176,29 @@ impl Request {
         let header = base.header();
         let body = base.body();
 
-        let data = match header.kind() {
-            Kind::Hello => {
+         let kind = match MessageKind::try_from(header.kind()) {
+            Ok(k) => k,
+            Err(_) => return Err(Error::InvalidMessageKind),
+        };
+
+        let data = match kind {
+            MessageKind::Hello => {
                 RequestKind::Hello
             },
-            Kind::Ping => {
+            MessageKind::Ping => {
                 RequestKind::Ping
             },
-            Kind::FindNodes => {
+            MessageKind::FindNodes => {
                 let mut id = Id::default();
                 id.copy_from_slice(&body[0..ID_LEN]);
                 RequestKind::FindNode(id)
             },
-            Kind::FindValues => {
+            MessageKind::FindValues => {
                 let mut id = Id::default();
                 id.copy_from_slice(&body[0..ID_LEN]);
                 RequestKind::FindValue(id)
             },
-            Kind::Store => {
+            MessageKind::Store => {
                 let mut id = Id::default();
                 id.copy_from_slice(&body[0..ID_LEN]);
                 
@@ -219,30 +226,30 @@ impl Request {
 impl Into<Base> for Request {
     fn into(self) -> Base {
 
-        let kind: Kind;
+        let kind: MessageKind;
         let body;
 
         let mut builder = BaseBuilder::default();
 
         match &self.data {
             RequestKind::Hello => {
-                kind = Kind::Hello;
+                kind = MessageKind::Hello;
                 body = vec![];
             },
             RequestKind::Ping => {
-                kind = Kind::Ping;
+                kind = MessageKind::Ping;
                 body = vec![];
             },
             RequestKind::FindNode(id) => {
-                kind = Kind::FindNodes;
+                kind = MessageKind::FindNodes;
                 body = id.to_vec();
             },
             RequestKind::FindValue(id) => {
-                kind = Kind::FindValues;
+                kind = MessageKind::FindValues;
                 body = id.to_vec();
             },
             RequestKind::Store(id, pages) => {
-                kind = Kind::Store;
+                kind = MessageKind::Store;
 
                 let mut buff = vec![0u8; BUFF_SIZE];
                 (&mut buff[..ID_LEN]).copy_from_slice(id);
@@ -253,7 +260,7 @@ impl Into<Base> for Request {
             }
         }
 
-        builder.base(self.from, 0, kind, self.id, self.flags).body(body).build().unwrap()
+        builder.base(self.from, 0, kind.into(), self.id, self.flags).body(body).build().unwrap()
     }
 }
 
@@ -380,14 +387,19 @@ impl Response {
         let mut public_options = base.public_options().to_vec();
         let _private_options = base.private_options().to_vec();
 
-        let data = match header.kind() {
-            Kind::Status => {
+        let kind = match MessageKind::try_from(header.kind()) {
+            Ok(k) => k,
+            Err(_) => return Err(Error::InvalidMessageKind),
+        };
+
+        let data = match kind {
+            MessageKind::Status => {
                 ResponseKind::Status
             },
-            Kind::NoResult => {
+            MessageKind::NoResult => {
                 ResponseKind::NoResult
             },
-            Kind::NodesFound => {
+            MessageKind::NodesFound => {
                 let mut id = Id::default();
                 id.copy_from_slice(&body[..ID_LEN]);
                 
@@ -414,7 +426,7 @@ impl Response {
 
                 ResponseKind::NodesFound(id, nodes)
             },
-            Kind::ValuesFound => {
+            MessageKind::ValuesFound => {
                 let mut id = Id::default();
                 id.copy_from_slice(&body[0..ID_LEN]);
    
@@ -440,7 +452,7 @@ impl Response {
 impl Into<Base> for Response {
     fn into(self) -> Base {
 
-        let kind: Kind;
+        let kind: MessageKind;
         let mut body: Vec<u8>;
 
         let mut buff = vec![0; BUFF_SIZE];
@@ -449,17 +461,17 @@ impl Into<Base> for Response {
 
         match self.data {
             ResponseKind::Status => {
-                kind = Kind::Status;
+                kind = MessageKind::Status;
                 body = vec![];
                 
             },
             ResponseKind::NoResult => {
-                kind = Kind::NoResult;
+                kind = MessageKind::NoResult;
                 //TODO?: (&mut body[..ID_LEN]).copy_from_slice(&id);
                 body = vec![];
             },
             ResponseKind::NodesFound(id, nodes) => {
-                kind = Kind::NodesFound;
+                kind = MessageKind::NodesFound;
                 (&mut buff[..ID_LEN]).copy_from_slice(&id);
                 
                 // Build options list from nodes
@@ -476,7 +488,7 @@ impl Into<Base> for Response {
                 body = buff[.. ID_LEN + n].to_vec();
             },
             ResponseKind::ValuesFound(id, pages) => {
-                kind = Kind::ValuesFound;
+                kind = MessageKind::ValuesFound;
                 (&mut buff[..ID_LEN]).copy_from_slice(&id);
              
                 let n = Page::encode_pages(&pages, &mut buff[ID_LEN..]).unwrap();
@@ -485,7 +497,7 @@ impl Into<Base> for Response {
             },
         }
 
-        builder.base(self.from, 0, kind, self.id, self.flags).body(body).build().unwrap()
+        builder.base(self.from, 0, kind.into(), self.id, self.flags).body(body).build().unwrap()
     }
 }
 
@@ -496,6 +508,7 @@ mod tests {
 
     use super::*;
     use crate::protocol::page::{PageBuilder, PageInfo};
+    use crate::types::PageKind;
 
     use crate::crypto;
     #[test]
@@ -509,7 +522,7 @@ mod tests {
         let request_id = 120;
 
         // Create and sign page
-        let mut page = PageBuilder::default().id(id.clone()).kind(Kind::Generic).info(PageInfo::primary(pub_key.clone())).build().expect("Error building page");
+        let mut page = PageBuilder::default().id(id.clone()).kind(PageKind::Generic.into()).info(PageInfo::primary(pub_key.clone())).build().expect("Error building page");
         let mut b = Base::from(&page);
         b.encode(|_id, data| crypto::pk_sign(&pri_key, data), &mut buff).expect("Error signing page");
         let sig = b.signature().clone().unwrap();

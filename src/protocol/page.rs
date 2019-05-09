@@ -308,8 +308,12 @@ impl TryFrom<Base> for Page {
         let body = base.body();
         let signature = base.signature();
 
-        let _flags = header.flags();
+        let flags = header.flags();
         let kind = header.kind();
+
+        if !kind.is_page() {
+            return Err(Error::InvalidPageKind)
+        }
 
         let mut public_options = base.public_options().to_vec();
         let private_options = base.private_options().to_vec();
@@ -324,7 +328,7 @@ impl TryFrom<Base> for Page {
             None => return Err(Error::Unimplemented),
         };
 
-        let info = if kind.is_primary_page() {
+        let info = if flags.primary() {
             // Handle primary page parsing
 
             // Fetch public key from options
@@ -341,7 +345,7 @@ impl TryFrom<Base> for Page {
 
             PageInfo::primary(public_key)
 
-        } else if kind.is_secondary_page() {
+        } else if flags.secondary() {
             // Handle secondary page parsing
             let peer_id = match Base::filter_peer_id_option(&mut public_options) {
                 Some(id) => id,

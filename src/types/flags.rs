@@ -25,6 +25,10 @@ impl Flags {
         *self
     }
 
+    pub fn primary(&self) -> bool {
+        self.0 & flags::SECONDARY == 0
+    }
+
     pub fn secondary(&self) -> bool {
         self.0 & flags::SECONDARY != 0
     }

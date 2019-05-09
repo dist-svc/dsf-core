@@ -390,6 +390,7 @@ mod tests {
 
     use super::*;
     use crate::protocol::header::*;
+    use crate::types::PageKind;
 
     use crate::crypto;
 
@@ -400,7 +401,7 @@ mod tests {
 
         let _sec_key = crypto::new_sk().expect("Error generating new secret key");
 
-        let header = HeaderBuilder::default().kind(Kind::Generic).build().expect("Error building page header");
+        let header = HeaderBuilder::default().kind(PageKind::Generic.into()).build().expect("Error building page header");
         let data = vec![1, 2, 3, 4, 5, 6, 7];
 
         let mut page = BaseBuilder::default().id(id).header(header).body(data).build().expect("Error building page");

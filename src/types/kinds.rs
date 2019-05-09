@@ -1,29 +1,41 @@
+use core::convert::TryFrom;
 
-/// Page Kinds.
-/// 
+
 #[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
-pub enum Kind {
-    // Pages
-    Generic,
-    Peer,
-    Replica,
-    Private,
+pub struct Kind(pub u16);
 
-    Primary(bool, u16),
-    Secondary(bool, u16),
+impl Kind {
+    pub fn is_page(&self) -> bool {
+        self.0 & kinds::KIND_MASK == kinds::PAGE_FLAGS
+    }
 
-    // Messages
-    Hello,
-    Status,
-    Ping,
-    FindNodes,
-    FindValues,
-    Store,
-    NodesFound,
-    ValuesFound,
-    NoResult,
+    pub fn is_message(&self) -> bool {
+        self.is_request() || self.is_response()
+    }
 
-    Data(bool, u16),
+    pub fn is_request(&self) -> bool {
+        self.0 & kinds::KIND_MASK == kinds::REQUEST_FLAGS
+    }
+
+    pub fn is_response(&self) -> bool {
+         self.0 & kinds::KIND_MASK == kinds::RESPONSE_FLAGS
+    }
+
+    pub fn is_data(&self) -> bool {
+        self.0 & kinds::KIND_MASK == kinds::DATA_FLAGS
+    }
+}
+
+impl From<u16> for Kind {
+    fn from(v: u16) -> Self {
+        Kind(v)
+    }
+}
+
+impl Into<u16> for Kind {
+    fn into(self) -> u16 {
+        self.0
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
@@ -32,7 +44,39 @@ pub enum PageKind {
     Peer,
     Replica,
     Private,
-    Application(u16),
+}
+
+impl TryFrom<Kind> for PageKind {
+    type Error = ();
+
+    fn try_from(v: Kind) -> Result<Self, ()> {
+        if (v.0 & kinds::KIND_MASK != kinds::PAGE_FLAGS) {
+            return Err(())
+        }
+
+        let base = match v.0 {
+             kinds::GENERIC => PageKind::Generic,
+             kinds::PEER    => PageKind::Peer,
+             kinds::REPLICA => PageKind::Replica,
+             kinds::PRIVATE => PageKind::Private,
+             _ => return Err(()),
+        };
+
+        Ok(base)
+    }
+}
+
+impl Into<Kind> for PageKind {
+    fn into(self) -> Kind {
+        let base = match self {
+            PageKind::Generic => kinds::GENERIC,
+            PageKind::Peer    => kinds::PEER,
+            PageKind::Replica => kinds::REPLICA,
+            PageKind::Private => kinds::PRIVATE,
+        };
+
+        Kind(base | kinds::PAGE_FLAGS)
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
@@ -46,202 +90,117 @@ pub enum MessageKind {
     NodesFound,
     ValuesFound,
     NoResult,
-    Application(u16),
+}
+
+impl TryFrom<Kind> for MessageKind {
+    type Error = ();
+
+    fn try_from(v: Kind) -> Result<Self, ()> {
+        let base = match v.0 & kinds::KIND_MASK {
+            kinds::REQUEST_FLAGS => {
+                match v.0 & !kinds::KIND_MASK {
+                    kinds::HELLO        => MessageKind::Hello,
+                    kinds::PING         => MessageKind::Ping,
+                    kinds::FIND_NODES   => MessageKind::FindNodes,
+                    kinds::FIND_VALUES  => MessageKind::FindValues,
+                    kinds::STORE        => MessageKind::Store,
+                    _ => return Err(())
+                }
+            },
+            kinds::RESPONSE_FLAGS => {
+                match v.0 & !kinds::KIND_MASK {
+                    kinds::STATUS       => MessageKind::Status,
+                    kinds::NODES_FOUND  => MessageKind::NodesFound,
+                    kinds::VALUES_FOUND => MessageKind::ValuesFound,
+                    kinds::NO_RESULT    => MessageKind::NoResult,
+                    _ => return Err(())
+                }
+            },
+            _ => return Err(())
+        };
+        
+        Ok(base)
+    }
+}
+
+impl Into<Kind> for MessageKind {
+    fn into(self) -> Kind {
+        let base = match self {
+            MessageKind::Hello       => kinds::HELLO        | kinds::REQUEST_FLAGS,
+            MessageKind::Ping        => kinds::PING         | kinds::REQUEST_FLAGS,
+            MessageKind::FindNodes   => kinds::FIND_NODES   | kinds::REQUEST_FLAGS,
+            MessageKind::FindValues  => kinds::FIND_VALUES  | kinds::REQUEST_FLAGS,
+            MessageKind::Store       => kinds::STORE        | kinds::REQUEST_FLAGS,
+
+            MessageKind::Status      => kinds::STATUS       | kinds::RESPONSE_FLAGS,
+            MessageKind::NodesFound  => kinds::NODES_FOUND  | kinds::RESPONSE_FLAGS,
+            MessageKind::ValuesFound => kinds::VALUES_FOUND | kinds::RESPONSE_FLAGS,
+            MessageKind::NoResult    => kinds::NO_RESULT    | kinds::RESPONSE_FLAGS,
+        };
+        Kind(base)
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
 pub enum DataKind {
     Generic,
-    Application(u16),
+}
+
+impl TryFrom<Kind> for DataKind {
+    type Error = ();
+
+    fn try_from(v: Kind) -> Result<Self, ()> {
+        if (v.0 & kinds::KIND_MASK != kinds::DATA_FLAGS) {
+            return Err(())
+        }
+
+        let base = match v.0 {
+            kinds::GENERIC => DataKind::Generic,
+            _ => return Err(())
+        };
+
+        Ok(base)
+    }
+}
+
+impl Into<Kind> for DataKind {
+    fn into(self) -> Kind {
+        let base = match self {
+            DataKind::Generic => kinds::GENERIC,
+        };
+
+        Kind(base | kinds::DATA_FLAGS)
+    }
 }
 
 pub mod kinds {
     pub const NONE          : u16 = 0x0000;
 
-    pub const KIND_MASK     : u16 = 0x7000;
-
-    pub const APP_FLAG      : u16 = 0x8000;
+    pub const KIND_MASK     : u16 = 0b1100_0000_0000_0001;
 
     // Page Kinds
-    pub const PRIMARY_PAGE_FLAGS     : u16 = 0x0000;
-    pub const GENERIC        : u16 = 0x0001 | PRIMARY_PAGE_FLAGS;
-    pub const PEER           : u16 = 0x0002 | PRIMARY_PAGE_FLAGS;
-    pub const PRIVATE        : u16 = 0x0FFF | PRIMARY_PAGE_FLAGS;
-
-    pub const SECONDARY_PAGE_FLAGS     : u16 = 0x1000;
-    pub const REPLICA        : u16 = 0x0003 | SECONDARY_PAGE_FLAGS;
+    pub const PAGE_FLAGS     : u16 = 0x0000;
+    pub const GENERIC        : u16 = 0x0001 | PAGE_FLAGS;
+    pub const PEER           : u16 = 0x0002 | PAGE_FLAGS;
+    pub const REPLICA        : u16 = 0x0003 | PAGE_FLAGS;
+    pub const PRIVATE        : u16 = 0x0FFF | PAGE_FLAGS;
     
 
     // Message Kinds
-    pub const REQUEST_FLAGS  : u16 = 0x2000;
+    pub const REQUEST_FLAGS  : u16 = 0x4000;
     pub const HELLO          : u16 = 0x0000 | REQUEST_FLAGS;
     pub const PING           : u16 = 0x0001 | REQUEST_FLAGS;
     pub const FIND_NODES     : u16 = 0x0002 | REQUEST_FLAGS;
     pub const FIND_VALUES    : u16 = 0x0003 | REQUEST_FLAGS;
     pub const STORE          : u16 = 0x0004 | REQUEST_FLAGS;
 
-    pub const RESPONSE_FLAGS : u16 = 0x3000;
+    pub const RESPONSE_FLAGS : u16 = 0x8000;
     pub const STATUS         : u16 = 0x0000 | RESPONSE_FLAGS;
     pub const NO_RESULT      : u16 = 0x0001 | RESPONSE_FLAGS;
     pub const NODES_FOUND    : u16 = 0x0002 | RESPONSE_FLAGS;
     pub const VALUES_FOUND   : u16 = 0x0003 | RESPONSE_FLAGS;
     
-    pub const DATA_FLAGS     : u16 = 0x4000; 
-}
-
-impl Kind {
-    pub fn is_dsf(&self) -> bool {
-        !self.is_application()
-    }
-
-     pub fn is_application(&self) -> bool {
-        match self {
-            Kind::Primary(a, _v)    => *a,
-            Kind::Secondary(a, _v)  => *a,
-            Kind::Data(a, _v)       => *a,
-            _ => false,
-        }
-    }
-
-    pub fn is_page(&self) -> bool {
-        match self {
-            Kind::Peer => true,
-            Kind::Replica => true,
-            Kind::Generic => true,
-            Kind::Private => true,
-            Kind::Primary(_a, _v) => true,
-            Kind::Secondary(_a, _v) => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_primary_page(&self) -> bool {
-        match self {
-            Kind::Generic => true,
-            Kind::Peer => true,
-            Kind::Private => true,
-            Kind::Primary(_a, _v) => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_secondary_page(&self) -> bool {
-        match self {
-            Kind::Replica => true,
-            Kind::Secondary(_a, _v) => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_request(&self) -> bool {
-        match self {
-            Kind::Hello => true,
-            Kind::Ping => true,
-            Kind::FindNodes => true,
-            Kind::FindValues => true,
-            Kind::Store => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_response(&self) -> bool {
-        match self {
-            Kind::Status => true,
-            Kind::NodesFound => true,
-            Kind::ValuesFound => true,
-            Kind::NoResult => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_data(&self) -> bool {
-        match self {
-            Kind::Data(_a, _v) => true,
-            _ => false,
-        }
-    }
-
-}
-
-impl From<u16> for Kind {
-    fn from(val: u16) -> Kind {
-        match val {
-
-            kinds::GENERIC      => Kind::Generic,
-            kinds::PEER         => Kind::Peer,
-            kinds::REPLICA      => Kind::Replica,
-            kinds::PRIVATE      => Kind::Private,
-
-            kinds::HELLO        => Kind::Hello,
-            kinds::PING         => Kind::Ping,
-            kinds::FIND_NODES   => Kind::FindNodes,
-            kinds::FIND_VALUES  => Kind::FindValues,
-            kinds::STORE        => Kind::Store,
-
-            kinds::STATUS       => Kind::Status,
-            kinds::NODES_FOUND  => Kind::NodesFound,
-            kinds::VALUES_FOUND => Kind::ValuesFound,
-            kinds::NO_RESULT    => Kind::NoResult,
-
-            _ => {
-                let app = val & kinds::APP_FLAG != 0;
-                let v = val & !(kinds::KIND_MASK | kinds::APP_FLAG);
-
-                match val & kinds::KIND_MASK {
-                    kinds::PRIMARY_PAGE_FLAGS   => Kind::Primary(app, v),
-                    kinds::SECONDARY_PAGE_FLAGS => Kind::Secondary(app, v),
-                    kinds::DATA_FLAGS           => Kind::Data(app, v),
-                    _ => panic!("unrecognized kind"),
-                }
-            },
-        }
-    }
-}
-
-impl Into<u16> for Kind {
-    fn into(self) -> u16 {
-        match self {
-
-            Kind::Generic       => kinds::GENERIC,
-            Kind::Peer          => kinds::PEER,
-            Kind::Replica       => kinds::REPLICA,
-            Kind::Private       => kinds::PRIVATE,
-
-            Kind::Hello         => kinds::HELLO,
-            Kind::Ping          => kinds::PING,
-            Kind::FindNodes     => kinds::FIND_NODES,
-            Kind::FindValues    => kinds::FIND_VALUES,
-            Kind::Store         => kinds::STORE,
-
-            Kind::Status        => kinds::STATUS,
-            Kind::NodesFound    => kinds::NODES_FOUND,
-            Kind::ValuesFound   => kinds::VALUES_FOUND,
-            Kind::NoResult      => kinds::NO_RESULT,
-
-            Kind::Primary(a, v)    => { 
-                if a {
-                    v | kinds::PRIMARY_PAGE_FLAGS | kinds::APP_FLAG
-                } else {
-                    v | kinds::PRIMARY_PAGE_FLAGS
-                }
-            },
-            Kind::Secondary(a, v)  => { 
-                if a {
-                    v | kinds::SECONDARY_PAGE_FLAGS | kinds::APP_FLAG
-                } else {
-                    v | kinds::SECONDARY_PAGE_FLAGS
-                }
-            },
-
-            Kind::Data(a, v)       => { 
-                if a {
-                    v | kinds::DATA_FLAGS | kinds::APP_FLAG
-                } else {
-                    v | kinds::DATA_FLAGS
-                }
-            },
-        }
-    }
+    pub const DATA_FLAGS     : u16 = 0xc000; 
 }
 
 
@@ -250,42 +209,60 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_kinds() {
+    fn test_page_kinds() {
         let tests = vec![
-
-            
-            (Kind::Private,                     0b0000_1111_1111_1111),
-
             // Pages
-            (Kind::Generic,                     0b0000_0000_0000_0001),
-            (Kind::Peer,                        0b0000_0000_0000_0010),
-            (Kind::Replica,                     0b0000_0000_0000_0011),
-            
-            (Kind::Hello,                       0b0100_0000_0000_0000),
-            (Kind::Ping,                        0b0100_0000_0000_0001),
-            (Kind::FindNodes,                   0b0100_0000_0000_0010),
-            (Kind::FindValues,                  0b0100_0000_0000_0011),
-            (Kind::Store,                       0b0100_0000_0000_0100),
-
-            (Kind::Status,                      0b1000_0000_0000_0000),
-            (Kind::NoResult,                    0b1000_0000_0000_0001),
-            (Kind::NodesFound,                  0b1000_0000_0000_0010),
-            (Kind::ValuesFound,                 0b1000_0000_0000_0011),
-            
-            (Kind::Primary(false, 0b1010),      0b0000_0000_0000_1010),
-            (Kind::Primary(true, 0b1010),       0b1000_0000_0000_1010),
-            (Kind::Secondary(false, 0b1010),    0b0001_0000_0000_1010),
-            (Kind::Secondary(true, 0b1010),     0b1001_0000_0000_1010),
-            (Kind::Data(false, 0b1010),         0b0100_0000_0000_1010),
-            (Kind::Data(true, 0b1010),          0b1100_0000_0000_1010),
+            (PageKind::Generic, Kind(0b0000_0000_0000_0001)),
+            (PageKind::Peer,    Kind(0b0000_0000_0000_0010)),
+            (PageKind::Replica, Kind(0b0000_0000_0000_0011)),
+            (PageKind::Private, Kind(0b0000_1111_1111_1111)),
         ];
 
         for (t, v) in tests {
-            let e: u16 = t.into();
-            assert_eq!(v, e, "error encoding {:?}", t);
-            let d: Kind = v.into();
+            assert_eq!(v.is_page(), true);
+            let k: Kind = t.into();
+            assert_eq!(v, k, "error converting {:?}", t);
+            let d = PageKind::try_from(v).expect("error parsing");
             assert_eq!(t, d, "error decoding {:?}", t);
         }
+    }
 
+    #[test]
+    fn test_message_kinds() {
+        let tests = vec![
+            (MessageKind::Hello,       Kind(0b0100_0000_0000_0000)),
+            (MessageKind::Ping,        Kind(0b0100_0000_0000_0001)),
+            (MessageKind::FindNodes,   Kind(0b0100_0000_0000_0010)),
+            (MessageKind::FindValues,  Kind(0b0100_0000_0000_0011)),
+            (MessageKind::Store,       Kind(0b0100_0000_0000_0100)),
+
+            (MessageKind::Status,      Kind(0b1000_0000_0000_0000)),
+            (MessageKind::NoResult,    Kind(0b1000_0000_0000_0001)),
+            (MessageKind::NodesFound,  Kind(0b1000_0000_0000_0010)),
+            (MessageKind::ValuesFound, Kind(0b1000_0000_0000_0011)),
+        ];
+
+        for (t, v) in tests {
+            assert_eq!(v.is_message(), true);
+            let k: Kind = t.into();
+            assert_eq!(v, k, "error converting {:?} into: {:?}", t, k);
+            let d = MessageKind::try_from(v).expect("error parsing: {:?}");
+            assert_eq!(t, d, "error decoding {:?}", t);
+        }
+    }
+
+        #[test]
+    fn test_data_kinds() {
+        let tests = vec![
+            (DataKind::Generic,          Kind(0b1100_0000_0000_000)),
+        ];
+
+        for (t, v) in tests {
+            assert_eq!(v.is_data(), true);
+            let k: Kind = t.into();
+            assert_eq!(v, k, "error converting {:?}", t);
+            let d = DataKind::try_from(v).expect("error parsing");
+            assert_eq!(t, d, "error decoding {:?}", t);
+        }
     }
 }

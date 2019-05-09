@@ -103,9 +103,11 @@ mod tests {
 
     use super::*;
 
+    use crate::types::PageKind;
+
     #[test]
     fn test_encode_page_header() {
-        let h1 = Header::new(0, Kind::Generic, 1, 2.into());
+        let h1 = Header::new(0, PageKind::Generic.into(), 1, 2.into());
 
         let mut buff = [0u8; 1024];
         let n1 = h1.encode(&mut buff).expect("Header encoding failed");
