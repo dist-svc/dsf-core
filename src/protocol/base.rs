@@ -245,6 +245,29 @@ impl Base {
         o
     }
 
+    pub fn prev_sig_option(options: &[Options]) -> Option<Signature> {
+        options.iter().find_map(|o| {
+            match o { 
+                Options::PrevSig(s) => Some(s.sig),
+                 _ => None 
+            } 
+        })
+    }
+
+    pub fn filter_prev_sig_option(options: &mut Vec<Options>) -> Option<Signature>
+    {
+        let o = Base::prev_sig_option(&options);
+
+        (*options) = options.iter().filter_map(|o| {
+            match o { 
+                Options::PrevSig(_) => None,
+                _ => Some(o.clone()), 
+            }
+        }).collect();
+
+        o
+    }
+
     pub fn address_option(options: &[Options]) -> Option<Address> {
         options.iter().find_map(|o| {
             match o { 

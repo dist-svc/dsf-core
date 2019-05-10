@@ -40,8 +40,12 @@ pub struct Page {
     // Common options
     #[builder(default = "SystemTime::now().into()")]
     issued: DateTime,
-    #[builder(default = "SystemTime::now().add(Duration::from_secs(24 * 60 * 60)).into()")]
-    expiry: DateTime,
+    #[builder(default = "Some(SystemTime::now().add(Duration::from_secs(24 * 60 * 60)).into())")]
+    expiry: Option<DateTime>,
+
+    // Previous page signature
+    #[builder(default = "None")]
+    previous_sig: Option<Signature>,
 
     #[builder(default = "vec![]")]
     public_options: Vec<Options>,
@@ -64,9 +68,12 @@ pub struct Page {
 impl Page {
 
     /// Create a new page
-    pub fn new(id: Id, application_id: u16, kind: Kind, flags: Flags, version: u16, info: PageInfo, body: Vec<u8>, issued: SystemTime, expiry: SystemTime) -> Self {
+    pub fn new(id: Id, application_id: u16, kind: Kind, flags: Flags, version: u16, info: PageInfo, body: Vec<u8>, issued: SystemTime, expiry: Option<SystemTime>) -> Self {
         Page{
-            id, application_id, kind, flags, version, info, body, issued: issued.into(), expiry: expiry.into(), 
+            id, application_id, kind, flags, version, info, body, 
+            issued: issued.into(), 
+            expiry: expiry.map(|v| v.into() ), 
+            previous_sig: None,
             public_options: vec![],
             private_options: vec![],
             
@@ -228,7 +235,7 @@ impl PageBuilder {
     }
 
     pub fn valid_for(&mut self, d: Duration) -> &mut Self {
-        self.expiry = Some(SystemTime::now().add(d).into());
+        self.expiry = Some(Some(SystemTime::now().add(d).into()));
         self
     }
 }
@@ -241,16 +248,26 @@ impl From<&Page> for Base {
         // Insert default options
         let mut default_options = vec![
             Options::issued(page.issued),
-            Options::expiry(page.expiry),
         ];
+
+        if let Some(expiry) = page.expiry {
+            default_options.push(Options::expiry(expiry));
+        }
+
+        if let Some(prev_sig) = page.previous_sig {
+            default_options.push(Options::prev_sig(&prev_sig));
+        }
         
-        // Add public fields for Primary and Secondary pages
+        // Add public fields for different object types
         match &page.info {
             PageInfo::Primary(primary) => {
                 default_options.push(Options::public_key(primary.pub_key));
             },
             PageInfo::Secondary(secondary) => {
                 default_options.push(Options::peer_id(secondary.peer_id));
+            },
+            PageInfo::Data(_data) => {
+                
             }
         }
 
@@ -323,12 +340,10 @@ impl TryFrom<Base> for Page {
             None => return Err(Error::Unimplemented),
         };
 
-        let expiry = match Base::filter_expiry_option(&mut public_options) {
-            Some(expiry) => expiry,
-            None => return Err(Error::Unimplemented),
-        };
+        let expiry = Base::filter_expiry_option(&mut public_options);
+        let previous_sig = Base::filter_prev_sig_option(&mut public_options);
 
-        let info = if flags.primary() {
+        let info = if kind.is_page() && flags.primary() {
             // Handle primary page parsing
 
             // Fetch public key from options
@@ -345,7 +360,7 @@ impl TryFrom<Base> for Page {
 
             PageInfo::primary(public_key)
 
-        } else if flags.secondary() {
+        } else if kind.is_page() && flags.secondary() {
             // Handle secondary page parsing
             let peer_id = match Base::filter_peer_id_option(&mut public_options) {
                 Some(id) => id,
@@ -353,6 +368,10 @@ impl TryFrom<Base> for Page {
             };
 
             PageInfo::secondary(peer_id)
+
+        } else if kind.is_data() {
+
+            PageInfo::Data(())
 
         } else {
             error!("Attempted to convert non-page base object ({:?}) to page", kind);
@@ -369,6 +388,7 @@ impl TryFrom<Base> for Page {
             body: body.to_vec(),
             issued,
             expiry,
+            previous_sig,
             public_options: public_options,
             private_options: private_options,
             signature: signature.clone(),
@@ -383,6 +403,7 @@ impl TryFrom<Base> for Page {
 pub enum PageInfo {
     Primary(Primary),
     Secondary(Secondary),
+    Data(())
 }
 
 impl PageInfo {

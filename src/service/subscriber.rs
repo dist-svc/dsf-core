@@ -1,28 +1,26 @@
-use std::time::{Duration, SystemTime};
-use std::ops::Add;
 use std::convert::TryInto;
 
-use crate::types::{Id, Kind, Flags, Error, Address, PublicKey, PrivateKey, Signature, SecretKey};
-use crate::protocol::{options::Options};
-use crate::protocol::base::{Base, BaseBuilder};
+use crate::types::*;
+use crate::service::Service;
 use crate::protocol::page::{Page, PageInfo};
-
 use crate::crypto;
 
-use crate::service::Service;
 
 pub trait Subscriber {
-    type Service;
-
-    /// Create a service replica from a given service page
-    fn load(page: &Page) -> Result<Self::Service, Error>;
+    /// Create a service instance (or replica) from a given primary service page
+    fn load(page: &Page) -> Result<Service, Error>;
     
-    /// Apply an updated page to an existing service instance
-    fn apply(&mut self, update: &Page) -> Result<(), Error>;
+    /// Apply an updated primary page to an existing service instance
+    fn apply_primary(&mut self, primary: &Page) -> Result<(), Error>;
+
+    /// Validate a given secondary page published by this service
+    fn validate_secondary(&mut self, secondary: &Page) -> Result<(), Error>;
+
+    /// Validate a given data object published by this service
+    fn validate_data(&mut self, data: &Page) -> Result<(), Error>;
 }
 
 impl Subscriber for Service {
-    type Service = Service;
 
     /// Create a service instance from a given page
     fn load(page: &Page) -> Result<Service, Error> {
@@ -50,6 +48,7 @@ impl Subscriber for Service {
             kind: page.kind().try_into().unwrap(),
 
             version: page.version(),
+            data_index: 0,
 
             body: body.to_vec(),
 
@@ -66,17 +65,27 @@ impl Subscriber for Service {
 
     /// Apply an upgrade to an existing service.
     /// This consumes a new page and updates the service instance
-    fn apply(&mut self, update: &Page) -> Result<(), Error> {
-
-        let body = update.body();
+    fn apply_primary(&mut self, update: &Page) -> Result<(), Error> {
         let flags = update.flags();
-        
+        let body = update.body();
+
         let public_options = update.public_options();
         let private_options = update.private_options();
 
         // Check fields match
+        if !update.kind().is_page() {
+            return Err(Error::ExpectedPrimaryPage);
+        }
+        if !update.flags().primary() {
+            return Err(Error::ExpectedPrimaryPage)
+        }
+        
+
         if update.id() != &self.id {
             return Err(Error::UnexpectedServiceId)
+        }
+        if update.application_id() != self.application_id {
+            return Err(Error::UnexpectedApplicationId)
         }
         if update.version() == self.version {
             return Ok(())
@@ -87,16 +96,14 @@ impl Subscriber for Service {
         if update.kind() != self.kind.into() {
             return Err(Error::InvalidPageKind)
         }
-        if update.flags().secondary() {
-            return Err(Error::ExpectedPrimaryPage)
-        }
+       
 
         // Fetch public key from options
         let public_key: PublicKey = match update.info() {
             PageInfo::Primary(primary) => primary.pub_key.clone(),
             _ => {
                 error!("Attempted to update service from secondary page");
-                return Err(Error::UnexpectedPageType);
+                return Err(Error::ExpectedPrimaryPage);
             }
         };
 
@@ -118,4 +125,43 @@ impl Subscriber for Service {
     
         Ok(())
     }
+
+    fn validate_secondary(&mut self, secondary: &Page) -> Result<(), Error> {
+        if !secondary.kind().is_page() {
+            return Err(Error::ExpectedPrimaryPage);
+        }
+        if !secondary.flags().secondary() {
+            return Err(Error::ExpectedSecondaryPage)
+        }
+
+        let publisher_id = match secondary.info().peer_id() {
+            Some(p) => p,
+            None => return Err(Error::NoPeerId)
+        };
+        if publisher_id != self.id {
+            return Err(Error::UnexpectedPeerId)
+        }
+
+        if secondary.application_id() != self.application_id {
+            return Err(Error::UnexpectedApplicationId)
+        }
+
+        return Ok(())
+    }
+
+    fn validate_data(&mut self, data: &Page) -> Result<(), Error> {
+        if !data.kind().is_data() {
+            return Err(Error::ExpectedDataObject);
+        }
+
+        if data.id() != &self.id {
+            return Err(Error::UnexpectedServiceId)
+        }
+        if data.application_id() != self.application_id {
+            return Err(Error::UnexpectedApplicationId)
+        }
+
+        return Ok(())
+    }
+
 }

@@ -1,14 +1,8 @@
 
 
-use std::time::{Duration, SystemTime};
-use std::ops::Add;
 
-use crate::types::{Id, Kind, MessageKind, PageKind, Flags, Error, Address, PublicKey, PrivateKey, Signature, SecretKey};
+use crate::types::*;
 use crate::protocol::{options::Options};
-use crate::protocol::base::{Base, BaseBuilder};
-use crate::protocol::page::{Page, PageInfo};
-use crate::protocol::net::{Request, Response, RequestKind, ResponseKind};
-
 use crate::crypto;
 
 pub mod kinds;
@@ -19,6 +13,9 @@ pub use publisher::Publisher;
 
 pub mod subscriber;
 pub use subscriber::Subscriber;
+
+pub mod net;
+pub use net::Net;
 
 mod builder;
 
@@ -35,6 +32,7 @@ pub struct Service {
     kind: PageKind,
 
     version: u16,
+    data_index: u16,
 
     body: Vec<u8>,
 
@@ -58,44 +56,8 @@ impl Default for Service {
         let id = crypto::hash(&public_key).unwrap().into();
 
         // Create service object
-        Service{id, application_id: 0, kind: PageKind::Generic, version: 0, body: vec![], public_options: vec![], private_options: vec![], public_key: public_key, private_key: Some(private_key), encrypted: false, secret_key: None}
+        Service{id, application_id: 0, kind: PageKind::Generic, version: 0, data_index: 0, body: vec![], public_options: vec![], private_options: vec![], public_key: public_key, private_key: Some(private_key), encrypted: false, secret_key: None}
     }
-}
-
-#[derive(Clone, Builder)]
-pub struct DataOptions {
-    #[builder(default = "Kind(0)")]
-    data_kind: Kind,
-    #[builder(default = "Flags(0)")]
-    flags: Flags,
-    #[builder(default = "0")]
-    version: u16,
-
-    #[builder(default = "vec![]")]
-    body: Vec<u8>,
-
-    #[builder(default = "vec![]")]
-    public_options: Vec<Options>,
-    #[builder(default = "vec![]")]
-    private_options: Vec<Options>,
-}
-
-#[derive(Clone, Builder)]
-pub struct SecondaryOptions {
-    #[builder(default = "Kind(0)")]
-    page_kind: Kind,
-    #[builder(default = "Flags(0)")]
-    flags: Flags,
-    #[builder(default = "0")]
-    version: u16,
-
-    #[builder(default = "vec![]")]
-    body: Vec<u8>,
-
-    #[builder(default = "vec![]")]
-    public_options: Vec<Options>,
-    #[builder(default = "vec![]")]
-    private_options: Vec<Options>,
 }
 
 impl Service
@@ -104,53 +66,27 @@ impl Service
         self.id.clone()
     }
 
+    /// Update a service.
+    /// This allows in-place editing of descriptors and options and causes an update of the service version number.
+    pub fn update<U>(&mut self, update_fn: U) -> Result<(), Error>
+        where U: Fn(&mut Vec<u8>, &mut Vec<Options>, &mut Vec<Options>)
+    {
+        if let None = self.private_key() {
+            return Err(Error::NoPrivateKey);
+        }
+
+        update_fn(&mut self.body, &mut self.public_options, &mut self.private_options);
+        self.version += 1;
+
+        Ok(())
+    }
+
     pub fn is_origin(&self) -> bool {
         match (self.private_key, self.encrypted, self.secret_key) {
             (Some(_), false, _) => true,
             (Some(_), true, Some(_)) => true,
             _ => false,
         }
-    }
-
-    pub fn data(&self, options: DataOptions) -> Page {
-        let mut default_options = vec![
-            Options::peer_id(self.id.clone()),
-            Options::issued(SystemTime::now()),
-            Options::expiry(SystemTime::now().add(Duration::from_secs(24 * 60 * 60))),
-        ];
-
-        let mut public_options = options.public_options.clone();
-        public_options.append(&mut default_options);
-
-        let mut flags = options.flags;
-        flags.set_secondary(true);
-
-        let mut p = Page::new(self.id.clone(), self.application_id, options.data_kind, options.flags, options.version, PageInfo::secondary(self.id.clone()), options.body, SystemTime::now(), SystemTime::now().add(Duration::from_secs(24 * 60 * 60)));
-
-        p.set_private_key(self.private_key.unwrap());
-
-        p
-    }
-
-    /// Secondary generates a secondary page using this service to be attached to the provided service ID
-    pub fn secondary(&self, options: SecondaryOptions) -> Page {
-        let mut default_options = vec![
-            Options::peer_id(self.id.clone()),
-            Options::issued(SystemTime::now()),
-            Options::expiry(SystemTime::now().add(Duration::from_secs(24 * 60 * 60))),
-        ];
-
-        let mut public_options = options.public_options.clone();
-        public_options.append(&mut default_options);
-
-        let mut flags = options.flags;
-        flags.set_secondary(true);
-
-        let mut p = Page::new(self.id.clone(), self.application_id, options.page_kind, options.flags, options.version, PageInfo::secondary(self.id.clone()), options.body, SystemTime::now(), SystemTime::now().add(Duration::from_secs(24 * 60 * 60)));
-
-        p.set_private_key(self.private_key.unwrap());
-
-        p
     }
 
     pub fn public_key(&self) -> PublicKey {
@@ -164,88 +100,6 @@ impl Service
     pub fn secret_key(&self) -> Option<SecretKey> {
         self.secret_key.clone()
     }
-
-    pub fn encrypt(&self) {
-
-    }
-
-    pub fn decrypt(&self) {
-        
-    }
-
-
-
-    /// Generate a protocol message from a request object
-    pub fn build_request(&self, req: &Request) -> Base {
-        let kind: MessageKind;
-        let mut flags = Flags(0);
-        let mut body = vec![];
-
-        let mut builder = BaseBuilder::default();
-
-        match &req.data {
-            RequestKind::Hello => {
-                kind = MessageKind::Hello;
-                flags.set_address_request(true);
-            },
-            RequestKind::Ping => {
-                kind = MessageKind::Ping;
-                flags.set_address_request(true);
-            },
-            RequestKind::FindNode(id) => {
-                kind = MessageKind::FindNodes;
-                body = id.to_vec();
-            },
-            RequestKind::FindValue(id) => {
-                kind = MessageKind::FindValues;
-                body = id.to_vec();
-            },
-            RequestKind::Store(_id, _value) => {
-                kind = MessageKind::Store;
-            }
-        }
-
-        builder.private_key(self.private_key);
-
-        builder.base(self.id().clone(), 0, kind.into(), req.id, flags).body(body).build().unwrap()
-    }
-
-
-
-    /// Generate a response message
-    pub fn build_response(&self, req: &Request, from: Address, resp: &Response) -> Base {
-        let kind: MessageKind;
-        let flags = Flags(0);
-
-        let mut builder = BaseBuilder::default();
-
-        match &resp.data {
-            ResponseKind::Status => {
-                kind = MessageKind::Status;
-            },
-            ResponseKind::NodesFound(_id, _nodes) => {
-                kind = MessageKind::NodesFound;
-            },
-            ResponseKind::ValuesFound(_id, _values) => {
-                kind = MessageKind::ValuesFound;
-            },
-            ResponseKind::NoResult => {
-                kind = MessageKind::NoResult;
-            }
-        };
-
-        // Append address option if address request flag is set
-        if req.flags.address_request() {
-            let o = Options::address(from);
-            builder.append_public_option(o);
-        }
-
-        builder.private_key(self.private_key);
-
-        builder.base(self.id().clone(), 0, kind.into(), req.id, flags).build().unwrap()
-    }
-
-
 }
 
 
@@ -307,9 +161,10 @@ mod test {
 
     use try_from::TryInto;
 
-    use crate::protocol::WireEncode;
     use crate::service::subscriber::Subscriber;
-    use crate::service::publisher::Publisher;
+    use crate::service::publisher::{Publisher, SecondaryOptionsBuilder, DataOptionsBuilder};
+    use crate::protocol::WireEncode;
+    use crate::protocol::{base::Base, page::Page};
 
     use super::*;
 
@@ -326,7 +181,7 @@ mod test {
                 .build().unwrap();
 
         println!("Generating service page");
-        let mut page1 = service.publish();
+        let mut page1 = service.publish_primary();
 
         println!("Encoding service page");
         let mut buff = vec![0u8; 1024];
@@ -354,22 +209,28 @@ mod test {
         println!("Updating service");
         service.update(|_body, public_options, _private_options| {
             public_options.push(Options::kind("Test Kind"));
-        });
+        }).expect("Error updating service");
         assert_eq!(service.version, 1, "service.update updates service version");
 
         println!("Generating updated page");
-        let page3 = service.publish();
+        let page3 = service.publish_primary();
 
         println!("Applying updated page to replica");
-        replica.apply(&page3).expect("Error updating service replica");
+        replica.apply_primary(&page3).expect("Error updating service replica");
         assert_eq!(replica.version, 1);
 
         println!("Generating a secondary page");
         let secondary_options = SecondaryOptionsBuilder::default().build().expect("Error building secondary options");
-        let _secondary = service.secondary(secondary_options);
+        let secondary = service.publish_secondary(secondary_options);
 
+        println!("Validating secondary page");
+        service.validate_secondary(&secondary).expect("Error validating secondary page against publisher");
+
+        println!("Generating a data object");
+        let data_options = DataOptionsBuilder::default().build().expect("Error building data options");
+        let data = service.publish_data(data_options);
         
-
-
+        println!("Validating data object");
+        replica.validate_data(&data).expect("Error validating data against replica");
     }
 }

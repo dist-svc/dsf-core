@@ -57,7 +57,7 @@ impl TryFrom<Kind> for PageKind {
     type Error = KindError;
 
     fn try_from(v: Kind) -> Result<Self, Self::Error> {
-        if (v.0 & kinds::KIND_MASK != kinds::PAGE_FLAGS) {
+        if v.0 & kinds::KIND_MASK != kinds::PAGE_FLAGS {
             return Err(KindError::InvalidKind(v.0 & kinds::KIND_MASK))
         }
 
@@ -155,7 +155,7 @@ impl TryFrom<Kind> for DataKind {
     type Error = KindError;
 
     fn try_from(v: Kind) -> Result<Self, Self::Error> {
-        if (v.0 & kinds::KIND_MASK != kinds::DATA_FLAGS) {
+        if v.0 & kinds::KIND_MASK != kinds::DATA_FLAGS {
             return Err(KindError::InvalidKind(v.0 & kinds::KIND_MASK))
         }
 

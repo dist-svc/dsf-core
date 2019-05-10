@@ -1,6 +1,6 @@
 
 use std::time::SystemTimeError;
-use std::io::{Error as IoError, ErrorKind as IoErrorKind};
+use std::io::Error as IoError;
 
 use crate::protocol::base::BaseError;
 
@@ -16,11 +16,16 @@ pub enum Error {
     CryptoError,
     UnexpectedPageType,
     UnexpectedServiceId,
+    UnexpectedApplicationId,
     InvalidServiceVersion,
     NoPrivateKey,
     NoPublicKey,
     NoSignature,
     ExpectedPrimaryPage,
+    ExpectedSecondaryPage,
+    ExpectedDataObject,
+    UnexpectedPeerId,
+    NoPeerId,
     KeyIdMismatch,
     PublicKeyChanged,
     Unimplemented,

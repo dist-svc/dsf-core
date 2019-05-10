@@ -4,7 +4,7 @@ use std::net::{SocketAddr, SocketAddrV4, SocketAddrV6};
 
 use byteorder::{ByteOrder, NetworkEndian, ReadBytesExt, WriteBytesExt};
 
-use crate::types::{Id, ID_LEN, PublicKey, PUBLIC_KEY_LEN, DateTime};
+use crate::types::{Id, ID_LEN, PublicKey, PUBLIC_KEY_LEN, Signature, SIGNATURE_LEN, DateTime};
 use crate::protocol::{Encode, Parse};
 
 /// D-IoT Optional fields
@@ -13,6 +13,7 @@ pub enum Options {
     None,
     PubKey(PubKey),
     PeerId(PeerId),
+    PrevSig(PrevSig),
     Kind(Kind),
     Name(Name),
     IPv4(SocketAddrV4),
@@ -41,13 +42,14 @@ impl From<std::io::Error> for OptionsError {
 mod option_kinds {
     pub const PUBKEY:       u16 = 0x00; // Public Key
     pub const PEER_ID:      u16 = 0x01; // ID of Peer responsible for secondary page
-    pub const KIND:         u16 = 0x02; // Service KIND in utf-8
-    pub const NAME:         u16 = 0x03; // Service NAME in utf-8
-    pub const ADDR_IPV4:    u16 = 0x04; // IPv4 service address
-    pub const ADDR_IPV6:    u16 = 0x05; // IPv6 service address
-    pub const ISSUED:       u16 = 0x06; // ISSUED option defines object creation time
-    pub const EXPIRY:       u16 = 0x07; // EXPIRY option defines object expiry time
-    pub const META:         u16 = 0x08; // META option supports generic metadata key:value pairs
+    pub const PREV_SIG:     u16 = 0x02; // Previous object signature
+    pub const KIND:         u16 = 0x03; // Service KIND in utf-8
+    pub const NAME:         u16 = 0x04; // Service NAME in utf-8
+    pub const ADDR_IPV4:    u16 = 0x05; // IPv4 service address
+    pub const ADDR_IPV6:    u16 = 0x06; // IPv6 service address
+    pub const ISSUED:       u16 = 0x07; // ISSUED option defines object creation time
+    pub const EXPIRY:       u16 = 0x08; // EXPIRY option defines object expiry time
+    pub const META:         u16 = 0x09; // META option supports generic metadata key:value pairs
 }
 
 const OPTION_HEADER_LEN: usize = 4;
@@ -90,6 +92,10 @@ impl Options {
 
     pub fn kind(value: &str) -> Options {
         Options::Kind(Kind::new(value.clone()))
+    }
+
+    pub fn prev_sig(value: &Signature) -> Options {
+        Options::PrevSig(PrevSig::new(value.clone()))
     }
 
     pub fn meta(key: &str, value: &str) -> Options {
@@ -302,6 +308,43 @@ impl Encode for PeerId {
         Ok(w.position() as usize)
     }
 }
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PrevSig {
+    pub sig: Signature,
+}
+
+impl PrevSig {
+    pub fn new(sig: Signature) -> Self {
+        Self { sig }
+    }
+}
+
+impl Parse for PrevSig {
+    type Output = Self;
+    type Error = OptionsError;
+
+    fn parse(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
+        let mut sig = [0u8; SIGNATURE_LEN];
+        sig.copy_from_slice(&data[..SIGNATURE_LEN]);
+        Ok((Self { sig: sig.into() }, SIGNATURE_LEN))
+    }
+}
+
+impl Encode for PrevSig {
+    type Error = OptionsError;
+
+    fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
+        let mut w = Cursor::new(data);
+        
+        w.write_u16::<NetworkEndian>(option_kinds::PREV_SIG)?;
+        w.write_u16::<NetworkEndian>(SIGNATURE_LEN as u16)?;
+        w.write(&self.sig)?;
+
+        Ok(w.position() as usize)
+    }
+}
+
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Kind {
