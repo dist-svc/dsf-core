@@ -13,10 +13,6 @@ extern crate derive_builder;
 #[macro_use]
 extern crate serde;
 
-extern crate structopt;
-
-extern crate try_from;
-
 #[macro_use]
 extern crate log;
 

@@ -3,8 +3,7 @@
 
 use std::time::{SystemTime, Duration};
 use std::ops::Add;
-
-use try_from::TryFrom;
+use std::convert::TryFrom;
 
 use crate::types::*;
 use crate::protocol::WireEncode;
@@ -317,7 +316,7 @@ impl WireEncode for Page {
 }
 
 impl TryFrom<Base> for Page {
-    type Err = Error;
+    type Error = Error;
 
     fn try_from(base: Base) -> Result<Self, Error> {
 

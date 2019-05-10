@@ -9,7 +9,7 @@ pub mod kinds;
 
 // Service extensions
 pub mod publisher;
-pub use publisher::Publisher;
+pub use publisher::{Publisher, SecondaryOptionsBuilder, DataOptionsBuilder};
 
 pub mod subscriber;
 pub use subscriber::Subscriber;
@@ -158,8 +158,7 @@ impl Crypto for Service {
 mod test {
 
     use std::net::{SocketAddrV4, Ipv4Addr};
-
-    use try_from::TryInto;
+    use std::convert::TryInto;
 
     use crate::service::subscriber::Subscriber;
     use crate::service::publisher::{Publisher, SecondaryOptionsBuilder, DataOptionsBuilder};
