@@ -146,7 +146,7 @@ macro_rules! arr {
         impl fmt::Display for $name {
             fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 let r: &[u8] = &self.0;
-                let encoded = base64::encode(&r);
+                let encoded = base64::encode_config(&r, base64::URL_SAFE);
                 write!(f, "{}", encoded)?;
                 Ok(())
             }
@@ -176,7 +176,7 @@ macro_rules! arr {
 
             fn from_str(s: &str) -> Result<Self, Self::Err> {
                 let mut data = [0u8; $len];
-                let decoded = base64::decode(s)?;
+                let decoded = base64::decode_config(s, base64::URL_SAFE)?;
                 data.clone_from_slice(&decoded);
                 Ok(data.into())
             }
