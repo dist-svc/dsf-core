@@ -354,20 +354,23 @@ pub enum ResponseKind {
 }
 
 mod status {
-    pub const OK: u32 = 0x0000_0000;
+    pub const OK                : u32 = 0x0000_0000;
+    pub const INVALID_REQUEST   : u32 = 0x0000_0001;
 }
 
 /// Status response codes
 #[derive(Clone, PartialEq, Debug)]
 pub enum Status {
     Ok,
+    InvalidRequest,
     Unknown(u32),
 }
 
 impl From<u32> for Status {
     fn from(v: u32) -> Self {
         match v {
-            status::OK => Status::Ok,
+            status::OK                  => Status::Ok,
+            status::INVALID_REQUEST     => Status::InvalidRequest,
             _ => Status::Unknown(v)
         }
     }
@@ -376,8 +379,9 @@ impl From<u32> for Status {
 impl Into<u32> for Status {
     fn into(self) -> u32 {
         match self {
-            Status::Ok => status::OK,
-            Status::Unknown(v) => v
+            Status::Ok                  => status::OK,
+            Status::InvalidRequest      => status::INVALID_REQUEST,
+            Status::Unknown(v)          => v
         }
     }
 }

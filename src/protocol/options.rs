@@ -20,6 +20,7 @@ pub enum Options {
     IPv6(SocketAddrV6),
     Issued(Issued),
     Expiry(Expiry),
+    Limit(Limit),
     Metadata(Metadata),
 }
 
@@ -49,7 +50,8 @@ mod option_kinds {
     pub const ADDR_IPV6:    u16 = 0x06; // IPv6 service address
     pub const ISSUED:       u16 = 0x07; // ISSUED option defines object creation time
     pub const EXPIRY:       u16 = 0x08; // EXPIRY option defines object expiry time
-    pub const META:         u16 = 0x09; // META option supports generic metadata key:value pairs
+    pub const LIMIT:        u16 = 0x09; // LIMIT option defines maximum number of objects to return
+    pub const META:         u16 = 0x0a; // META option supports generic metadata key:value pairs
 }
 
 const OPTION_HEADER_LEN: usize = 4;
@@ -187,6 +189,10 @@ impl Parse for Options {
                 let (opt, n) = Expiry::parse(d)?;
                 Ok((Options::Expiry(opt), n + OPTION_HEADER_LEN))
             },
+            option_kinds::LIMIT => {
+                let (opt, n) = Limit::parse(d)?;
+                Ok((Options::Limit(opt), n + OPTION_HEADER_LEN))
+            },
             _ => {
                 // Unrecognised option types (and None) are skipped
                 Ok((Options::None, OPTION_HEADER_LEN + option_len))
@@ -225,6 +231,9 @@ impl Encode for Options {
                 Ok(o.encode(data)?)
             },
             Options::Expiry(ref o) => {
+                Ok(o.encode(data)?)
+            },
+            Options::Limit(ref o) => {
                 Ok(o.encode(data)?)
             },
             _ => {
@@ -617,6 +626,40 @@ impl Encode for Expiry {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Limit {
+    pub n: u32,
+}
+
+impl Limit {
+    pub fn new(n: u32) -> Self {
+        Self { n }
+    }
+}
+
+impl Parse for Limit {
+    type Output = Self;
+    type Error = OptionsError;
+
+    fn parse(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
+        Ok((Self { n: NetworkEndian::read_u32(data) }, 4))
+    }
+}
+
+impl Encode for Limit {
+    type Error = OptionsError;
+
+    fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
+        let mut w = Cursor::new(data);
+        
+        w.write_u16::<NetworkEndian>(option_kinds::LIMIT)?;
+        w.write_u16::<NetworkEndian>(4)?;
+        w.write_u32::<NetworkEndian>(self.n)?;
+
+        Ok(w.position() as usize)
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -637,6 +680,7 @@ mod tests {
             Options::Metadata(Metadata::new("test-key", "test-value")),
             Options::Issued(Issued::new(SystemTime::now())),
             Options::Expiry(Expiry::new(SystemTime::now())),
+            Options::Limit(Limit::new(13)),
         ];
 
         for o in tests.iter() {
