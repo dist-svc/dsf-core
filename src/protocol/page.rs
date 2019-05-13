@@ -51,6 +51,10 @@ pub struct Page {
     #[builder(default = "vec![]")]
     private_options: Vec<Options>,
 
+    // Public key (for decoding and encoding)
+    #[builder(default = "None")]
+    pub(crate) public_key: Option<PublicKey>,
+
     // Signature (if signed or decoded)
     #[builder(default = "None")]
     signature: Option<Signature>,
@@ -76,6 +80,7 @@ impl Page {
             public_options: vec![],
             private_options: vec![],
             
+            public_key: None,
             signature: None,
             private_key: None,
             encryption_key: None,
@@ -283,6 +288,8 @@ impl From<&Page> for Base {
         // Generate base object
         let mut b = Base::new(page.id, page.application_id, page.kind, flags, page.version, page.body.clone(), public_options, page.private_options.clone());
 
+        b.public_key = page.public_key;
+
         if let Some(sig) = sig {
             b.set_signature(sig);
         }
@@ -391,6 +398,8 @@ impl TryFrom<Base> for Page {
             public_options: public_options,
             private_options: private_options,
             signature: signature.clone(),
+
+            public_key: base.public_key,
             private_key: None,
             encryption_key: None,
         })

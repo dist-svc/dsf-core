@@ -79,6 +79,8 @@ impl Publisher for Service {
 
         let mut p = Page::new(self.id.clone(), self.application_id, self.kind.into(), flags, self.version, PageInfo::primary(self.public_key.clone()), self.body.clone(), SystemTime::now(), Some(SystemTime::now().add(Duration::from_secs(24 * 60 * 60))));
 
+        p.public_key = Some(self.public_key());
+
         if let Some(key) = self.private_key {
             p.set_private_key(key);
         }
@@ -100,6 +102,8 @@ impl Publisher for Service {
 
         let mut p = Page::new(self.id.clone(), self.application_id, options.page_kind, flags, options.version, PageInfo::secondary(self.id.clone()), options.body, SystemTime::now(), options.expiry);
 
+        p.public_key = Some(self.public_key());
+
         if let Some(key) = self.private_key {
             p.set_private_key(key);
         }
@@ -120,6 +124,8 @@ impl Publisher for Service {
         self.data_index += 1;
 
         let mut p = Page::new(self.id.clone(), self.application_id, options.data_kind, flags, self.data_index, PageInfo::Data(()), options.body, SystemTime::now(), options.expiry);
+
+        p.public_key = Some(self.public_key());
 
         if let Some(key) = self.private_key {
             p.set_private_key(key);

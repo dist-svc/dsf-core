@@ -11,7 +11,7 @@ use crate::protocol::container::Container;
 use crate::crypto;
 
 
-#[derive(Clone, Builder, Debug, PartialEq)]
+#[derive(Clone, Builder, Debug)]
 pub struct Base {
     id:             Id,
     header:         Header,
@@ -23,10 +23,25 @@ pub struct Base {
     public_options: Vec<Options>,
     #[builder(default = "None")]
     signature:      Option<Signature>,
+    
+    
+    #[builder(default = "None")]
+    pub(crate) public_key:      Option<PublicKey>,
     #[builder(default = "None")]
     private_key:      Option<PrivateKey>,
     #[builder(default = "None")]
     encryption_key:   Option<SecretKey>,
+}
+
+impl PartialEq for Base {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id &&
+        self.header == other.header &&
+        self.body == other.body &&
+        self.private_options == other.private_options &&
+        self.public_options == other.public_options &&
+        self.signature == other.signature 
+    }
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
@@ -91,7 +106,7 @@ impl BaseBuilder {
 impl Base {
     pub fn new(id: Id, application_id: u16, kind: Kind, flags: Flags, version: u16, body: Vec<u8>, public_options: Vec<Options>, private_options: Vec<Options>) -> Base {
         let header = Header::new(application_id, kind, version, flags);
-        Base{id, header, body, public_options, private_options, signature: None, private_key: None, encryption_key: None}
+        Base{id, header, body, public_options, private_options, signature: None, public_key: None, private_key: None, encryption_key: None}
     }
 
     pub fn id(&self) -> &Id {
@@ -143,6 +158,7 @@ impl Base {
     }
 
     pub fn clean(&mut self) {
+        self.public_key = None;
         self.encryption_key = None;
         self.private_key = None;
     }
@@ -373,6 +389,8 @@ impl Base {
                 private_options,
                 public_options,
                 signature: Some(signature),
+
+                public_key,
                 private_key: None,
                 encryption_key: None,
             },
@@ -390,8 +408,20 @@ impl Base {
         // Build container and encode page
         let (mut container, n) = Container::encode(buff, &self);
 
-        match (self.signature, self.private_key) {
-            (Some(_sig), _) => (),
+        match (&self.signature, &self.private_key) {
+            (Some(sig), _) => {
+                match self.public_key {
+                    Some(pub_key) => {
+                        if !crypto::pk_validate(&pub_key, sig, container.signed()).unwrap() {
+                            error!("invalid signature on encoded object");
+                            return Err(BaseError::InvalidSignature);
+                        }
+                    },
+                    None => {
+                        error!("no public key on encoded object");
+                    }
+                }
+            },
             (None, Some(key)) => {
                 let sig = container.sign(|_id, data| crypto::pk_sign(&key, data))
                     .map_err(|_e| BaseError::InvalidSignature )?;
@@ -432,7 +462,9 @@ mod tests {
         let mut buff = vec![0u8; 1024];
         let n = page.encode(move |_id, data| crypto::pk_sign(&pri_key, data), &mut buff).expect("Error encoding page");
 
-        let (decoded, m) = Base::parse(&buff[..n], |_id| Some(pub_key) ).expect("Error decoding page");;
+        let (mut decoded, m) = Base::parse(&buff[..n], |_id| Some(pub_key) ).expect("Error decoding page");
+
+        decoded.clean();
 
         assert_eq!(page, decoded);
         assert_eq!(n, m);
