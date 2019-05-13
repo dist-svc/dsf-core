@@ -87,14 +87,19 @@ impl Into<Kind> for PageKind {
 #[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
 pub enum MessageKind {
     Hello,
-    Status,
     Ping,
     FindNodes,
     FindValues,
     Store,
+    Subscribe,
+    Query,
+    PushData,
+
+    Status,
     NodesFound,
     ValuesFound,
     NoResult,
+    PullData,
 }
 
 impl TryFrom<Kind> for MessageKind {
@@ -109,6 +114,9 @@ impl TryFrom<Kind> for MessageKind {
                     kinds::FIND_NODES   => MessageKind::FindNodes,
                     kinds::FIND_VALUES  => MessageKind::FindValues,
                     kinds::STORE        => MessageKind::Store,
+                    kinds::SUBSCRIBE    => MessageKind::Subscribe,
+                    kinds::QUERY        => MessageKind::Query,
+                    kinds::PUSH_DATA    => MessageKind::PushData,
                     _ => return Err(KindError::Unrecognized(v.0))
                 }
             },
@@ -118,6 +126,7 @@ impl TryFrom<Kind> for MessageKind {
                     kinds::NODES_FOUND  => MessageKind::NodesFound,
                     kinds::VALUES_FOUND => MessageKind::ValuesFound,
                     kinds::NO_RESULT    => MessageKind::NoResult,
+                    kinds::PULL_DATA    => MessageKind::PullData,
                     _ => return Err(KindError::Unrecognized(v.0))
                 }
             },
@@ -136,11 +145,15 @@ impl Into<Kind> for MessageKind {
             MessageKind::FindNodes   => kinds::FIND_NODES,
             MessageKind::FindValues  => kinds::FIND_VALUES,
             MessageKind::Store       => kinds::STORE,
+            MessageKind::Subscribe   => kinds::SUBSCRIBE,
+            MessageKind::Query       => kinds::QUERY,
+            MessageKind::PushData    => kinds::PUSH_DATA,
 
             MessageKind::Status      => kinds::STATUS,
             MessageKind::NodesFound  => kinds::NODES_FOUND,
             MessageKind::ValuesFound => kinds::VALUES_FOUND,
             MessageKind::NoResult    => kinds::NO_RESULT,
+            MessageKind::PullData    => kinds::PULL_DATA,
         };
         Kind(base)
     }
@@ -197,12 +210,16 @@ pub mod kinds {
     pub const FIND_NODES     : u16 = 0x0002 | REQUEST_FLAGS;
     pub const FIND_VALUES    : u16 = 0x0003 | REQUEST_FLAGS;
     pub const STORE          : u16 = 0x0004 | REQUEST_FLAGS;
+    pub const SUBSCRIBE      : u16 = 0x0005 | REQUEST_FLAGS;
+    pub const QUERY          : u16 = 0x0006 | REQUEST_FLAGS;
+    pub const PUSH_DATA      : u16 = 0x0007 | REQUEST_FLAGS;
 
     pub const RESPONSE_FLAGS : u16 = 0b1000_0000_0000_0000;
     pub const STATUS         : u16 = 0x0000 | RESPONSE_FLAGS;
     pub const NO_RESULT      : u16 = 0x0001 | RESPONSE_FLAGS;
     pub const NODES_FOUND    : u16 = 0x0002 | RESPONSE_FLAGS;
     pub const VALUES_FOUND   : u16 = 0x0003 | RESPONSE_FLAGS;
+    pub const PULL_DATA      : u16 = 0x0004 | RESPONSE_FLAGS;
     
     pub const DATA_FLAGS     : u16 = 0b1100_0000_0000_0000;
     pub const DATA_GENERIC   : u16 = 0x0000 | DATA_FLAGS;
@@ -241,11 +258,15 @@ mod tests {
             (MessageKind::FindNodes,   Kind(0b0100_0000_0000_0010)),
             (MessageKind::FindValues,  Kind(0b0100_0000_0000_0011)),
             (MessageKind::Store,       Kind(0b0100_0000_0000_0100)),
+            (MessageKind::Subscribe,   Kind(0b0100_0000_0000_0101)),
+            (MessageKind::Query,       Kind(0b0100_0000_0000_0110)),
+            (MessageKind::PushData,    Kind(0b0100_0000_0000_0111)),
 
             (MessageKind::Status,      Kind(0b1000_0000_0000_0000)),
             (MessageKind::NoResult,    Kind(0b1000_0000_0000_0001)),
             (MessageKind::NodesFound,  Kind(0b1000_0000_0000_0010)),
             (MessageKind::ValuesFound, Kind(0b1000_0000_0000_0011)),
+            (MessageKind::PullData,    Kind(0b1000_0000_0000_0100)),
         ];
 
         for (t, v) in tests {

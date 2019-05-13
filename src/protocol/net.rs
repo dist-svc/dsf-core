@@ -4,6 +4,7 @@
 use core::convert::TryFrom;
 
 use slice_ext::SplitBefore;
+use byteorder::{ByteOrder, NetworkEndian};
 
 use crate::types::*;
 use crate::protocol::options::Options;
@@ -85,7 +86,7 @@ impl Message {
 
     pub fn convert<V>(base: Base, key_source: V) -> Result<Message, Error> 
     where 
-        V: FnMut (&Id) -> Option<PublicKey>
+        V: Fn(&Id) -> Option<PublicKey>
     {
         let header = base.header();
         let app_id = header.application_id();
@@ -126,6 +127,9 @@ pub enum RequestKind {
     FindNode(Id),
     FindValue(Id),
     Store(Id, Vec<Page>),
+    Subscribe(Id),
+    Query(Id),
+    PushData(Id, Vec<Page>),
 }
 
 impl Request {
@@ -168,9 +172,9 @@ impl PartialEq for Request {
 
 impl Request {
 
-    pub fn convert<V>(base: Base, _key_source: V) -> Result<Request, Error> 
+    pub fn convert<V>(base: Base, key_source: V) -> Result<Request, Error> 
     where 
-        V: FnMut (&Id) -> Option<PublicKey>
+        V: Fn(&Id) -> Option<PublicKey>
     {
         let header = base.header();
         let body = base.body();
@@ -197,15 +201,35 @@ impl Request {
                 id.copy_from_slice(&body[0..ID_LEN]);
                 RequestKind::FindValue(id)
             },
+            MessageKind::Subscribe => {
+                let mut id = Id::default();
+                id.copy_from_slice(&body[0..ID_LEN]);
+                RequestKind::Subscribe(id)
+            },
+            MessageKind::Query => {
+                let mut id = Id::default();
+                id.copy_from_slice(&body[0..ID_LEN]);
+                RequestKind::Query(id)
+            },
             MessageKind::Store => {
                 let mut id = Id::default();
                 id.copy_from_slice(&body[0..ID_LEN]);
                 
                 // Perhaps i should not fetch pages until later..?
                 // And also sign them earlier..?
-                let pages = Page::decode_pages(&body[ID_LEN..], |_id| None ).unwrap();
+                let pages = Page::decode_pages(&body[ID_LEN..], key_source ).unwrap();
 
                 RequestKind::Store(id, pages)
+            },
+            MessageKind::PushData => {
+                let mut id = Id::default();
+                id.copy_from_slice(&body[0..ID_LEN]);
+                
+                // Perhaps i should not fetch pages until later..?
+                // And also sign them earlier..?
+                let pages = Page::decode_pages(&body[ID_LEN..], key_source ).unwrap();
+
+                RequestKind::PushData(id, pages)
             },
             _ => {
                 println!("Error converting base object of kind {:?} to request message", header.kind());
@@ -256,7 +280,25 @@ impl Into<Base> for Request {
                 let i = Page::encode_pages(pages, &mut buff[ID_LEN..]).unwrap();
 
                 body = buff[..ID_LEN + i].to_vec();
-            }
+            },
+            RequestKind::Subscribe(id) => {
+                kind = MessageKind::Subscribe;
+                body = id.to_vec();
+            },
+            RequestKind::Query(id) => {
+                kind = MessageKind::Query;
+                body = id.to_vec();
+            },
+            RequestKind::PushData(id, pages) => {
+                kind = MessageKind::PushData;
+
+                let mut buff = vec![0u8; BUFF_SIZE];
+                (&mut buff[..ID_LEN]).copy_from_slice(id);
+             
+                let i = Page::encode_pages(pages, &mut buff[ID_LEN..]).unwrap();
+
+                body = buff[..ID_LEN + i].to_vec();
+            },
         }
 
         builder.base(self.from, 0, kind.into(), self.id, self.flags).body(body).build().unwrap()
@@ -289,6 +331,7 @@ impl fmt::Debug for RequestKind {
     }
 }
 
+/// Generic Response message
 #[derive(Clone, Debug)]
 pub struct Response {
     pub from: Id,
@@ -300,12 +343,43 @@ pub struct Response {
     pub public_key: Option<PublicKey>,
 }
 
+/// Response message kinds
 #[derive(Clone, PartialEq, Debug)]
 pub enum ResponseKind {
-    Status,
+    Status(Status),
     NodesFound(Id, Vec<(Id, Address, PublicKey)>),
     ValuesFound(Id, Vec<Page>),
     NoResult,
+    PullData(Id, Vec<Page>),
+}
+
+mod status {
+    pub const OK: u32 = 0x0000_0000;
+}
+
+/// Status response codes
+#[derive(Clone, PartialEq, Debug)]
+pub enum Status {
+    Ok,
+    Unknown(u32),
+}
+
+impl From<u32> for Status {
+    fn from(v: u32) -> Self {
+        match v {
+            status::OK => Status::Ok,
+            _ => Status::Unknown(v)
+        }
+    }
+}
+
+impl Into<u32> for Status {
+    fn into(self) -> u32 {
+        match self {
+            Status::Ok => status::OK,
+            Status::Unknown(v) => v
+        }
+    }
 }
 
 
@@ -363,6 +437,13 @@ impl fmt::Debug for ResponseKind {
             ResponseKind::NoResult => {
                 write!(f, "NoResult")
             }
+            ResponseKind::PullData(id, values) => {
+                write!(f, "PullData({:?}): [", id)?;
+                for v in values {
+                    write!(f, "\n    - {:?}", v)?;
+                }
+                write!(f, "]\n")
+            },
         }
     }
 }
@@ -376,9 +457,9 @@ impl PartialEq for Response {
 
 impl Response {
 
-    pub fn convert<V>(base: Base, _key_source: V) -> Result<Response, Error> 
+    pub fn convert<V>(base: Base, key_source: V) -> Result<Response, Error> 
     where 
-        V: FnMut (&Id) -> Option<PublicKey>
+        V: Fn (&Id) -> Option<PublicKey>
     {
         let header = base.header();
         let body = base.body();
@@ -393,7 +474,8 @@ impl Response {
 
         let data = match kind {
             MessageKind::Status => {
-                ResponseKind::Status
+                let status = NetworkEndian::read_u32(&body);
+                ResponseKind::Status(status.into())
             },
             MessageKind::NoResult => {
                 ResponseKind::NoResult
@@ -429,9 +511,17 @@ impl Response {
                 let mut id = Id::default();
                 id.copy_from_slice(&body[0..ID_LEN]);
    
-                let pages = Page::decode_pages(&body[ID_LEN..], |_id| None ).unwrap();
+                let pages = Page::decode_pages(&body[ID_LEN..], key_source ).unwrap();
 
                 ResponseKind::ValuesFound(id, pages)
+            },
+            MessageKind::PullData => {
+                let mut id = Id::default();
+                id.copy_from_slice(&body[0..ID_LEN]);
+   
+                let pages = Page::decode_pages(&body[ID_LEN..], key_source ).unwrap();
+
+                ResponseKind::PullData(id, pages)
             },
             _ => {
                 error!("Error converting base object of kind {:?} to response message", header.kind());
@@ -459,9 +549,10 @@ impl Into<Base> for Response {
         let mut builder = BaseBuilder::default();
 
         match self.data {
-            ResponseKind::Status => {
+            ResponseKind::Status(code) => {
                 kind = MessageKind::Status;
-                body = vec![];
+                NetworkEndian::write_u32(&mut buff, code.into());
+                body = (&buff[0..4]).to_vec();
                 
             },
             ResponseKind::NoResult => {
@@ -488,6 +579,14 @@ impl Into<Base> for Response {
             },
             ResponseKind::ValuesFound(id, pages) => {
                 kind = MessageKind::ValuesFound;
+                (&mut buff[..ID_LEN]).copy_from_slice(&id);
+             
+                let n = Page::encode_pages(&pages, &mut buff[ID_LEN..]).unwrap();
+
+                body = buff[.. ID_LEN + n].to_vec();
+            },
+            ResponseKind::PullData(id, pages) => {
+                kind = MessageKind::PullData;
                 (&mut buff[..ID_LEN]).copy_from_slice(&id);
              
                 let n = Page::encode_pages(&pages, &mut buff[ID_LEN..]).unwrap();
@@ -532,11 +631,16 @@ mod tests {
             Message::Request(Request::new(id.clone(), RequestKind::Ping, flags.clone())),
             Message::Request(Request::new(id.clone(), RequestKind::FindNode(fake_id.clone()), flags.clone())),
             Message::Request(Request::new(id.clone(), RequestKind::Store(id.clone(), vec![page.clone()]), flags.clone())),
-            Message::Response(Response::new(id.clone(), request_id, ResponseKind::Status, flags.clone())),
+            Message::Request(Request::new(id.clone(), RequestKind::Subscribe(fake_id.clone()), flags.clone())),
+            Message::Request(Request::new(id.clone(), RequestKind::Query(fake_id.clone()), flags.clone())),
+            Message::Request(Request::new(id.clone(), RequestKind::PushData(id.clone(), vec![page.clone()]), flags.clone())),
+
+            Message::Response(Response::new(id.clone(), request_id, ResponseKind::Status(Status::Ok), flags.clone())),
             // TODO: put node information here
             Message::Response(Response::new(id.clone(), request_id, ResponseKind::NodesFound(fake_id.clone(), vec![(fake_id.clone(), SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080), pub_key.clone())]), flags.clone())),
             Message::Response(Response::new(id.clone(), request_id, ResponseKind::ValuesFound(fake_id.clone(), vec![page.clone()]), flags.clone())),
             Message::Response(Response::new(id.clone(), request_id, ResponseKind::NoResult, flags.clone())),
+            Message::Response(Response::new(id.clone(), request_id, ResponseKind::PullData(fake_id.clone(), vec![page.clone()]), flags.clone())),
         ];
 
 

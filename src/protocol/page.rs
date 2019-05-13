@@ -154,7 +154,7 @@ impl Page {
         while i < buff.len() {
             // TODO: validate signatures against existing services!
             let (b, n) = Base::parse(&buff[i..], |id| {
-                // se key_source first
+                // Try key_source first
                 if let Some(key) = (key_source)(id) {
                    return Some(key)
                 };
