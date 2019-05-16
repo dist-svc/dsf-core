@@ -11,13 +11,10 @@ pub trait Subscriber {
     fn load(page: &Page) -> Result<Service, Error>;
     
     /// Apply an updated primary page to an existing service instance
-    fn apply_primary(&mut self, primary: &Page) -> Result<(), Error>;
+    fn apply_primary(&mut self, primary: &Page) -> Result<bool, Error>;
 
     /// Validate a given secondary page published by this service
-    fn validate_secondary(&mut self, secondary: &Page) -> Result<(), Error>;
-
-    /// Validate a given data object published by this service
-    fn validate_data(&mut self, data: &Page) -> Result<(), Error>;
+    fn validate_page(&mut self, page: &Page) -> Result<(), Error>;
 }
 
 impl Subscriber for Service {
@@ -65,41 +62,69 @@ impl Subscriber for Service {
 
     /// Apply an upgrade to an existing service.
     /// This consumes a new page and updates the service instance
-    fn apply_primary(&mut self, update: &Page) -> Result<(), Error> {
+    fn apply_primary(&mut self, update: &Page) -> Result<bool, Error> {
         let flags = update.flags();
         let body = update.body();
 
         let public_options = update.public_options();
         let private_options = update.private_options();
 
-        // Check fields match
-        if !update.kind().is_page() {
-            return Err(Error::ExpectedPrimaryPage);
-        }
-        if !update.flags().primary() {
-            return Err(Error::ExpectedPrimaryPage)
-        }
-        
+        self.validate_primary(update)?;
 
-        if update.id() != &self.id {
-            return Err(Error::UnexpectedServiceId)
-        }
-        if update.application_id() != self.application_id {
-            return Err(Error::UnexpectedApplicationId)
-        }
         if update.version() == self.version {
-            return Ok(())
+            return Ok(false)
         }
         if update.version() <= self.version {
             return Err(Error::InvalidServiceVersion)
         }
-        if update.kind() != self.kind.into() {
+
+        self.version = update.version();
+        self.encrypted = flags.encrypted();
+        self.body = body.to_vec();
+        self.public_options = public_options.to_vec();
+        self.private_options = private_options.to_vec();
+    
+        Ok(true)
+    }
+
+    fn validate_page(&mut self, page: &Page) -> Result<(), Error> {
+        if page.kind().is_page() {
+            if page.flags().primary() {
+                self.validate_primary(page)
+            } else {
+                self.validate_secondary(page)
+            }
+        } else if page.kind().is_data() {
+            self.validate_data(page)
+        } else {
+            Err(Error::UnexpectedPageKind)
+        }
+    }
+
+}
+
+impl Service {
+    /// Validate a primary page
+    pub(crate) fn validate_primary(&mut self, page: &Page) -> Result<(), Error> {
+        if !page.kind().is_page() {
+            return Err(Error::ExpectedPrimaryPage);
+        }
+        if !page.flags().primary() {
+            return Err(Error::ExpectedPrimaryPage)
+        }
+
+        if page.id() != &self.id {
+            return Err(Error::UnexpectedServiceId)
+        }
+        if page.application_id() != self.application_id {
+            return Err(Error::UnexpectedApplicationId)
+        }
+        if page.kind() != self.kind.into() {
             return Err(Error::InvalidPageKind)
         }
-       
 
         // Fetch public key from options
-        let public_key: PublicKey = match update.info() {
+        let public_key: PublicKey = match page.info() {
             PageInfo::Primary(primary) => primary.pub_key.clone(),
             _ => {
                 error!("Attempted to update service from secondary page");
@@ -117,16 +142,11 @@ impl Subscriber for Service {
             return Err(Error::PublicKeyChanged)
         }
 
-        self.version = update.version();
-        self.encrypted = flags.encrypted();
-        self.body = body.to_vec();
-        self.public_options = public_options.to_vec();
-        self.private_options = private_options.to_vec();
-    
-        Ok(())
+        return Ok(())
     }
 
-    fn validate_secondary(&mut self, secondary: &Page) -> Result<(), Error> {
+    /// Validate a secondary page
+    pub(crate) fn validate_secondary(&mut self, secondary: &Page) -> Result<(), Error> {
         if !secondary.kind().is_page() {
             return Err(Error::ExpectedPrimaryPage);
         }
@@ -149,7 +169,8 @@ impl Subscriber for Service {
         return Ok(())
     }
 
-    fn validate_data(&mut self, data: &Page) -> Result<(), Error> {
+    /// Validate a data objects
+    pub(crate) fn validate_data(&mut self, data: &Page) -> Result<(), Error> {
         if !data.kind().is_data() {
             return Err(Error::ExpectedDataObject);
         }
@@ -163,5 +184,4 @@ impl Subscriber for Service {
 
         return Ok(())
     }
-
 }
