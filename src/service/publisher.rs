@@ -5,7 +5,7 @@ use std::ops::Add;
 use crate::types::*;
 use crate::service::Service;
 use crate::protocol::{options::Options};
-use crate::protocol::page::{Page, PageInfo};
+use crate::protocol::page::{Page, PageBuilder, PageInfo};
 
 pub trait Publisher {
     /// Generates a primary page to publish for the given service.
@@ -107,7 +107,22 @@ impl Publisher for Service {
 
         assert!(options.page_kind.is_page());
 
-        let mut p = Page::new(options.id.clone(), options.application_id, options.page_kind, flags, options.version, PageInfo::secondary(self.id.clone()), options.body, SystemTime::now(), options.expiry);
+        //let mut p = Page::new(options.id.clone(), options.application_id, options.page_kind, flags, options.version, PageInfo::secondary(self.id.clone()), options.body, SystemTime::now(), options.expiry);
+
+        let mut b = PageBuilder::default();
+        b.id(options.id.clone())
+            .application_id(options.application_id)
+            .kind(options.page_kind)
+            .flags(flags)
+            .version(options.version)
+            .info(PageInfo::secondary(self.id.clone()))
+            .body(options.body)
+            .public_options(options.public_options)
+            .private_options(options.private_options)
+            .issued(SystemTime::now().into())
+            .expiry(options.expiry.map(|v| v.into() ));
+
+        let mut p = b.build().unwrap();
 
         p.public_key = Some(self.public_key());
 

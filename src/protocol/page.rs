@@ -350,9 +350,9 @@ impl TryFrom<Base> for Page {
         let private_options = base.private_options().to_vec();
 
         let issued = match Base::filter_issued_option(&mut public_options) {
-            Some(issued) => issued,
-            None => return Err(Error::Unimplemented),
-        };
+            Some(issued) => Ok(issued),
+            None => Err(Error::Unimplemented),
+        }?;
 
         let expiry = Base::filter_expiry_option(&mut public_options);
         let previous_sig = Base::filter_prev_sig_option(&mut public_options);
@@ -362,9 +362,9 @@ impl TryFrom<Base> for Page {
 
             // Fetch public key from options
             let public_key: PublicKey = match Base::filter_pub_key_option(&mut public_options) {
-                Some(pk) => pk,
-                None => return Err(Error::NoPublicKey)
-            };
+                Some(pk) => Ok(pk),
+                None => Err(Error::NoPublicKey)
+            }?;
 
             // Check public key and ID match
             let hash: Id = crypto::hash(&public_key).unwrap().into();
@@ -377,9 +377,9 @@ impl TryFrom<Base> for Page {
         } else if kind.is_page() && flags.secondary() {
             // Handle secondary page parsing
             let peer_id = match Base::filter_peer_id_option(&mut public_options) {
-                Some(id) => id,
-                None => return Err(Error::NoPublicKey)
-            };
+                Some(id) => Ok(id),
+                None => Err(Error::NoPeerId)
+            }?;
 
             PageInfo::secondary(peer_id)
 
