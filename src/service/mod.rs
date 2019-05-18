@@ -219,7 +219,7 @@ mod test {
         assert_eq!(replica.version, 1);
 
         println!("Generating a secondary page");
-        let secondary_options = SecondaryOptionsBuilder::default().build().expect("Error building secondary options");
+        let secondary_options = SecondaryOptionsBuilder::default().id(s.id()).build().expect("Error building secondary options");
         let secondary = service.publish_secondary(secondary_options);
 
         println!("Validating secondary page");

@@ -115,6 +115,14 @@ impl Page {
         &self.body
     }
 
+    pub fn issued(&self) -> SystemTime {
+        self.issued.into()
+    }
+
+    pub fn expiry(&self) -> Option<SystemTime> {
+         self.expiry.map(|t| t.into() )
+    }
+
     pub fn public_options(&self) -> &[Options] {
         &self.public_options
     }

@@ -11,15 +11,22 @@ pub trait Publisher {
     /// Generates a primary page to publish for the given service.
     fn publish_primary(&self) -> Page;
 
-    /// Create a secondary page for publishing with the provided options
-    fn publish_secondary(&mut self, options: SecondaryOptions) -> Page;
-
     /// Create a data object for publishing with the provided options
     fn publish_data(&mut self, options: DataOptions) -> Page;
+
+    /// Create a secondary page for publishing with the provided options
+    fn publish_secondary(&self, options: SecondaryOptions) -> Page;
 }
 
 #[derive(Clone, Builder)]
 pub struct SecondaryOptions {
+    /// ID of primary service
+    id: Id,
+
+    /// Application ID of primary service 
+    #[builder(default = "0")]
+    application_id: u16,
+
     /// Page object kind
     #[builder(default = "Kind(0)")]
     page_kind: Kind,
@@ -93,14 +100,14 @@ impl Publisher for Service {
     }
 
     /// Secondary generates a secondary page using this service to be attached to the provided service ID
-    fn publish_secondary(&mut self, options: SecondaryOptions) -> Page {
+    fn publish_secondary(&self, options: SecondaryOptions) -> Page {
         let mut flags = Flags(0);
         flags.set_secondary(true);
         flags.set_encrypted(self.encrypted);
 
         assert!(options.page_kind.is_page());
 
-        let mut p = Page::new(self.id.clone(), self.application_id, options.page_kind, flags, options.version, PageInfo::secondary(self.id.clone()), options.body, SystemTime::now(), options.expiry);
+        let mut p = Page::new(options.id.clone(), options.application_id, options.page_kind, flags, options.version, PageInfo::secondary(self.id.clone()), options.body, SystemTime::now(), options.expiry);
 
         p.public_key = Some(self.public_key());
 
