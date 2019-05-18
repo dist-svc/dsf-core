@@ -50,6 +50,7 @@ pub enum BaseError {
     Options(OptionsError),
     InvalidSignature,
     NoPublicKey,
+    NoPeerId,
     ValidateError,
     PublicKeyIdMismatch,
 }
@@ -322,45 +323,57 @@ impl Base {
         // Build container over buffer
         let (container, n) = Container::from(data);
 
-        // Fetch ID for page
+        // Fetch page flags
+        let flags = container.flags();
+
+        // Fetch page ID
         let id: Id = container.id().into();
 
         // Fetch signature for page
         let signature: Signature = container.signature().into();
 
-        // Lookup public key
-        let public_key = (pubkey_source)(&id);
-       
+        // Validate primary types immediately if pubkey is known
+        if !flags.secondary() {
+            
+            // Lookup public key
+            if let Some(key) = (pubkey_source)(&id) {
+                // Check ID matches key
+                if id != crypto::hash(&key).unwrap() {
+                    return Err(BaseError::PublicKeyIdMismatch);
+                }
 
-        // Validate immediately if pubkey is known
-        if let Some(key) = public_key {
-            // Check ID matches key
-            if id != crypto::hash(&key).unwrap() {
-                return Err(BaseError::PublicKeyIdMismatch);
-            }
+                // Validate message body against key
+                verified = crypto::pk_validate(&key, &signature, container.signed()).map_err(|_e| BaseError::ValidateError )?;
 
-            // Validate message body against key
-            verified = crypto::pk_validate(&key, &signature, container.signed()).map_err(|_e| BaseError::ValidateError )?;
-
-            // Stop processing if signature is invalid
-            if !verified {
-                return Err(BaseError::InvalidSignature);
+                // Stop processing if signature is invalid
+                if !verified {
+                    info!("Invalid signature with known pubkey");
+                    return Err(BaseError::InvalidSignature);
+                }
             }
         }
 
         // Fetch public options        
         let (public_options, _) = Options::parse_vec(container.public_options())?;
 
+        // Look for signing ID
+        let signing_id: Id = match (flags.secondary(), Base::peer_id_option(&public_options)) {
+            (false, _) => container.id().into(),
+            (true, Some(id)) => id,
+            _ => return Err(BaseError::NoPeerId), 
+        };
+
+        // Fetch public key
+        let public_key: PublicKey = match ((pubkey_source)(&signing_id), Base::pub_key_option(&public_options)) {
+            (Some(key), _) => key,
+            (None, Some(key)) => key,
+            _ => return Err(BaseError::NoPublicKey),
+        };
+
         // Late validation for self-signed objects from unknown sources
         if !verified {
-            // Fetch public key option from object
-            let public_key = match Base::pub_key_option(&public_options) {
-                Some(key) => key,
-                None => return Err(BaseError::NoPublicKey)
-            };
-
             // Check ID matches key
-            if id != crypto::hash(&public_key).unwrap() {
+            if signing_id != crypto::hash(&public_key).unwrap() {
                 return Err(BaseError::PublicKeyIdMismatch);
             }
 
@@ -369,6 +382,7 @@ impl Base {
 
             // Stop processing on verification error
             if !verified {
+                info!("Invalid signature for self-signed object");
                 return Err(BaseError::InvalidSignature);
             }
         }
@@ -390,7 +404,7 @@ impl Base {
                 public_options,
                 signature: Some(signature),
 
-                public_key,
+                public_key: Some(public_key),
                 private_key: None,
                 encryption_key: None,
             },
@@ -404,7 +418,6 @@ impl Base {
     where 
         S: FnMut(&Id, &[u8]) -> Result<Signature, E>
     {
-
         // Build container and encode page
         let (mut container, n) = Container::encode(buff, &self);
 
@@ -451,13 +464,37 @@ mod tests {
     fn encode_decode_page() {
         let (pub_key, pri_key) = crypto::new_pk().expect("Error generating new public/private key pair");
         let id = crypto::hash(&pub_key).expect("Error generating new ID").into();
-
         let _sec_key = crypto::new_sk().expect("Error generating new secret key");
 
         let header = HeaderBuilder::default().kind(PageKind::Generic.into()).build().expect("Error building page header");
         let data = vec![1, 2, 3, 4, 5, 6, 7];
 
         let mut page = BaseBuilder::default().id(id).header(header).body(data).build().expect("Error building page");
+
+        let mut buff = vec![0u8; 1024];
+        let n = page.encode(move |_id, data| crypto::pk_sign(&pri_key, data), &mut buff).expect("Error encoding page");
+
+        let (mut decoded, m) = Base::parse(&buff[..n], |_id| Some(pub_key) ).expect("Error decoding page");
+
+        decoded.clean();
+
+        assert_eq!(page, decoded);
+        assert_eq!(n, m);
+    }
+
+        #[test]
+    fn encode_decode_secondary_page() {
+        let (pub_key, pri_key) = crypto::new_pk().expect("Error generating new public/private key pair");
+        let id = crypto::hash(&pub_key).expect("Error generating new ID").into();
+
+        let fake_id = crypto::hash(&[0x00, 0x11, 0x22]).unwrap();
+
+        let _sec_key = crypto::new_sk().expect("Error generating new secret key");
+
+        let header = HeaderBuilder::default().flags(Flags::default().set_secondary(true)).kind(PageKind::Replica.into()).build().expect("Error building page header");
+        let data = vec![1, 2, 3, 4, 5, 6, 7];
+
+        let mut page = BaseBuilder::default().id(fake_id).header(header).body(data).public_options(vec![Options::peer_id(id)]).build().expect("Error building page");
 
         let mut buff = vec![0u8; 1024];
         let n = page.encode(move |_id, data| crypto::pk_sign(&pri_key, data), &mut buff).expect("Error encoding page");
