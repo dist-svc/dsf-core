@@ -131,6 +131,10 @@ impl Page {
         &self.private_options
     }
 
+    pub fn public_key(&self) -> Option<PublicKey> {
+        self.public_key.clone()
+    }
+
     pub fn signature(&self) -> Option<Signature> {
         self.signature.clone()
     }

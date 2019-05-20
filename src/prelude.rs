@@ -5,4 +5,4 @@ pub use crate::types::{Id, RequestId, Address, Kind, PageKind, MessageKind, Data
 
 pub use crate::types::{PublicKey, PrivateKey, SecretKey, Signature};
 
-pub use crate::protocol::{Encode, Parse, page::Page, net::Message};
+pub use crate::protocol::{Encode, Parse, base::Base, page::Page, page::PageInfo, net::Message};
