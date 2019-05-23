@@ -656,9 +656,13 @@ mod tests {
             // Encode base
             let n = b.encode(|_id, data| crypto::pk_sign(&pri_key, data), &mut buff).expect("error encoding message");
             // Parse base and check instances match
-            let (d, m)= Base::parse(&buff[..n], |_id| Some(pub_key) ).expect("error parsing message");
+            let (mut d, m)= Base::parse(&buff[..n], |_id| Some(pub_key) ).expect("error parsing message");
 
             assert_eq!(n, m);
+
+            d.raw = None;
+            b.raw = None;
+            
             assert_eq!(b, d);
 
             // Cast to message and check instances match

@@ -16,7 +16,7 @@ use crate::crypto;
 
 /// High level description of a database page
 /// Check out `PageBuilder` for a helper for constructing `Page` objects
-#[derive(Debug, PartialEq, Clone, Builder)]
+#[derive(Debug, Clone, Builder)]
 pub struct Page {
     // Header
     id: Id,
@@ -66,13 +66,36 @@ pub struct Page {
     // Encryption key (for encryption where specified)
     #[builder(default = "None")]
     encryption_key: Option<SecretKey>,
+
+    // Raw (encoded) data
+    #[builder(default = "None")]
+    pub(crate) raw: Option<Vec<u8>>
+}
+
+impl PartialEq for Page {
+    fn eq(&self, o: &Self) -> bool {
+        self.id == o.id &&
+        self.application_id == o.application_id &&
+        self.flags == o.flags &&
+        self.version == o.version &&
+        self.kind == o.kind &&
+        self.info == o.info &&
+        self.body == o.body &&
+        self.issued == o.issued &&
+        self.expiry == o.expiry &&
+        self.previous_sig == o.previous_sig &&
+        self.public_options == o.public_options &&
+        self.private_options == o.private_options &&
+        self.public_key == o.public_key &&
+        self.signature == o.signature
+    }
 }
 
 impl Page {
 
     /// Create a new page
     pub fn new(id: Id, application_id: u16, kind: Kind, flags: Flags, version: u16, info: PageInfo, body: Vec<u8>, issued: SystemTime, expiry: Option<SystemTime>) -> Self {
-        Page{
+        Page {
             id, application_id, kind, flags, version, info, body, 
             issued: issued.into(), 
             expiry: expiry.map(|v| v.into() ), 
@@ -84,6 +107,7 @@ impl Page {
             signature: None,
             private_key: None,
             encryption_key: None,
+            raw: None,
         }
     }
 
@@ -154,6 +178,7 @@ impl Page {
     pub fn clean(&mut self) {
         self.encryption_key = None;
         self.private_key = None;
+        self.raw = None;
     }
 }
 
@@ -312,6 +337,10 @@ impl From<&Page> for Base {
         if let Some(key) = page.encryption_key {
             b.set_encryption_key(key);
         }
+
+        if let Some(raw) = &page.raw {
+            b.set_raw(raw.clone());
+        }
     
         b
     }
@@ -346,7 +375,7 @@ impl TryFrom<Base> for Page {
         let flags = header.flags();
         let kind = header.kind();
 
-        if !kind.is_page() {
+        if !kind.is_page() && !kind.is_data() {
             return Err(Error::InvalidPageKind)
         }
 
@@ -396,7 +425,7 @@ impl TryFrom<Base> for Page {
             return Err(Error::UnexpectedPageType);
         };
 
-        Ok(Page{
+        Ok(Page {
             id: base.id().clone(),
             application_id: header.application_id(),
             kind: header.kind(),
@@ -414,6 +443,7 @@ impl TryFrom<Base> for Page {
             public_key: base.public_key,
             private_key: None,
             encryption_key: None,
+            raw: base.raw().clone(),
         })
     }
 }

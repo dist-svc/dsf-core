@@ -22,7 +22,6 @@ impl Kind {
     }
 
     pub fn is_data(&self) -> bool {
-        println!("V: {:#b} M: {:#b}, V: {:#b}", self.0, self.0 & kinds::KIND_MASK, kinds::DATA_FLAGS);
         self.0 & kinds::KIND_MASK == kinds::DATA_FLAGS
     }
 }

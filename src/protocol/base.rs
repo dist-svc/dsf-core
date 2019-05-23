@@ -31,6 +31,9 @@ pub struct Base {
     private_key:      Option<PrivateKey>,
     #[builder(default = "None")]
     encryption_key:   Option<SecretKey>,
+
+    #[builder(default = "None")]
+    pub(crate) raw: Option<Vec<u8>>,
 }
 
 impl PartialEq for Base {
@@ -107,7 +110,7 @@ impl BaseBuilder {
 impl Base {
     pub fn new(id: Id, application_id: u16, kind: Kind, flags: Flags, version: u16, body: Vec<u8>, public_options: Vec<Options>, private_options: Vec<Options>) -> Base {
         let header = Header::new(application_id, kind, version, flags);
-        Base{id, header, body, public_options, private_options, signature: None, public_key: None, private_key: None, encryption_key: None}
+        Base{id, header, body, public_options, private_options, signature: None, public_key: None, private_key: None, encryption_key: None, raw: None}
     }
 
     pub fn id(&self) -> &Id {
@@ -309,6 +312,14 @@ impl Base {
 
         address
     }
+
+    pub fn raw(&self) -> &Option<Vec<u8>> {
+        &self.raw
+    }
+
+    pub fn set_raw(&mut self, raw: Vec<u8>) {
+        self.raw = Some(raw);
+    } 
 }
 
 impl Base {
@@ -407,6 +418,7 @@ impl Base {
                 public_key: Some(public_key),
                 private_key: None,
                 encryption_key: None,
+                raw: Some(container.raw().to_vec()),
             },
             n,
         ))
