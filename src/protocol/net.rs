@@ -238,7 +238,7 @@ impl Request {
         };
 
         // Fetch other key options
-        let public_key = Base::pub_key_option(base.public_options());
+        let public_key = base.public_key;
 
         Ok(Request{from: base.id().clone(), id: header.index(), data: data, flags: header.flags(), public_key })
     }
@@ -301,7 +301,12 @@ impl Into<Base> for Request {
             },
         }
 
-        builder.base(self.from, 0, kind.into(), self.id, self.flags).body(body).build().unwrap()
+        let builder = builder.base(self.from, 0, kind.into(), self.id, self.flags).body(body);
+
+        builder.public_key(self.public_key);
+
+
+        builder.build().unwrap()
     }
 }
 
@@ -534,7 +539,7 @@ impl Response {
         };
 
         // Fetch other key options
-        let public_key = Base::filter_pub_key_option(&mut public_options);
+        let public_key = base.public_key;
 
         let remote_address = Base::filter_address_option(&mut public_options);
 
@@ -599,7 +604,11 @@ impl Into<Base> for Response {
             },
         }
 
-        builder.base(self.from, 0, kind.into(), self.id, self.flags).body(body).build().unwrap()
+        let builder = builder.base(self.from, 0, kind.into(), self.id, self.flags).body(body);
+
+        builder.public_key(self.public_key);
+
+        builder.build().unwrap()
     }
 }
 

@@ -175,6 +175,10 @@ impl Page {
         self.encryption_key = Some(secret_key);
     }
 
+    pub fn raw(&self) -> &Option<Vec<u8>> {
+        &self.raw
+    }
+
     pub fn clean(&mut self) {
         self.encryption_key = None;
         self.private_key = None;
@@ -212,6 +216,8 @@ impl Page {
                 None
             } )?;
 
+            i += n;
+
             let page = match Page::try_from(b) {
                 Ok(p) => p,
                 Err(e) => {
@@ -227,8 +233,6 @@ impl Page {
 
             // Push page to parsed list
             pages.push(page);
-
-            i += n;
         }
 
         Ok(pages) 
@@ -394,7 +398,7 @@ impl TryFrom<Base> for Page {
             // Handle primary page parsing
 
             // Fetch public key from options
-            let public_key: PublicKey = match Base::filter_pub_key_option(&mut public_options) {
+            let public_key: PublicKey = match base.public_key {
                 Some(pk) => Ok(pk),
                 None => Err(Error::NoPublicKey)
             }?;

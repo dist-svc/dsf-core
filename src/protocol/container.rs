@@ -192,8 +192,17 @@ impl <'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
         let private_options_len = { Options::encode_vec(base.private_options(), &mut data[n..]).expect("error encoding private options") };
         n += private_options_len;
 
+        let mut public_options = vec![];
+        
+        // Add public key option if specified
+        if let Some(k) = base.public_key {
+            public_options.push(Options::pub_key(k));
+        }
+        
+        public_options.append(&mut base.public_options().to_vec());
+
         // Write public options
-        let public_options_len = { Options::encode_vec(base.public_options(), &mut data[n..]).expect("error encoding public options") };
+        let public_options_len = { Options::encode_vec(&public_options, &mut data[n..]).expect("error encoding public options") };
         n += public_options_len;
 
         // Write header

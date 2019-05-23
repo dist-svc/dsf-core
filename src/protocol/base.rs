@@ -365,7 +365,9 @@ impl Base {
         }
 
         // Fetch public options        
-        let (public_options, _) = Options::parse_vec(container.public_options())?;
+        let (mut public_options, _) = Options::parse_vec(container.public_options())?;
+
+        trace!("public options: {:?}", public_options);
 
         // Look for signing ID
         let signing_id: Id = match (flags.secondary(), Base::peer_id_option(&public_options)) {
@@ -375,10 +377,13 @@ impl Base {
         }?;
 
         // Fetch public key
-        let public_key: PublicKey = match ((pubkey_source)(&signing_id), Base::pub_key_option(&public_options)) {
+        let public_key: PublicKey = match ((pubkey_source)(&signing_id), Base::pub_key_option(&mut public_options)) {
             (Some(key), _) => Ok(key),
             (None, Some(key)) => Ok(key),
-            _ => Err(BaseError::NoPublicKey),
+            _ => {
+                warn!("Missing public key for message: {:?} signing id: {:?}", id, signing_id);
+                Err(BaseError::NoPublicKey)
+            },
         }?;
 
         // Late validation for self-signed objects from unknown sources
@@ -425,11 +430,21 @@ impl Base {
     }
 }
 
+use std::io::Write;
+
 impl Base {
-    pub fn encode<'a, S, E, T: AsRef<[u8]> + AsMut<[u8]>>(&mut self, signer: S, buff: T) -> Result<usize, BaseError> 
+    pub fn encode<'a, S, E, T: AsRef<[u8]> + AsMut<[u8]>>(&mut self, signer: S, mut buff: T) -> Result<usize, BaseError> 
     where 
         S: FnMut(&Id, &[u8]) -> Result<Signature, E>
     {
+        if let Some(raw) = &self.raw {
+            let mut d = buff.as_mut();
+
+            d.write(&raw);
+
+            return Ok(raw.len())
+        }
+
         // Build container and encode page
         let (mut container, n) = Container::encode(buff, &self);
 
