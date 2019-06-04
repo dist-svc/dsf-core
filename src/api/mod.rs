@@ -7,14 +7,31 @@ use futures::prelude::*;
 
 use crate::types::{Id};
 use crate::service::Service;
-use crate::protocol::page::Page;
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ServiceHandle {
+
+}
+
+/// A boxed future result to shorten method definitions
+pub type FutureResult<I, E> = Box<Future<Item=I, Error=E> + Send>;
+
+/// Creation API used to create services
+pub trait Create {
+    type Options;
+    type Error;
+
+    /// Create a new service with the provided options
+    fn create(options: &Self::Options) -> FutureResult<ServiceHandle, Self::Error>;
+}
+
 
 /// Producer API trait used to register an existing service
 pub trait Register {
     type Error;
 
     /// Register a service in the distributed database
-    fn register(&mut self, p: &Page) -> Box<Future<Item=(), Error=Self::Error>>;
+    fn register(&mut self, s: &mut ServiceHandle) -> FutureResult<(), Self::Error>;
 }
 
 
@@ -24,24 +41,30 @@ pub trait Locate {
 
     /// Locate a DIoT service in the distributed database
     /// This returns a future that will resolve to the desired service or an error
-    fn locate(&mut self, id: &Id) -> Box<Future<Item=Service, Error=Self::Error>>;
+    fn locate(&mut self, id: &Id) -> FutureResult<ServiceHandle, Self::Error>;
 }
+
 
 /// Publisher API trait used by publishers of service data
 pub trait Publish {
+    type Data;
     type Error;
 
     /// Publish service data
-    fn publish(&mut self, s: &Service, data: &Page) -> Box<Future<Item=(), Error=Self::Error>>;
+    fn publish(&mut self, s: &ServiceHandle, data: Self::Data) -> FutureResult<(), Self::Error>;
 }
 
+/// A boxed future stream to shorten method definitions
+pub type FutureStream<I, E> = Box<Stream<Item=I, Error=E> + Send>;
 
 /// Subscriber API used by subscribers to service data
 pub trait Subscribe {
+    type Options;
+    type Data;
     type Error;
 
     /// Locate a DIoT service in the distributed database
     /// This returns a future that will resolve to the desired service or an error
-    fn subscribe(&mut self, service: &Service) -> Box<Future<Item=Stream<Item=Page, Error=Self::Error>, Error=Self::Error>>;
+    fn subscribe(&mut self, service: &ServiceHandle, options: Self::Options) -> FutureStream<Self::Data, Self::Error>;
 }
 
