@@ -2,6 +2,7 @@
 //! to maintain the network, publish and subscribe to services, and exchange data.
 
 use core::convert::TryFrom;
+use core::ops::Deref;
 
 use slice_ext::SplitBefore;
 use byteorder::{ByteOrder, NetworkEndian};
@@ -50,8 +51,8 @@ impl Message {
 
     pub fn set_public_key(&mut self, pub_key: PublicKey) {
         match self {
-            Message::Request(req) => req.public_key = Some(pub_key),
-            Message::Response(resp) => resp.public_key = Some(pub_key),
+            Message::Request(req) => req.common.public_key = Some(pub_key),
+            Message::Response(resp) => resp.common.public_key = Some(pub_key),
         }
     }
 }
@@ -111,13 +112,28 @@ impl Message {
 }
 
 #[derive(Clone, Debug)]
-pub struct Request {
+pub struct Common {
     pub from: Id,
     pub id: RequestId,
     pub flags: Flags,
-    pub data: RequestKind,
 
+    pub remote_address: Option<Address>,
     pub public_key: Option<PublicKey>,
+}
+
+#[derive(Clone, Debug)]
+pub struct Request {
+    pub common: Common,
+    pub data: RequestKind,
+}
+
+
+impl Deref for Request {
+    type Target = Common;
+
+    fn deref(&self) -> &Common {
+        &self.common
+    }
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -134,32 +150,26 @@ pub enum RequestKind {
 
 impl Request {
     pub fn new(from: Id, data: RequestKind, flags: Flags) -> Request {
-        Request {
-            from,
-            id: rand::random(),
-            data,
-            flags,
-
-            public_key: None,
-        }
+        let common = Common{ from, id: rand::random(), flags, public_key: None, remote_address: None };
+        Request { common, data }
     }
 
     pub fn flags(&mut self) -> &mut Flags {
-        &mut self.flags
+        &mut self.common.flags
     }
 
 
     pub fn set_public_key(&mut self, pk: PublicKey) {
-        self.public_key = Some(pk);
+        self.common.public_key = Some(pk);
     }
 
     pub fn with_public_key(mut self, pk: PublicKey) -> Self {
-        self.public_key = Some(pk);
+        self.common.public_key = Some(pk);
         self
     }
 
     pub fn with_request_id(mut self, req_id: RequestId) -> Self {
-        self.id = req_id;
+        self.common.id = req_id;
         self
     }
 }
@@ -178,8 +188,11 @@ impl Request {
     {
         let header = base.header();
         let body = base.body();
+        
+        let mut public_options = base.public_options().to_vec();
+        let _private_options = base.private_options().to_vec();
 
-         let kind = match MessageKind::try_from(header.kind()) {
+        let kind = match MessageKind::try_from(header.kind()) {
             Ok(k) => k,
             Err(_) => return Err(Error::InvalidMessageKind),
         };
@@ -239,8 +252,10 @@ impl Request {
 
         // Fetch other key options
         let public_key = base.public_key;
+        let remote_address = Base::filter_address_option(&mut public_options);
 
-        Ok(Request{from: base.id().clone(), id: header.index(), data: data, flags: header.flags(), public_key })
+        let common = Common{ from: base.id().clone(), id: header.index(), flags: header.flags(), public_key, remote_address }; 
+        Ok(Request{common, data})
     }
 }
 
@@ -339,13 +354,8 @@ impl fmt::Debug for RequestKind {
 /// Generic Response message
 #[derive(Clone, Debug)]
 pub struct Response {
-    pub from: Id,
-    pub id: RequestId,
-    pub flags: Flags,
+    pub common: Common,
     pub data: ResponseKind,
-
-    pub remote_address: Option<Address>,
-    pub public_key: Option<PublicKey>,
 }
 
 /// Response message kinds
@@ -391,35 +401,39 @@ impl Into<u32> for Status {
     }
 }
 
+impl Deref for Response {
+    type Target = Common;
+
+    fn deref(&self) -> &Common {
+        &self.common
+    }
+}
+
 
 impl Response {
     pub fn new(from: Id, id: RequestId, data: ResponseKind, flags: Flags) -> Response {
+        let common = Common{ from, id: rand::random(), flags, public_key: None, remote_address: None };
         Response {
-            from,
-            id,
+            common,
             data,
-            flags,
-
-            remote_address: None,
-            public_key: None,
         }
     }
 
     pub fn flags(&mut self) -> &mut Flags {
-        &mut self.flags
+        &mut self.common.flags
     }
 
     pub fn with_remote_address(mut self, addr: Address) -> Self {
-        self.remote_address = Some(addr);
+        self.common.remote_address = Some(addr);
         self
     }
 
     pub fn set_public_key(&mut self, pk: PublicKey) {
-        self.public_key = Some(pk);
+        self.common.public_key = Some(pk);
     }
 
     pub fn with_public_key(mut self, pk: PublicKey) -> Self {
-        self.public_key = Some(pk);
+        self.common.public_key = Some(pk);
         self
     }
 }
@@ -543,7 +557,8 @@ impl Response {
 
         let remote_address = Base::filter_address_option(&mut public_options);
 
-        Ok(Response{from: base.id().clone(), id: header.index(), data: data, flags: header.flags(), public_key, remote_address })
+        let common = Common{ from: base.id().clone(), id: header.index(), flags: header.flags(), public_key, remote_address };
+        Ok(Response{common, data})
     }
 }
 
@@ -604,9 +619,9 @@ impl Into<Base> for Response {
             },
         }
 
-        let builder = builder.base(self.from, 0, kind.into(), self.id, self.flags).body(body);
+        let builder = builder.base(self.common.from, 0, kind.into(), self.common.id, self.common.flags).body(body);
 
-        builder.public_key(self.public_key);
+        builder.public_key(self.common.public_key);
 
         builder.build().unwrap()
     }

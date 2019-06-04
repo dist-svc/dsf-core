@@ -202,7 +202,6 @@ mod test {
         page2.clean();
         assert_eq!(page1, page2);
 
-
         println!("Generating service replica");
         let mut replica = Service::load(&page2).expect("Error generating service replica");
 

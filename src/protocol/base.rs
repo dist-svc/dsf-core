@@ -377,7 +377,7 @@ impl Base {
         }?;
 
         // Fetch public key
-        let public_key: PublicKey = match ((pubkey_source)(&signing_id), Base::pub_key_option(&mut public_options)) {
+        let public_key: PublicKey = match ((pubkey_source)(&signing_id), Base::filter_pub_key_option(&mut public_options)) {
             (Some(key), _) => Ok(key),
             (None, Some(key)) => Ok(key),
             _ => {
@@ -522,7 +522,7 @@ mod tests {
         let header = HeaderBuilder::default().flags(Flags::default().set_secondary(true)).kind(PageKind::Replica.into()).build().expect("Error building page header");
         let data = vec![1, 2, 3, 4, 5, 6, 7];
 
-        let mut page = BaseBuilder::default().id(fake_id).header(header).body(data).public_options(vec![Options::peer_id(id.clone()), Options::pub_key(pub_key.clone())]).build().expect("Error building page");
+        let mut page = BaseBuilder::default().id(fake_id).header(header).body(data).public_options(vec![Options::peer_id(id.clone())]).public_key(Some(pub_key.clone())).build().expect("Error building page");
 
         let mut buff = vec![0u8; 1024];
         let n = page.encode(move |_id, data| crypto::pk_sign(&pri_key, data), &mut buff).expect("Error encoding page");
