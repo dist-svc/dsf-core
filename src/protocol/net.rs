@@ -319,7 +319,9 @@ impl Into<Base> for Request {
         let builder = builder.base(self.from, 0, kind.into(), self.id, self.flags).body(body);
 
         builder.public_key(self.public_key);
-
+        if let Some(a) = self.remote_address {
+            builder.append_public_option(Options::address(a));
+        }
 
         builder.build().unwrap()
     }
@@ -572,10 +574,10 @@ impl Into<Base> for Response {
 
         let mut builder = BaseBuilder::default();
 
-        match self.data {
+        match &self.data {
             ResponseKind::Status(code) => {
                 kind = MessageKind::Status;
-                NetworkEndian::write_u32(&mut buff, code.into());
+                NetworkEndian::write_u32(&mut buff, code.clone().into());
                 body = (&buff[0..4]).to_vec();
                 
             },
@@ -622,6 +624,10 @@ impl Into<Base> for Response {
         let builder = builder.base(self.common.from, 0, kind.into(), self.common.id, self.common.flags).body(body);
 
         builder.public_key(self.common.public_key);
+
+        if let Some(a) = self.remote_address {
+            builder.append_public_option(Options::address(a));
+        }
 
         builder.build().unwrap()
     }
