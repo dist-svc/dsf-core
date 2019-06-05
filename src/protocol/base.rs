@@ -527,13 +527,11 @@ mod tests {
         let mut buff = vec![0u8; 1024];
         let n = page.encode(move |_id, data| crypto::pk_sign(&pri_key, data), &mut buff).expect("Error encoding page");
 
-
         let (mut decoded, m) = Base::parse(&buff[..n], |_id| Some(pub_key) ).expect("Error decoding page with known public key");
 
         decoded.clean();
         assert_eq!(page, decoded);
         assert_eq!(n, m);
-
 
         let (mut decoded, m) = Base::parse(&buff[..n], |_id| None ).expect("Error decoding page with unknown public key");
 

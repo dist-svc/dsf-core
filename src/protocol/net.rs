@@ -412,7 +412,7 @@ impl Deref for Response {
 
 impl Response {
     pub fn new(from: Id, id: RequestId, data: ResponseKind, flags: Flags) -> Response {
-        let common = Common{ from, id: rand::random(), flags, public_key: None, remote_address: None };
+        let common = Common{ from, id, flags, public_key: None, remote_address: None };
         Response {
             common,
             data,
