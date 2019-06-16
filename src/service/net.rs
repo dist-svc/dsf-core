@@ -2,7 +2,7 @@
 
 use crate::types::*;
 use crate::service::Service;
-use crate::base::base::{Base};
+use crate::base::{Base};
 use crate::net::{Request, Response};
 
 pub struct PublishOptions {

@@ -4,7 +4,7 @@
 use std::net::{SocketAddr};
 
 use crate::types::{Id, Signature, Flags, Kind, PublicKey, PrivateKey, SecretKey, Address, DateTime};
-use crate::base::header::Header;
+use crate::base::Header;
 use crate::options::{Options, OptionsError};
 use crate::wire::Container;
 
@@ -45,6 +45,16 @@ impl PartialEq for Base {
         self.public_options == other.public_options &&
         self.signature == other.signature 
     }
+}
+
+pub enum Body {
+    Encrypted(Vec<u8>),
+    Decrypted(Vec<u8>),
+}
+
+pub enum PrivateOptions {
+    Encrypted(Vec<u8>),
+    Decrypted(Vec<Options>),
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
@@ -242,7 +252,7 @@ impl Base {
 impl Base {
     /// Parses a data array into a base object using the pubkey_source to locate 
     /// a key for validation
-    pub fn parse<'a, P, S, T: AsRef<[u8]>>(data: T, mut pub_key_s: P, sec_key_s: S) -> Result<(Base, usize), BaseError>
+    pub fn parse<'a, P, S, T: AsRef<[u8]>>(data: T, pub_key_s: P, sec_key_s: S) -> Result<(Base, usize), BaseError>
     where 
         P: FnMut(&Id) -> Option<PublicKey>,
         S: FnMut(&Id) -> Option<SecretKey>,
@@ -303,7 +313,7 @@ impl Base {
 mod tests {
 
     use super::*;
-    use crate::base::header::*;
+    use crate::base::*;
     use crate::types::PageKind;
 
     use crate::crypto;

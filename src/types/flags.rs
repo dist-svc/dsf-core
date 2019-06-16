@@ -1,7 +1,7 @@
 
-/// Page and Message Flags.
-/// 
 bitflags! {
+
+    /// Page and Message Flags.
     #[derive(Default)]
     pub struct Flags: u16 {
         const PRIMARY         = (0 << 0);

@@ -8,7 +8,7 @@ use std::convert::TryFrom;
 use crate::types::*;
 use crate::base::WireEncode;
 use crate::options::Options;
-use crate::base::base::Base;
+use crate::base::Base;
 use crate::crypto;
 
 mod info;
@@ -390,7 +390,7 @@ impl TryFrom<Base> for Page {
         }
 
         let (mut issued, mut expiry, mut previous_sig, mut peer_id) = (None, None, None, None);
-        let mut public_options = base.public_options().iter()
+        let public_options = base.public_options().iter()
         .filter_map(|o| {
             match &o {
                 Options::Issued(v) => { issued = Some(v.when); None },

@@ -7,7 +7,7 @@ use byteorder::{ByteOrder, NetworkEndian};
 
 use crate::types::*;
 use crate::options::Options;
-use crate::base::base::{Base, BaseBuilder};
+use crate::base::{Base, BaseBuilder};
 use crate::page::Page;
 
 use super::Common;
@@ -149,7 +149,7 @@ impl Response {
         let header = base.header();
         let body = base.body();
 
-        let mut remote_address = None;
+        let remote_address = None;
 
         let _public_options = base.public_options().to_vec();
         let _private_options = base.private_options().to_vec();

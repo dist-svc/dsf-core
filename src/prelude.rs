@@ -5,7 +5,7 @@ pub use crate::types::{Id, RequestId, Address, Kind, PageKind, MessageKind, Data
 
 pub use crate::types::{PublicKey, PrivateKey, SecretKey, Signature};
 
-pub use crate::base::{Encode, Parse, base::Base};
+pub use crate::base::{Encode, Parse, Base};
 
 pub use crate::page::{Page, PageInfo};
 

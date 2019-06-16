@@ -6,7 +6,7 @@
 use futures::prelude::*;
 
 use crate::types::{Id};
-use crate::service::Service;
+
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ServiceHandle {

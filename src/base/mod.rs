@@ -1,6 +1,8 @@
 
-pub mod header;
-pub mod base;
+mod header;
+pub use header::*;
+mod base;
+pub use base::*;
 
 /// Parse trait for building parse-able objects
 pub trait Parse {

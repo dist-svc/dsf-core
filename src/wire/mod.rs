@@ -5,9 +5,9 @@ use byteorder::{ByteOrder, NetworkEndian};
 
 use crate::types::{Id, ID_LEN, Signature, SIGNATURE_LEN, Flags, Kind, PublicKey, SecretKey};
 use crate::base::{Encode};
-use crate::base::header::Header;
+use crate::base::Header;
 use crate::options::{Options, OptionsIter};
-use crate::base::base::BaseError;
+use crate::base::BaseError;
 use crate::crypto;
 
 
@@ -20,7 +20,7 @@ pub struct Container<T: AsRef<[u8]>> {
     buff: T,
 }
 
-use crate::base::base::Base;
+use crate::base::Base;
 
 /// Offsets for fixed fields in the protocol container
 mod offsets {
@@ -269,35 +269,40 @@ impl <'a, T: AsRef<[u8]>> Container<T> {
         let mut private_options_data = container.private_options().to_vec();
 
         // Handle decryption
-        if flags.contains(Flags::ENCRYPTED) {
-            debug!("Attempting message decryption");
-            if let Some(sk) =  sec_key_s(&id) {
+        let (body, private_options) = match (flags.contains(Flags::ENCRYPTED), sec_key_s(&id)) {
+            (true, Some(sk)) => {
                 debug!("Found associated key");
                 // Decrypt body
                 let n = crypto::sk_decrypt2(&sk, &mut body_data)
-                        .map_err(|e| BaseError::InvalidSignature )?;
+                        .map_err(|_e| BaseError::InvalidSignature )?;
                 body_data = (&body_data[..n]).to_vec();
 
                 // Decrypt private options
                 let n = crypto::sk_decrypt2(&sk, &mut private_options_data)
-                        .map_err(|e| BaseError::InvalidSignature )?;
+                        .map_err(|_e| BaseError::InvalidSignature )?;
                 private_options_data = (&private_options_data[..n]).to_vec();
-            }
-        }
 
-        // TODO: handle decryption here
-        let (private_options, _) = match flags.contains(Flags::ENCRYPTED) {
-            true => (vec![], 0),
-            false => Options::parse_vec(container.private_options())?,
+                // Decode private options
+                let (private_options, _n)= Options::parse_vec(&private_options_data)?;
+
+                (body_data, private_options)
+            },
+            (true, None) => {
+                debug!("No encryption key found for data");
+
+                (vec![], vec![])
+            },
+            (false, _) => {
+                (body_data, vec![])
+            },
         };
-
 
         // Return page and options
         Ok((
             Base {
                 id: id,
                 header: Header::new(container.application_id(), container.kind(), container.index(), container.flags()),
-                body: body_data.into(),
+                body: body,
                 private_options,
                 public_options,
                 signature: Some(signature),
