@@ -55,7 +55,7 @@ impl Subscriber for Service {
             public_key,
             private_key: None,
 
-            encrypted: flags.encrypted(),
+            encrypted: flags.contains(Flags::ENCRYPTED),
             secret_key: None,
         })
     }
@@ -79,7 +79,7 @@ impl Subscriber for Service {
         }
 
         self.version = update.version();
-        self.encrypted = flags.encrypted();
+        self.encrypted = flags.contains(Flags::ENCRYPTED);
         self.body = body.to_vec();
         self.public_options = public_options.to_vec();
         self.private_options = private_options.to_vec();
@@ -89,7 +89,7 @@ impl Subscriber for Service {
 
     fn validate_page(&mut self, page: &Page) -> Result<(), Error> {
         if page.kind().is_page() {
-            if page.flags().primary() {
+            if !page.flags().contains(Flags::SECONDARY) {
                 self.validate_primary(page)
             } else {
                 self.validate_secondary(page)
@@ -109,7 +109,7 @@ impl Service {
         if !page.kind().is_page() {
             return Err(Error::ExpectedPrimaryPage);
         }
-        if !page.flags().primary() {
+        if page.flags().contains(Flags::SECONDARY) {
             return Err(Error::ExpectedPrimaryPage)
         }
 
@@ -150,7 +150,7 @@ impl Service {
         if !secondary.kind().is_page() {
             return Err(Error::ExpectedPrimaryPage);
         }
-        if !secondary.flags().secondary() {
+        if !secondary.flags().contains(Flags::SECONDARY) {
             return Err(Error::ExpectedSecondaryPage)
         }
 

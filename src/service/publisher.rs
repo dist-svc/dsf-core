@@ -4,7 +4,7 @@ use std::ops::Add;
 
 use crate::types::*;
 use crate::service::Service;
-use crate::protocol::{options::Options};
+use crate::options::Options;
 use crate::protocol::page::{Page, PageBuilder, PageInfo};
 
 pub trait Publisher {
@@ -79,8 +79,10 @@ pub struct DataOptions {
 impl Publisher for Service {
     /// Publish generates a page to publishing for the given service.
     fn publish_primary(&self) -> Page {
-        let mut flags = Flags(0);
-        flags.set_encrypted(self.encrypted);
+        let mut flags = Flags::default();
+        if self.encrypted {
+            flags |= Flags::ENCRYPTED;
+        }
 
         //Page::new(self.id.clone(), self.kind, flags, self.version, self.body.clone(), public_options, self.private_options.clone())
 
@@ -101,9 +103,10 @@ impl Publisher for Service {
 
     /// Secondary generates a secondary page using this service to be attached to the provided service ID
     fn publish_secondary(&self, options: SecondaryOptions) -> Page {
-        let mut flags = Flags(0);
-        flags.set_secondary(true);
-        flags.set_encrypted(self.encrypted);
+        let mut flags = Flags::SECONDARY;
+        if self.encrypted {
+            flags |= Flags::ENCRYPTED;
+        }
 
         assert!(options.page_kind.is_page());
 
@@ -138,8 +141,10 @@ impl Publisher for Service {
     }
 
     fn publish_data(&mut self, options: DataOptions) -> Page {
-        let mut flags = Flags(0);
-        flags.set_encrypted(self.encrypted);
+        let mut flags = Flags::default();
+        if self.encrypted {
+            flags |= Flags::ENCRYPTED;
+        }
 
         assert!(options.data_kind.is_data());
 

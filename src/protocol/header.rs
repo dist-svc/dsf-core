@@ -20,7 +20,7 @@ pub struct Header {
     /// Object kind
     kind: Kind,
     
-    #[builder(default = "Flags(0)")]
+    #[builder(default = "Flags::default()")]
     flags: Flags,
 
     #[builder(default = "0")]
@@ -30,8 +30,8 @@ pub struct Header {
 
 impl HeaderBuilder {
     pub fn address_request(&mut self) -> &mut Self {
-        let mut flags = self.flags.or(Some(Flags(0))).unwrap();
-        flags.set_address_request(true);
+        let mut flags = self.flags.or(Some(Flags::default())).unwrap();
+        flags |= Flags::ADDRESS_REQUEST;
         self.flags = Some(flags);
         self
     }
@@ -73,7 +73,8 @@ impl Parse for Header {
         let protocol_version = r.read_u16::<NetworkEndian>()?;
         let application_id = r.read_u16::<NetworkEndian>()?;
         let kind = Kind::from(r.read_u16::<NetworkEndian>()?);
-        let flags = r.read_u16::<NetworkEndian>()?.into();
+        let flags_raw = r.read_u16::<NetworkEndian>()?;
+        let flags = Flags::from_bits(flags_raw).unwrap();
         let index = r.read_u16::<NetworkEndian>()?;
 
         // TODO: validate incoming fields here
@@ -91,7 +92,7 @@ impl Encode for Header {
         w.write_u16::<NetworkEndian>(self.protocol_version)?;
         w.write_u16::<NetworkEndian>(self.application_id)?;
         w.write_u16::<NetworkEndian>(self.kind.into())?;
-        w.write_u16::<NetworkEndian>(self.flags.into())?;
+        w.write_u16::<NetworkEndian>(self.flags.bits())?;
         w.write_u16::<NetworkEndian>(self.index)?;
 
         Ok(w.position() as usize)
@@ -107,7 +108,7 @@ mod tests {
 
     #[test]
     fn test_encode_page_header() {
-        let h1 = Header::new(0, PageKind::Generic.into(), 1, 2.into());
+        let h1 = Header::new(0, PageKind::Generic.into(), 1, Flags::SECONDARY);
 
         let mut buff = [0u8; 1024];
         let n1 = h1.encode(&mut buff).expect("Header encoding failed");

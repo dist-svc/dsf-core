@@ -39,6 +39,49 @@ impl From<std::io::Error> for OptionsError {
     }
 }
 
+pub struct OptionsIter<T> {
+    index: usize,
+    buff: T,
+}
+
+impl <T> OptionsIter<T> 
+where T: AsRef<[u8]> 
+{
+    pub(crate) fn new(buff: T) -> Self {
+        Self{index: 0, buff}
+    }
+}
+
+impl <T> Iterator for OptionsIter<T> 
+where T: AsRef<[u8]> 
+{
+    type Item = Options;
+
+    fn next(&mut self) -> Option<Options> {
+        // Fetch remaining data
+        let rem = &self.buff.as_ref()[self.index..];
+
+        // Short circuit if we're too short
+        if rem.len() < OPTION_HEADER_LEN {
+            return None
+        }
+
+        let (o, n) = match Options::parse(&rem) {
+            Ok(v) => v,
+            Err(e) => {
+                error!("Option parsing error: {:?}", e);
+                return None
+            }
+        };
+
+        self.index += n;
+
+        Some(o)
+    }
+
+}
+
+
 /// D-IoT Option types
 mod option_kinds {
     pub const PUBKEY:       u16 = 0x00; // Public Key

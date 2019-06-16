@@ -2,7 +2,7 @@
 
 use crate::types::{PageKind};
 use crate::crypto;
-use crate::protocol::options::Options;
+use crate::options::Options;
 
 pub use super::ServiceBuilder;
 

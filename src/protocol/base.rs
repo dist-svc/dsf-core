@@ -5,32 +5,32 @@ use std::net::{SocketAddr};
 
 use crate::types::{Id, Signature, Flags, Kind, PublicKey, PrivateKey, SecretKey, Address, DateTime};
 use crate::protocol::header::Header;
-use crate::protocol::options::{Options, OptionsError};
-use crate::protocol::container::Container;
+use crate::options::{Options, OptionsError};
+use crate::wire::Container;
 
 use crate::crypto;
 
 
 #[derive(Clone, Builder, Debug)]
 pub struct Base {
-    id:             Id,
-    header:         Header,
+    pub(crate) id:             Id,
+    pub(crate) header:         Header,
     #[builder(default = "vec![]")]
-    body:           Vec<u8>,
+    pub(crate) body:           Vec<u8>,
     #[builder(default = "vec![]")]
-    private_options: Vec<Options>,
+    pub(crate) private_options: Vec<Options>,
     #[builder(default = "vec![]")]
-    public_options: Vec<Options>,
+    pub(crate) public_options: Vec<Options>,
     #[builder(default = "None")]
-    signature:      Option<Signature>,
+    pub(crate) signature:      Option<Signature>,
     
     
     #[builder(default = "None")]
     pub(crate) public_key:      Option<PublicKey>,
     #[builder(default = "None")]
-    private_key:      Option<PrivateKey>,
+    pub(crate) private_key:      Option<PrivateKey>,
     #[builder(default = "None")]
-    encryption_key:   Option<SecretKey>,
+    pub(crate) encryption_key:   Option<SecretKey>,
 
     #[builder(default = "None")]
     pub(crate) raw: Option<Vec<u8>>,
@@ -55,6 +55,8 @@ pub enum BaseError {
     NoPublicKey,
     NoPeerId,
     ValidateError,
+    DecryptError,
+    NoDecryptionKey,
     PublicKeyIdMismatch,
 }
 
@@ -181,20 +183,6 @@ impl Base {
         })
     }
 
-    pub fn filter_pub_key_option(options: &mut Vec<Options>) -> Option<PublicKey>
-    {
-        let o = Base::pub_key_option(&options);
-
-        (*options) = options.iter().filter_map(|o| {
-            match o { 
-                Options::PubKey(_) => None,
-                _ => Some(o.clone()), 
-            }
-        }).collect();
-
-        o
-    }
-
     pub fn peer_id_option(options: &[Options]) -> Option<Id> {
         options.iter().find_map(|o| {
             match o { 
@@ -204,21 +192,6 @@ impl Base {
         })
     }
 
-    pub fn filter_peer_id_option(options: &mut Vec<Options>) -> Option<Id>
-    {
-        let o = Base::peer_id_option(&options);
-
-        (*options) = options.iter().filter_map(|o| {
-            match o { 
-                Options::PeerId(_) => None,
-                _ => Some(o.clone()), 
-            }
-        }).collect();
-
-        o
-    }
-
-
     pub fn issued_option(options: &[Options]) -> Option<DateTime> {
         options.iter().find_map(|o| {
             match o { 
@@ -226,20 +199,6 @@ impl Base {
                  _ => None 
             } 
         })
-    }
-
-    pub fn filter_issued_option(options: &mut Vec<Options>) -> Option<DateTime>
-    {
-        let o = Base::issued_option(&options);
-
-        (*options) = options.iter().filter_map(|o| {
-            match o { 
-                Options::Issued(_t) => None,
-                _ => Some(o.clone()), 
-            }
-        }).collect();
-
-        o
     }
 
     pub fn expiry_option(options: &[Options]) -> Option<DateTime> {
@@ -251,19 +210,6 @@ impl Base {
         })
     }
 
-    pub fn filter_expiry_option(options: &mut Vec<Options>) -> Option<DateTime>
-    {
-        let o = Base::expiry_option(&options);
-
-        (*options) = options.iter().filter_map(|o| {
-            match o { 
-                Options::Expiry(_t) => None,
-                _ => Some(o.clone()), 
-            }
-        }).collect();
-
-        o
-    }
 
     pub fn prev_sig_option(options: &[Options]) -> Option<Signature> {
         options.iter().find_map(|o| {
@@ -274,20 +220,6 @@ impl Base {
         })
     }
 
-    pub fn filter_prev_sig_option(options: &mut Vec<Options>) -> Option<Signature>
-    {
-        let o = Base::prev_sig_option(&options);
-
-        (*options) = options.iter().filter_map(|o| {
-            match o { 
-                Options::PrevSig(_) => None,
-                _ => Some(o.clone()), 
-            }
-        }).collect();
-
-        o
-    }
-
     pub fn address_option(options: &[Options]) -> Option<Address> {
         options.iter().find_map(|o| {
             match o { 
@@ -296,21 +228,6 @@ impl Base {
                  _ => None 
             } 
         })
-    }
-
-    pub fn filter_address_option(options: &mut Vec<Options>) -> Option<Address>
-    {
-        let address = Base::address_option(&options);
-
-        (*options) = options.iter().filter_map(|o| {
-            match o { 
-                Options::IPv4(_addr) => None,
-                Options::IPv6(_addr) => None,
-                _ => Some(o.clone()), 
-            }
-        }).collect();
-
-        address
     }
 
     pub fn raw(&self) -> &Option<Vec<u8>> {
@@ -325,108 +242,12 @@ impl Base {
 impl Base {
     /// Parses a data array into a base object using the pubkey_source to locate 
     /// a key for validation
-    pub fn parse<'a, V, T: AsRef<[u8]>>(data: T, mut pubkey_source: V) -> Result<(Base, usize), BaseError>
+    pub fn parse<'a, P, S, T: AsRef<[u8]>>(data: T, mut pub_key_s: P, sec_key_s: S) -> Result<(Base, usize), BaseError>
     where 
-        V: FnMut(&Id) -> Option<PublicKey>
+        P: FnMut(&Id) -> Option<PublicKey>,
+        S: FnMut(&Id) -> Option<SecretKey>,
     {
-        let mut verified = false;
-
-        // Build container over buffer
-        let (container, n) = Container::from(data);
-
-        // Fetch page flags
-        let flags = container.flags();
-
-        // Fetch page ID
-        let id: Id = container.id().into();
-
-        // Fetch signature for page
-        let signature: Signature = container.signature().into();
-
-        // Validate primary types immediately if pubkey is known
-        if !flags.secondary() {
-            
-            // Lookup public key
-            if let Some(key) = (pubkey_source)(&id) {
-                // Check ID matches key
-                if id != crypto::hash(&key).unwrap() {
-                    return Err(BaseError::PublicKeyIdMismatch);
-                }
-
-                // Validate message body against key
-                verified = crypto::pk_validate(&key, &signature, container.signed()).map_err(|_e| BaseError::ValidateError )?;
-
-                // Stop processing if signature is invalid
-                if !verified {
-                    info!("Invalid signature with known pubkey");
-                    return Err(BaseError::InvalidSignature);
-                }
-            }
-        }
-
-        // Fetch public options        
-        let (mut public_options, _) = Options::parse_vec(container.public_options())?;
-
-        trace!("public options: {:?}", public_options);
-
-        // Look for signing ID
-        let signing_id: Id = match (flags.secondary(), Base::peer_id_option(&public_options)) {
-            (false, _) => Ok(container.id().into()),
-            (true, Some(id)) => Ok(id),
-            _ => Err(BaseError::NoPeerId), 
-        }?;
-
-        // Fetch public key
-        let public_key: PublicKey = match ((pubkey_source)(&signing_id), Base::filter_pub_key_option(&mut public_options)) {
-            (Some(key), _) => Ok(key),
-            (None, Some(key)) => Ok(key),
-            _ => {
-                warn!("Missing public key for message: {:?} signing id: {:?}", id, signing_id);
-                Err(BaseError::NoPublicKey)
-            },
-        }?;
-
-        // Late validation for self-signed objects from unknown sources
-        if !verified {
-            // Check ID matches key
-            if signing_id != crypto::hash(&public_key).unwrap() {
-                return Err(BaseError::PublicKeyIdMismatch);
-            }
-
-            // Verify body
-            verified = crypto::pk_validate(&public_key, &signature, container.signed()).map_err(|_e| BaseError::ValidateError )?;
-
-            // Stop processing on verification error
-            if !verified {
-                info!("Invalid signature for self-signed object");
-                return Err(BaseError::InvalidSignature);
-            }
-        }
-
-
-        // TODO: handle decryption here
-        let body_data = container.body();
-        // TODO: handle decryption here
-        let (private_options, _) = Options::parse_vec(container.private_options())?;
-
-
-        // Return page and options
-        Ok((
-            Base {
-                id: id,
-                header: Header::new(container.application_id(), container.kind(), container.index(), container.flags()),
-                body: body_data.into(),
-                private_options,
-                public_options,
-                signature: Some(signature),
-
-                public_key: Some(public_key),
-                private_key: None,
-                encryption_key: None,
-                raw: Some(container.raw().to_vec()),
-            },
-            n,
-        ))
+        Container::parse(data, pub_key_s, sec_key_s)
     }
 }
 
@@ -495,7 +316,7 @@ mod tests {
     }
 
     #[test]
-    fn encode_decode_page() {
+    fn encode_decode_primary_page() {
         let (id, pub_key, pri_key, _sec_key) = setup();
 
         let header = HeaderBuilder::default().kind(PageKind::Generic.into()).build().expect("Error building page header");
@@ -506,7 +327,7 @@ mod tests {
         let mut buff = vec![0u8; 1024];
         let n = page.encode(move |_id, data| crypto::pk_sign(&pri_key, data), &mut buff).expect("Error encoding page");
 
-        let (mut decoded, m) = Base::parse(&buff[..n], |_id| Some(pub_key) ).expect("Error decoding page");
+        let (mut decoded, m) = Base::parse(&buff[..n], |_id| Some(pub_key), |_id| None ).expect("Error decoding page");
 
         decoded.clean();
 
@@ -519,7 +340,7 @@ mod tests {
         let (id, pub_key, pri_key, _sec_key) = setup();
         let fake_id = crypto::hash(&[0x00, 0x11, 0x22]).unwrap();
 
-        let header = HeaderBuilder::default().flags(Flags::default().set_secondary(true)).kind(PageKind::Replica.into()).build().expect("Error building page header");
+        let header = HeaderBuilder::default().flags(Flags::SECONDARY).kind(PageKind::Replica.into()).build().expect("Error building page header");
         let data = vec![1, 2, 3, 4, 5, 6, 7];
 
         let mut page = BaseBuilder::default().id(fake_id).header(header).body(data).public_options(vec![Options::peer_id(id.clone())]).public_key(Some(pub_key.clone())).build().expect("Error building page");
@@ -527,15 +348,35 @@ mod tests {
         let mut buff = vec![0u8; 1024];
         let n = page.encode(move |_id, data| crypto::pk_sign(&pri_key, data), &mut buff).expect("Error encoding page");
 
-        let (mut decoded, m) = Base::parse(&buff[..n], |_id| Some(pub_key) ).expect("Error decoding page with known public key");
+        let (mut decoded, m) = Base::parse(&buff[..n], |_id| Some(pub_key), |_id| None ).expect("Error decoding page with known public key");
 
         decoded.clean();
         assert_eq!(page, decoded);
         assert_eq!(n, m);
 
-        let (mut decoded, m) = Base::parse(&buff[..n], |_id| None ).expect("Error decoding page with unknown public key");
+        let (mut decoded, m) = Base::parse(&buff[..n], |_id| None, |_id| None ).expect("Error decoding page with unknown public key");
 
         decoded.clean();
+        assert_eq!(page, decoded);
+        assert_eq!(n, m);
+    }
+
+    #[test]
+    fn encode_decode_encrypted_page() {
+        let (id, pub_key, pri_key, sec_key) = setup();
+
+        let header = HeaderBuilder::default().flags(Flags::ENCRYPTED).kind(PageKind::Generic.into()).build().expect("Error building page header");
+        let data = vec![1, 2, 3, 4, 5, 6, 7];
+
+        let mut page = BaseBuilder::default().id(id).header(header).body(data).private_key(Some(pri_key)).encryption_key(Some(sec_key)).build().expect("Error building page");
+
+        let mut buff = vec![0u8; 1024];
+        let n = page.encode(move |_id, data| crypto::pk_sign(&pri_key, data), &mut buff).expect("Error encoding page");
+
+        let (mut decoded, m) = Base::parse(&buff[..n], |_id| Some(pub_key), |_id| Some(sec_key) ).expect("Error decoding page");
+
+        decoded.clean();
+
         assert_eq!(page, decoded);
         assert_eq!(n, m);
     }

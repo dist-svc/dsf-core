@@ -1,14 +1,13 @@
 
 pub mod helpers;
-pub mod options;
+
 pub mod header;
 
-pub mod container;
 pub mod base;
-
 pub mod page;
 pub mod net;
 
+use crate::crypto;
 
 /// Parse trait for building parse-able objects
 pub trait Parse {
@@ -47,3 +46,5 @@ pub trait WireDecode {
     /// Parse method consumes a slice and returns an object and the remaining slice.
     fn decode(ctx: Self::Ctx, buff: &[u8]) -> Result<(Self::Output, usize), Self::Error>;
 }
+
+

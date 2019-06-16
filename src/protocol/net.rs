@@ -8,7 +8,7 @@ use slice_ext::SplitBefore;
 use byteorder::{ByteOrder, NetworkEndian};
 
 use crate::types::*;
-use crate::protocol::options::Options;
+use crate::options::Options;
 use crate::protocol::base::{Base, BaseBuilder};
 use crate::protocol::page::Page;
 
@@ -70,13 +70,13 @@ impl Into<Base> for Message {
 impl Message {
     /// Parses an array containing a page into a page object
     /// fn v(id, data, sig)
-    pub fn parse<'a, V, T: AsRef<[u8]>>(data: T, key_source: V) -> Result<(Message, usize), Error>
+    pub fn parse<'a, V, T: AsRef<[u8]>>(data: T, pub_key_s: V) -> Result<(Message, usize), Error>
     where 
         V: Fn(&Id) -> Option<PublicKey>
     {
-        let (b, n) = Base::parse(data, &key_source)?;
+        let (b, n) = Base::parse(data, &pub_key_s, |_id| None )?;
 
-        let m = Message::convert(b, &key_source)?;
+        let m = Message::convert(b, &pub_key_s)?;
 
         Ok((m, n))
     }
@@ -189,7 +189,8 @@ impl Request {
         let header = base.header();
         let body = base.body();
         
-        let mut public_options = base.public_options().to_vec();
+        let remote_address = None;
+        let _public_options = base.public_options().to_vec();
         let _private_options = base.private_options().to_vec();
 
         let kind = match MessageKind::try_from(header.kind()) {
@@ -252,7 +253,7 @@ impl Request {
 
         // Fetch other key options
         let public_key = base.public_key;
-        let remote_address = Base::filter_address_option(&mut public_options);
+        //let remote_address = Base::filter_address_option(&mut public_options);
 
         let common = Common{ from: base.id().clone(), id: header.index(), flags: header.flags(), public_key, remote_address }; 
         Ok(Request{common, data})
@@ -489,7 +490,9 @@ impl Response {
         let header = base.header();
         let body = base.body();
 
-        let mut public_options = base.public_options().to_vec();
+        let mut remote_address = None;
+
+        let _public_options = base.public_options().to_vec();
         let _private_options = base.private_options().to_vec();
 
         let kind = match MessageKind::try_from(header.kind()) {
@@ -557,7 +560,7 @@ impl Response {
         // Fetch other key options
         let public_key = base.public_key;
 
-        let remote_address = Base::filter_address_option(&mut public_options);
+        //let remote_address = Base::filter_address_option(&mut public_options);
 
         let common = Common{ from: base.id().clone(), id: header.index(), flags: header.flags(), public_key, remote_address };
         Ok(Response{common, data})
@@ -650,7 +653,7 @@ mod tests {
         let (pub_key, pri_key) = crypto::new_pk().expect("Error generating new public/private key pair");
         let id = crypto::hash(&pub_key).expect("Error generating new ID");
         let fake_id = crypto::hash(&[0, 1, 2, 3, 4]).expect("Error generating fake target ID");
-        let flags = Flags::default().set_address_request(true);
+        let flags = Flags::ADDRESS_REQUEST;
         let request_id = 120;
 
         // Create and sign page
@@ -686,7 +689,7 @@ mod tests {
             // Encode base
             let n = b.encode(|_id, data| crypto::pk_sign(&pri_key, data), &mut buff).expect("error encoding message");
             // Parse base and check instances match
-            let (mut d, m)= Base::parse(&buff[..n], |_id| Some(pub_key) ).expect("error parsing message");
+            let (mut d, m)= Base::parse(&buff[..n], |_id| Some(pub_key), |_id| None ).expect("error parsing message");
 
             assert_eq!(n, m);
 

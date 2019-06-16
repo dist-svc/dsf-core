@@ -7,7 +7,7 @@ use std::convert::TryFrom;
 
 use crate::types::*;
 use crate::protocol::WireEncode;
-use crate::protocol::options::Options;
+use crate::options::Options;
 use crate::protocol::base::Base;
 use crate::crypto;
 
@@ -199,7 +199,8 @@ impl Page {
 
         while i < buff.len() {
             // TODO: validate signatures against existing services!
-            let (b, n) = Base::parse(&buff[i..], |id| {
+            let (b, n) = Base::parse(&buff[i..], 
+            |id| {
                 // Try key_source first
                 if let Some(key) = (key_source)(id) {
                    return Some(key)
@@ -214,7 +215,9 @@ impl Page {
 
                 // Fail if no public key is found
                 None
-            } )?;
+            },
+            |_id| None
+            )?;
 
             i += n;
 
@@ -323,7 +326,7 @@ impl From<&Page> for Base {
 
         // Enable encryption if key is provided
         if let Some(_key) = page.encryption_key {
-            flags.set_encrypted(true);
+            flags |= Flags::ENCRYPTED;
         }
 
         // Generate base object
@@ -383,18 +386,22 @@ impl TryFrom<Base> for Page {
             return Err(Error::InvalidPageKind)
         }
 
-        let mut public_options = base.public_options().to_vec();
+        let (mut issued, mut expiry, mut previous_sig, mut peer_id) = (None, None, None, None);
+        let mut public_options = base.public_options().iter()
+        .filter_map(|o| {
+            match &o {
+                Options::Issued(v) => { issued = Some(v.when); None },
+                Options::Expiry(v) => { expiry = Some(v.when); None },
+                Options::PrevSig(v) => { previous_sig = Some(v.sig); None },
+                Options::PeerId(v) => { peer_id = Some(v.peer_id); None },
+                _ => Some(o),
+            }
+        }).map(|o| o.clone() ).collect();
+
         let private_options = base.private_options().to_vec();
 
-        let issued = match Base::filter_issued_option(&mut public_options) {
-            Some(issued) => Ok(issued),
-            None => Err(Error::Unimplemented),
-        }?;
 
-        let expiry = Base::filter_expiry_option(&mut public_options);
-        let previous_sig = Base::filter_prev_sig_option(&mut public_options);
-
-        let info = if kind.is_page() && flags.primary() {
+        let info = if kind.is_page() && flags.contains(Flags::PRIMARY) {
             // Handle primary page parsing
 
             // Fetch public key from options
@@ -411,9 +418,9 @@ impl TryFrom<Base> for Page {
 
             PageInfo::primary(public_key)
 
-        } else if kind.is_page() && flags.secondary() {
+        } else if kind.is_page() && flags.contains(Flags::SECONDARY) {
             // Handle secondary page parsing
-            let peer_id = match Base::filter_peer_id_option(&mut public_options) {
+            let peer_id = match peer_id {
                 Some(id) => Ok(id),
                 None => Err(Error::NoPeerId)
             }?;
@@ -437,9 +444,9 @@ impl TryFrom<Base> for Page {
             version: header.index(),
             info,
             body: body.to_vec(),
-            issued,
-            expiry,
-            previous_sig,
+            issued: issued.expect("missing issued option"),
+            expiry: expiry,
+            previous_sig: previous_sig,
             public_options: public_options,
             private_options: private_options,
             signature: signature.clone(),

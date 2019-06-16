@@ -2,7 +2,7 @@
 
 
 use crate::types::*;
-use crate::protocol::{options::Options};
+use crate::{options::Options};
 use crate::crypto;
 
 pub mod kinds;
@@ -196,7 +196,9 @@ mod test {
         println!("Decoding service page");
         let s = service.clone();
         let pub_key = s.public_key();
-        let (base2, m) = Base::parse(&buff[..n], |_id| Some(pub_key) ).expect("Error parsing service page");
+        let sec_key = s.secret_key();
+
+        let (base2, m) = Base::parse(&buff[..n], |_id| Some(pub_key), |_id| sec_key ).expect("Error parsing service page");
         assert_eq!(n, m);
         let mut page2: Page = base2.try_into().expect("Error converting base message to page");
         page2.clean();
