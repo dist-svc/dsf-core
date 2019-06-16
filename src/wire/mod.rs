@@ -4,10 +4,10 @@
 use byteorder::{ByteOrder, NetworkEndian};
 
 use crate::types::{Id, ID_LEN, Signature, SIGNATURE_LEN, Flags, Kind, PublicKey, SecretKey};
-use crate::protocol::{Encode};
-use crate::protocol::header::Header;
+use crate::base::{Encode};
+use crate::base::header::Header;
 use crate::options::{Options, OptionsIter};
-use crate::protocol::base::BaseError;
+use crate::base::base::BaseError;
 use crate::crypto;
 
 
@@ -20,7 +20,7 @@ pub struct Container<T: AsRef<[u8]>> {
     buff: T,
 }
 
-use crate::protocol::base::Base;
+use crate::base::base::Base;
 
 /// Offsets for fixed fields in the protocol container
 mod offsets {
@@ -272,6 +272,7 @@ impl <'a, T: AsRef<[u8]>> Container<T> {
         if flags.contains(Flags::ENCRYPTED) {
             debug!("Attempting message decryption");
             if let Some(sk) =  sec_key_s(&id) {
+                debug!("Found associated key");
                 // Decrypt body
                 let n = crypto::sk_decrypt2(&sk, &mut body_data)
                         .map_err(|e| BaseError::InvalidSignature )?;

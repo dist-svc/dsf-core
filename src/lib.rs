@@ -25,11 +25,13 @@ pub mod types;
 
 pub mod crypto;
 
-pub mod protocol;
+pub mod base;
+pub mod options;
+
+pub mod page;
+pub mod net;
 
 pub mod wire;
-pub mod options;
-pub mod page;
 
 pub mod service;
 pub mod api;

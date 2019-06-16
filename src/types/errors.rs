@@ -2,7 +2,7 @@
 use std::time::SystemTimeError;
 use std::io::Error as IoError;
 
-use crate::protocol::base::BaseError;
+use crate::base::base::BaseError;
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum Error {

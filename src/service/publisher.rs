@@ -5,7 +5,7 @@ use std::ops::Add;
 use crate::types::*;
 use crate::service::Service;
 use crate::options::Options;
-use crate::protocol::page::{Page, PageBuilder, PageInfo};
+use crate::page::{Page, PageBuilder, PageInfo};
 
 pub trait Publisher {
     /// Generates a primary page to publish for the given service.

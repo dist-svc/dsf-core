@@ -4,7 +4,7 @@
 use std::net::{SocketAddr};
 
 use crate::types::{Id, Signature, Flags, Kind, PublicKey, PrivateKey, SecretKey, Address, DateTime};
-use crate::protocol::header::Header;
+use crate::base::header::Header;
 use crate::options::{Options, OptionsError};
 use crate::wire::Container;
 
@@ -60,8 +60,8 @@ pub enum BaseError {
     PublicKeyIdMismatch,
 }
 
-use crate::protocol::page;
-use crate::protocol::net;
+use crate::page;
+use crate::net;
 
 pub enum Parent<'a, 'b, 'c> {
     None,
@@ -303,7 +303,7 @@ impl Base {
 mod tests {
 
     use super::*;
-    use crate::protocol::header::*;
+    use crate::base::header::*;
     use crate::types::PageKind;
 
     use crate::crypto;

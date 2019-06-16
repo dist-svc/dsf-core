@@ -162,8 +162,8 @@ mod test {
 
     use crate::service::subscriber::Subscriber;
     use crate::service::publisher::{Publisher, SecondaryOptionsBuilder, DataOptionsBuilder};
-    use crate::protocol::WireEncode;
-    use crate::protocol::{base::Base, page::Page};
+    use crate::base::{WireEncode, base::Base};
+    use crate::page::Page;
 
     use super::*;
 

@@ -2,7 +2,7 @@ use std::convert::TryInto;
 
 use crate::types::*;
 use crate::service::Service;
-use crate::protocol::page::{Page, PageInfo};
+use crate::page::{Page, PageInfo};
 use crate::crypto;
 
 

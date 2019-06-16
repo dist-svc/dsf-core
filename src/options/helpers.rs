@@ -5,7 +5,7 @@ use std::time::{SystemTime, Duration};
 
 use byteorder::{NetworkEndian, ReadBytesExt, WriteBytesExt};
 
-use crate::protocol::{Encode, Parse};
+use crate::base::{Encode, Parse};
 
 impl Parse for String {
     type Output = String;

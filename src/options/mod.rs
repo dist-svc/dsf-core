@@ -5,7 +5,9 @@ use std::net::{SocketAddr, SocketAddrV4, SocketAddrV6};
 use byteorder::{ByteOrder, NetworkEndian, ReadBytesExt, WriteBytesExt};
 
 use crate::types::{Id, ID_LEN, PublicKey, PUBLIC_KEY_LEN, Signature, SIGNATURE_LEN, DateTime};
-use crate::protocol::{Encode, Parse};
+use crate::base::{Encode, Parse};
+
+mod helpers;
 
 /// D-IoT Optional fields
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
