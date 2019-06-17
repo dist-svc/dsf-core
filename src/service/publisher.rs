@@ -5,6 +5,7 @@ use std::ops::Add;
 use crate::types::*;
 use crate::service::Service;
 use crate::options::Options;
+use crate::base::{Body, PrivateOptions};
 use crate::page::{Page, PageBuilder, PageInfo};
 
 pub trait Publisher {
@@ -37,8 +38,8 @@ pub struct SecondaryOptions {
     version: u16,
 
     /// Page body
-    #[builder(default = "vec![]")]
-    body: Vec<u8>,
+    #[builder(default = "Body::None")]
+    body: Body,
 
     /// Page expiry time
     #[builder(default = "Some(SystemTime::now().add(Duration::from_secs(24 * 60 * 60)))")]
@@ -49,8 +50,8 @@ pub struct SecondaryOptions {
     public_options: Vec<Options>,
 
     /// Private options attached to the page
-    #[builder(default = "vec![]")]
-    private_options: Vec<Options>,
+    #[builder(default = "PrivateOptions::None")]
+    private_options: PrivateOptions,
 }
 
 #[derive(Clone, Builder)]
@@ -60,8 +61,8 @@ pub struct DataOptions {
     data_kind: Kind,
 
     /// Data object body
-    #[builder(default = "vec![]")]
-    body: Vec<u8>,
+    #[builder(default = "Body::None")]
+    body: Body,
 
     /// Data expiry time
     #[builder(default = "None")]
@@ -72,8 +73,8 @@ pub struct DataOptions {
     public_options: Vec<Options>,
     
     /// Private options attached to the data object
-    #[builder(default = "vec![]")]
-    private_options: Vec<Options>,
+    #[builder(default = "PrivateOptions::None")]
+    private_options: PrivateOptions
 }
 
 impl Publisher for Service {

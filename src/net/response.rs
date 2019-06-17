@@ -7,7 +7,7 @@ use byteorder::{ByteOrder, NetworkEndian};
 
 use crate::types::*;
 use crate::options::Options;
-use crate::base::{Base, BaseBuilder};
+use crate::base::{Base, BaseBuilder, Body, PrivateOptions};
 use crate::page::Page;
 
 use super::Common;
@@ -147,12 +147,19 @@ impl Response {
         V: Fn (&Id) -> Option<PublicKey>
     {
         let header = base.header();
-        let body = base.body();
+
+        let body = match base.body() {
+            Body::Cleartext(d) => d,
+            Body::None => &vec![],
+            Body::Encrypted(_e) => {
+                panic!("Attempting to convert encrypted object to response message")
+            }
+        };
 
         let remote_address = None;
 
         let _public_options = base.public_options().to_vec();
-        let _private_options = base.private_options().to_vec();
+        //let _private_options = base.private_options().to_vec();
 
         let kind = match MessageKind::try_from(header.kind()) {
             Ok(k) => k,
@@ -283,7 +290,7 @@ impl Into<Base> for Response {
             },
         }
 
-        let builder = builder.base(self.common.from, 0, kind.into(), self.common.id, self.common.flags).body(body);
+        let builder = builder.base(self.common.from, 0, kind.into(), self.common.id, self.common.flags).body(Body::Cleartext(body));
 
         builder.public_key(self.common.public_key);
 

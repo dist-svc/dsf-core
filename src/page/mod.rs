@@ -6,7 +6,7 @@ use std::ops::Add;
 use std::convert::TryFrom;
 
 use crate::types::*;
-use crate::base::WireEncode;
+use crate::base::{WireEncode, Body, PrivateOptions};
 use crate::options::Options;
 use crate::base::Base;
 use crate::crypto;
@@ -36,8 +36,8 @@ pub struct Page {
     info: PageInfo,
     
     // Body
-    #[builder(default = "vec![]")]
-    body: Vec<u8>,
+    #[builder(default = "Body::None")]
+    body: Body,
 
     // Common options
     #[builder(default = "SystemTime::now().into()")]
@@ -51,8 +51,8 @@ pub struct Page {
 
     #[builder(default = "vec![]")]
     public_options: Vec<Options>,
-    #[builder(default = "vec![]")]
-    private_options: Vec<Options>,
+    #[builder(default = "PrivateOptions::None")]
+    private_options: PrivateOptions,
 
     // Public key (for decoding and encoding)
     #[builder(default = "None")]
@@ -97,14 +97,14 @@ impl PartialEq for Page {
 impl Page {
 
     /// Create a new page
-    pub fn new(id: Id, application_id: u16, kind: Kind, flags: Flags, version: u16, info: PageInfo, body: Vec<u8>, issued: SystemTime, expiry: Option<SystemTime>) -> Self {
+    pub fn new(id: Id, application_id: u16, kind: Kind, flags: Flags, version: u16, info: PageInfo, body: Body, issued: SystemTime, expiry: Option<SystemTime>) -> Self {
         Page {
             id, application_id, kind, flags, version, info, body, 
             issued: issued.into(), 
             expiry: expiry.map(|v| v.into() ), 
             previous_sig: None,
             public_options: vec![],
-            private_options: vec![],
+            private_options: PrivateOptions::None,
             
             public_key: None,
             signature: None,
@@ -138,7 +138,7 @@ impl Page {
         &self.info
     }
 
-    pub fn body(&self) -> &[u8] {
+    pub fn body(&self) -> &Body {
         &self.body
     }
 
@@ -154,7 +154,7 @@ impl Page {
         &self.public_options
     }
 
-    pub fn private_options(&self) -> &[Options] {
+    pub fn private_options(&self) -> &PrivateOptions {
         &self.private_options
     }
 
@@ -278,9 +278,8 @@ impl PageBuilder {
     }
 
     pub fn append_private_option(&mut self, o: Options) -> &mut Self {
-        match &mut self.private_options {
-            Some(opts) => opts.push(o),
-            None => self.private_options = Some(vec![o]),
+        if let Some(opts) = &mut self.private_options {
+            opts.append(o)
         }
         self
     }
@@ -379,7 +378,6 @@ impl TryFrom<Base> for Page {
     fn try_from(base: Base) -> Result<Self, Error> {
 
         let header = base.header();
-        let body = base.body();
         let signature = base.signature();
 
         let flags = header.flags();
@@ -401,7 +399,7 @@ impl TryFrom<Base> for Page {
             }
         }).map(|o| o.clone() ).collect();
 
-        let private_options = base.private_options().to_vec();
+        let private_options = base.private_options();
 
 
         let info = if kind.is_page() && flags.contains(Flags::PRIMARY) {
@@ -446,12 +444,12 @@ impl TryFrom<Base> for Page {
             flags: header.flags(),
             version: header.index(),
             info,
-            body: body.to_vec(),
+            body: base.body,
             issued: issued.expect("missing issued option"),
             expiry: expiry,
             previous_sig: previous_sig,
             public_options: public_options,
-            private_options: private_options,
+            private_options: base.private_options,
             signature: signature.clone(),
 
             public_key: base.public_key,

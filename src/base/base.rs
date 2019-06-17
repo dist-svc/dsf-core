@@ -15,10 +15,10 @@ use crate::crypto;
 pub struct Base {
     pub(crate) id:             Id,
     pub(crate) header:         Header,
-    #[builder(default = "vec![]")]
-    pub(crate) body:           Vec<u8>,
-    #[builder(default = "vec![]")]
-    pub(crate) private_options: Vec<Options>,
+    #[builder(default = "Body::None")]
+    pub(crate) body:           Body,
+    #[builder(default = "PrivateOptions::None")]
+    pub(crate) private_options: PrivateOptions,
     #[builder(default = "vec![]")]
     pub(crate) public_options: Vec<Options>,
     #[builder(default = "None")]
@@ -47,14 +47,36 @@ impl PartialEq for Base {
     }
 }
 
+/// Body may be empty, encrypted, or Cleartext
+#[derive(PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub enum Body {
+    None,
     Encrypted(Vec<u8>),
-    Decrypted(Vec<u8>),
+    Cleartext(Vec<u8>),
 }
 
+/// Private options may be empty, encrypted, or Cleartext
+#[derive(PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub enum PrivateOptions {
+    None,
     Encrypted(Vec<u8>),
-    Decrypted(Vec<Options>),
+    Cleartext(Vec<Options>),
+}
+
+impl From<Vec<Options>> for PrivateOptions {
+    fn from(o: Vec<Options>) -> Self {
+        PrivateOptions::Cleartext(o)
+    }
+}
+
+impl PrivateOptions {
+    pub fn append(&mut self, o: Options) {
+        match &mut self {
+            PrivateOptions::Cleartext(opts) => opts.push(o),
+            PrivateOptions::None => *self = PrivateOptions::Cleartext(vec![o]),
+            _ => panic!("attmepting to append private options to encrypted object"),
+        }
+    }
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
@@ -111,8 +133,8 @@ impl BaseBuilder {
 
      pub fn append_private_option(&mut self, o: Options) -> &mut Self {
         match &mut self.private_options {
-            Some(opts) => opts.push(o),
-            None => self.private_options = Some(vec![o]),
+            Some(PrivateOptions::Cleartext(opts)) => opts.push(o),
+            _ => self.private_options = Some(PrivateOptions::Cleartext(vec![o])),
         }
         self
     }
@@ -120,8 +142,9 @@ impl BaseBuilder {
 
 
 impl Base {
-    pub fn new(id: Id, application_id: u16, kind: Kind, flags: Flags, version: u16, body: Vec<u8>, public_options: Vec<Options>, private_options: Vec<Options>) -> Base {
+    pub fn new(id: Id, application_id: u16, kind: Kind, flags: Flags, version: u16, body: Body, public_options: Vec<Options>, private_options: PrivateOptions) -> Base {
         let header = Header::new(application_id, kind, version, flags);
+        
         Base{id, header, body, public_options, private_options, signature: None, public_key: None, private_key: None, encryption_key: None, raw: None}
     }
 
@@ -137,7 +160,7 @@ impl Base {
         self.header.flags()
     }
 
-    pub fn body(&self) -> &[u8] {
+    pub fn body(&self) -> &Body {
         &self.body
     }
 
@@ -145,7 +168,7 @@ impl Base {
         &self.public_options
     }
 
-    pub fn private_options(&self) -> &[Options] {
+    pub fn private_options(&self) -> &PrivateOptions {
         &self.private_options
     }
 
@@ -170,7 +193,11 @@ impl Base {
     }
 
     pub fn append_private_option(&mut self, o: Options) {
-        self.private_options.push(o);
+        match &mut self.private_options {
+            PrivateOptions::Cleartext(opts) => opts.push(o),
+            PrivateOptions::None => self.private_options = PrivateOptions::Cleartext(vec![o]),
+            _ => panic!("attmepting to append private options to encrypted object"),
+        }
     }
 
     pub fn clean(&mut self) {
@@ -332,7 +359,7 @@ mod tests {
         let header = HeaderBuilder::default().kind(PageKind::Generic.into()).build().expect("Error building page header");
         let data = vec![1, 2, 3, 4, 5, 6, 7];
 
-        let mut page = BaseBuilder::default().id(id).header(header).body(data).build().expect("Error building page");
+        let mut page = BaseBuilder::default().id(id).header(header).body(Body::Cleartext(data)).build().expect("Error building page");
 
         let mut buff = vec![0u8; 1024];
         let n = page.encode(move |_id, data| crypto::pk_sign(&pri_key, data), &mut buff).expect("Error encoding page");
@@ -353,7 +380,7 @@ mod tests {
         let header = HeaderBuilder::default().flags(Flags::SECONDARY).kind(PageKind::Replica.into()).build().expect("Error building page header");
         let data = vec![1, 2, 3, 4, 5, 6, 7];
 
-        let mut page = BaseBuilder::default().id(fake_id).header(header).body(data).public_options(vec![Options::peer_id(id.clone())]).public_key(Some(pub_key.clone())).build().expect("Error building page");
+        let mut page = BaseBuilder::default().id(fake_id).header(header).body(Body::Cleartext(data)).public_options(vec![Options::peer_id(id.clone())]).public_key(Some(pub_key.clone())).build().expect("Error building page");
 
         let mut buff = vec![0u8; 1024];
         let n = page.encode(move |_id, data| crypto::pk_sign(&pri_key, data), &mut buff).expect("Error encoding page");
@@ -378,7 +405,7 @@ mod tests {
         let header = HeaderBuilder::default().flags(Flags::ENCRYPTED).kind(PageKind::Generic.into()).build().expect("Error building page header");
         let data = vec![1, 2, 3, 4, 5, 6, 7];
 
-        let mut page = BaseBuilder::default().id(id).header(header).body(data).private_key(Some(pri_key)).encryption_key(Some(sec_key)).build().expect("Error building page");
+        let mut page = BaseBuilder::default().id(id).header(header).body(Body::Cleartext(data)).private_key(Some(pri_key)).encryption_key(Some(sec_key)).build().expect("Error building page");
 
         let mut buff = vec![0u8; 1024];
         let n = page.encode(move |_id, data| crypto::pk_sign(&pri_key, data), &mut buff).expect("Error encoding page");

@@ -12,7 +12,7 @@ impl ServiceBuilder {
     pub(crate) fn validate(&self) -> Result<(), String> {
         // Ensure a secret key is available if private options are used
         if let Some(private_opts) = &self.private_options {
-            if private_opts.len() > 0 && self.secret_key.is_none() {
+            if self.secret_key.is_none() {
                 return Err("Private options cannot be used without specifying or creating an associated secret key".to_owned());
             }
         }
@@ -64,8 +64,8 @@ impl ServiceBuilder {
 
      pub fn append_private_option(&mut self, o: Options) -> &mut Self {
         match &mut self.private_options {
-            Some(opts) => opts.push(o),
-            None => self.private_options = Some(vec![o]),
+            Some(opts) => opts.append(o),
+            None => panic!("attempting to append private option to encrypted field"),
         }
         self
     }

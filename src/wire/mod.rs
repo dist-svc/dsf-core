@@ -4,10 +4,8 @@
 use byteorder::{ByteOrder, NetworkEndian};
 
 use crate::types::{Id, ID_LEN, Signature, SIGNATURE_LEN, Flags, Kind, PublicKey, SecretKey};
-use crate::base::{Encode};
-use crate::base::Header;
+use crate::base::{Encode, BaseError, Body, Header, PrivateOptions};
 use crate::options::{Options, OptionsIter};
-use crate::base::BaseError;
 use crate::crypto;
 
 
@@ -285,15 +283,15 @@ impl <'a, T: AsRef<[u8]>> Container<T> {
                 // Decode private options
                 let (private_options, _n)= Options::parse_vec(&private_options_data)?;
 
-                (body_data, private_options)
+                (Body::Cleartext(body_data), PrivateOptions::Cleartext(private_options))
             },
             (true, None) => {
                 debug!("No encryption key found for data");
 
-                (vec![], vec![])
+                (Body::Encrypted(body_data), PrivateOptions::Encrypted(private_options_data))
             },
             (false, _) => {
-                (body_data, vec![])
+                (Body::Cleartext(body_data), PrivateOptions::None)
             },
         };
 
@@ -302,7 +300,7 @@ impl <'a, T: AsRef<[u8]>> Container<T> {
             Base {
                 id: id,
                 header: Header::new(container.application_id(), container.kind(), container.index(), container.flags()),
-                body: body,
+                body,
                 private_options,
                 public_options,
                 signature: Some(signature),
@@ -331,22 +329,49 @@ impl <'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
         id.clone_from_slice(base.id());
         n += ID_LEN;
 
+        // Check encryption key exists if required
+        let encryption_key = match (base.flags().contains(Flags::ENCRYPTED), base.encryption_key) {
+            (true, Some(k)) => Some(k),
+            (true, None) => panic!("Attempted to encrypt object with no secret key"),
+            _ => None,
+        };
+
         // Write body
-        let b = base.body();
-        let mut body_len = b.len();
-
-        (&mut data[n..n+body_len]).clone_from_slice(b);
-
-        if let Some(secret_key) = &base.encryption_key {
-            body_len = crypto::sk_encrypt2(secret_key, &mut data[n..], body_len).unwrap();
-        }
+        let body_len = match (base.body, encryption_key) {
+            (Body::Cleartext(c), None) => {
+                (&mut data[n..n+c.len()]).clone_from_slice(&c);
+                c.len()
+            },
+            (Body::Cleartext(c), Some(secret_key)) => {
+                (&mut data[n..n+c.len()]).clone_from_slice(&c);
+                crypto::sk_encrypt2(&secret_key, &mut data[n..], c.len()).unwrap()
+            },
+            (Body::Encrypted(e), _) => {
+                (&mut data[n..n+e.len()]).clone_from_slice(&e);
+                e.len()
+            },
+            (Body::None, _) => {
+                0
+            }
+            _ => panic!("attempted to encode invalid object")
+        };
         n += body_len;
 
         // Write private options
-        let mut private_options_len = { Options::encode_vec(base.private_options(), &mut data[n..]).expect("error encoding private options") };
-        if let Some(secret_key) = &base.encryption_key {
-            private_options_len = crypto::sk_encrypt2(secret_key, &mut data[n..], private_options_len).unwrap();
-        }
+        let private_options_len = match (base.private_options, encryption_key) {
+            (PrivateOptions::Cleartext(c), None) => {
+                Options::encode_vec(&c, &mut data[n..]).expect("error encoding private options")
+            },
+            (PrivateOptions::Cleartext(c), Some(secret_key)) => {
+                let encoded_len = Options::encode_vec(&c, &mut data[n..]).expect("error encoding private options");
+                crypto::sk_encrypt2(&secret_key, &mut data[n..], encoded_len).unwrap()
+            },
+            (PrivateOptions::Encrypted(e), _) => {
+                (&mut data[n..n+e.len()]).clone_from_slice(&e);
+                e.len()
+            },
+            (PrivateOptions::None, _) => 0,
+        };
         n += private_options_len;
 
         let mut public_options = vec![];

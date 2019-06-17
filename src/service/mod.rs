@@ -2,6 +2,7 @@
 
 
 use crate::types::*;
+use crate::base::{Body, PrivateOptions};
 use crate::{options::Options};
 use crate::crypto;
 
@@ -34,10 +35,10 @@ pub struct Service {
     version: u16,
     data_index: u16,
 
-    body: Vec<u8>,
+    body: Body,
 
     public_options: Vec<Options>,
-    private_options: Vec<Options>,
+    private_options: PrivateOptions,
 
     public_key: PublicKey,
     private_key: Option<PrivateKey>,
@@ -56,7 +57,16 @@ impl Default for Service {
         let id = crypto::hash(&public_key).unwrap().into();
 
         // Create service object
-        Service{id, application_id: 0, kind: PageKind::Generic, version: 0, data_index: 0, body: vec![], public_options: vec![], private_options: vec![], public_key: public_key, private_key: Some(private_key), encrypted: false, secret_key: None}
+        Service{
+            id, application_id: 0, kind: PageKind::Generic, version: 0, data_index: 0, 
+            body: Body::None, 
+            public_options: vec![], 
+            private_options: PrivateOptions::None, 
+            public_key: public_key, 
+            private_key: Some(private_key),
+            encrypted: false, 
+            secret_key: None,
+        }
     }
 }
 
@@ -69,7 +79,7 @@ impl Service
     /// Update a service.
     /// This allows in-place editing of descriptors and options and causes an update of the service version number.
     pub fn update<U>(&mut self, update_fn: U) -> Result<(), Error>
-        where U: Fn(&mut Vec<u8>, &mut Vec<Options>, &mut Vec<Options>)
+        where U: Fn(&mut Body, &mut Vec<Options>, &mut PrivateOptions)
     {
         if let None = self.private_key() {
             return Err(Error::NoPrivateKey);
@@ -175,7 +185,7 @@ mod test {
         let mut service = ServiceBuilder::default()
                 .kind(PageKind::Generic.into())
                 .public_options(vec![Options::name("Test Service")])
-                .private_options(vec![Options::address(socket)])
+                .private_options(vec![Options::address(socket)].into())
                 .encrypt()
                 .build().unwrap();
 

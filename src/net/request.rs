@@ -7,7 +7,7 @@ use core::ops::Deref;
 
 use crate::types::*;
 use crate::options::Options;
-use crate::base::{Base, BaseBuilder};
+use crate::base::{Base, BaseBuilder, Body};
 use crate::page::Page;
 
 use super::Common;
@@ -79,11 +79,18 @@ impl Request {
         V: Fn(&Id) -> Option<PublicKey>
     {
         let header = base.header();
-        let body = base.body();
+        
+         let body = match base.body() {
+            Body::Cleartext(d) => d,
+            Body::None => &vec![],
+            Body::Encrypted(_e) => {
+                panic!("Attempting to convert encrypted object to response message")
+            }
+        };
         
         let remote_address = None;
         let _public_options = base.public_options().to_vec();
-        let _private_options = base.private_options().to_vec();
+        //let _private_options = base.private_options().to_vec();
 
         let kind = match MessageKind::try_from(header.kind()) {
             Ok(k) => k,
@@ -209,7 +216,7 @@ impl Into<Base> for Request {
             },
         }
 
-        let builder = builder.base(self.from, 0, kind.into(), self.id, self.flags).body(body);
+        let builder = builder.base(self.from, 0, kind.into(), self.id, self.flags).body(Body::Cleartext(body));
 
         builder.public_key(self.public_key);
         if let Some(a) = self.remote_address {

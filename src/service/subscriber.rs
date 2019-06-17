@@ -47,10 +47,10 @@ impl Subscriber for Service {
             version: page.version(),
             data_index: 0,
 
-            body: body.to_vec(),
+            body: body.clone(),
 
             public_options: public_options.to_vec(),
-            private_options: private_options.to_vec(),
+            private_options: private_options.clone(),
 
             public_key,
             private_key: None,
@@ -80,9 +80,9 @@ impl Subscriber for Service {
 
         self.version = update.version();
         self.encrypted = flags.contains(Flags::ENCRYPTED);
-        self.body = body.to_vec();
+        self.body = body.clone();
         self.public_options = public_options.to_vec();
-        self.private_options = private_options.to_vec();
+        self.private_options = private_options.clone();
     
         Ok(true)
     }
