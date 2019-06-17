@@ -148,9 +148,10 @@ impl Response {
     {
         let header = base.header();
 
+        let empty_body = vec![];
         let body = match base.body() {
             Body::Cleartext(d) => d,
-            Body::None => &vec![],
+            Body::None => &empty_body,
             Body::Encrypted(_e) => {
                 panic!("Attempting to convert encrypted object to response message")
             }
@@ -290,7 +291,7 @@ impl Into<Base> for Response {
             },
         }
 
-        let builder = builder.base(self.common.from, 0, kind.into(), self.common.id, self.common.flags).body(Body::Cleartext(body));
+        let builder = builder.base(self.common.from, 0, kind.into(), self.common.id, self.common.flags).body(Body::from(body));
 
         builder.public_key(self.common.public_key);
 

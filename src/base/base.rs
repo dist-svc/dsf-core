@@ -55,6 +55,16 @@ pub enum Body {
     Cleartext(Vec<u8>),
 }
 
+impl From<Vec<u8>> for Body {
+    fn from(o: Vec<u8>) -> Self {
+        if o.len() > 0 {
+            Body::Cleartext(o)
+        } else {
+            Body::None
+        }
+    }
+}
+
 /// Private options may be empty, encrypted, or Cleartext
 #[derive(PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub enum PrivateOptions {
@@ -65,13 +75,17 @@ pub enum PrivateOptions {
 
 impl From<Vec<Options>> for PrivateOptions {
     fn from(o: Vec<Options>) -> Self {
-        PrivateOptions::Cleartext(o)
+        if o.len() > 0 {
+            PrivateOptions::Cleartext(o)
+        } else {
+            PrivateOptions::None
+        }
     }
 }
 
 impl PrivateOptions {
     pub fn append(&mut self, o: Options) {
-        match &mut self {
+        match self {
             PrivateOptions::Cleartext(opts) => opts.push(o),
             PrivateOptions::None => *self = PrivateOptions::Cleartext(vec![o]),
             _ => panic!("attmepting to append private options to encrypted object"),

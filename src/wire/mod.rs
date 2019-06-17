@@ -266,14 +266,32 @@ impl <'a, T: AsRef<[u8]>> Container<T> {
         let mut body_data = container.body().to_vec();
         let mut private_options_data = container.private_options().to_vec();
 
-        // Handle decryption
-        let (body, private_options) = match (flags.contains(Flags::ENCRYPTED), sec_key_s(&id)) {
-            (true, Some(sk)) => {
-                debug!("Found associated key");
+        // Handle body decryption or parsing
+        let body = match (flags.contains(Flags::ENCRYPTED), sec_key_s(&id)) {
+            (true, Some(sk)) if body_data.len() > 0 => {
                 // Decrypt body
                 let n = crypto::sk_decrypt2(&sk, &mut body_data)
                         .map_err(|_e| BaseError::InvalidSignature )?;
                 body_data = (&body_data[..n]).to_vec();
+
+                Body::Cleartext(body_data)
+            },
+            (true, None) if body_data.len() > 0 => {
+                debug!("No encryption key found for data");
+
+                Body::Encrypted(body_data)
+            },
+            (false, _) if body_data.len() > 0 => {
+                Body::Cleartext(body_data)
+            },
+            _ => {
+                Body::None
+            }
+        };
+
+        // Handle private_options decryption or parsing
+        let private_options = match (flags.contains(Flags::ENCRYPTED), sec_key_s(&id)) {
+            (true, Some(sk)) if private_options_data.len() > 0 => {
 
                 // Decrypt private options
                 let n = crypto::sk_decrypt2(&sk, &mut private_options_data)
@@ -283,15 +301,15 @@ impl <'a, T: AsRef<[u8]>> Container<T> {
                 // Decode private options
                 let (private_options, _n)= Options::parse_vec(&private_options_data)?;
 
-                (Body::Cleartext(body_data), PrivateOptions::Cleartext(private_options))
+                PrivateOptions::Cleartext(private_options)
             },
-            (true, None) => {
+            (true, None) if private_options_data.len() > 0 => {
                 debug!("No encryption key found for data");
 
-                (Body::Encrypted(body_data), PrivateOptions::Encrypted(private_options_data))
+                PrivateOptions::Encrypted(private_options_data)
             },
-            (false, _) => {
-                (Body::Cleartext(body_data), PrivateOptions::None)
+            _ => {
+                PrivateOptions::None
             },
         };
 
@@ -337,17 +355,17 @@ impl <'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
         };
 
         // Write body
-        let body_len = match (base.body, encryption_key) {
+        let body_len = match (&base.body, encryption_key) {
             (Body::Cleartext(c), None) => {
-                (&mut data[n..n+c.len()]).clone_from_slice(&c);
+                (&mut data[n..n+c.len()]).clone_from_slice(c);
                 c.len()
             },
             (Body::Cleartext(c), Some(secret_key)) => {
-                (&mut data[n..n+c.len()]).clone_from_slice(&c);
+                (&mut data[n..n+c.len()]).clone_from_slice(c);
                 crypto::sk_encrypt2(&secret_key, &mut data[n..], c.len()).unwrap()
             },
             (Body::Encrypted(e), _) => {
-                (&mut data[n..n+e.len()]).clone_from_slice(&e);
+                (&mut data[n..n+e.len()]).clone_from_slice(e);
                 e.len()
             },
             (Body::None, _) => {
@@ -358,16 +376,16 @@ impl <'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
         n += body_len;
 
         // Write private options
-        let private_options_len = match (base.private_options, encryption_key) {
+        let private_options_len = match (&base.private_options, encryption_key) {
             (PrivateOptions::Cleartext(c), None) => {
-                Options::encode_vec(&c, &mut data[n..]).expect("error encoding private options")
+                Options::encode_vec(c, &mut data[n..]).expect("error encoding private options")
             },
             (PrivateOptions::Cleartext(c), Some(secret_key)) => {
-                let encoded_len = Options::encode_vec(&c, &mut data[n..]).expect("error encoding private options");
+                let encoded_len = Options::encode_vec(c, &mut data[n..]).expect("error encoding private options");
                 crypto::sk_encrypt2(&secret_key, &mut data[n..], encoded_len).unwrap()
             },
             (PrivateOptions::Encrypted(e), _) => {
-                (&mut data[n..n+e.len()]).clone_from_slice(&e);
+                (&mut data[n..n+e.len()]).clone_from_slice(e);
                 e.len()
             },
             (PrivateOptions::None, _) => 0,

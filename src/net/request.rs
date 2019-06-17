@@ -80,9 +80,10 @@ impl Request {
     {
         let header = base.header();
         
-         let body = match base.body() {
+        let empty_body = vec![];
+        let body = match base.body() {
             Body::Cleartext(d) => d,
-            Body::None => &vec![],
+            Body::None => &empty_body,
             Body::Encrypted(_e) => {
                 panic!("Attempting to convert encrypted object to response message")
             }
@@ -216,7 +217,7 @@ impl Into<Base> for Request {
             },
         }
 
-        let builder = builder.base(self.from, 0, kind.into(), self.id, self.flags).body(Body::Cleartext(body));
+        let builder = builder.base(self.from, 0, kind.into(), self.id, self.flags).body(Body::from(body));
 
         builder.public_key(self.public_key);
         if let Some(a) = self.remote_address {
