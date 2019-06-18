@@ -45,6 +45,8 @@ pub struct Service {
 
     encrypted: bool,
     secret_key: Option<SecretKey>,
+
+    last_sig: Option<Signature>,
 }
 
 impl Default for Service {
@@ -66,6 +68,7 @@ impl Default for Service {
             private_key: Some(private_key),
             encrypted: false, 
             secret_key: None,
+            last_sig: None,
         }
     }
 }
@@ -107,9 +110,19 @@ impl Service
         self.private_key.clone()
     }
 
+
     pub fn secret_key(&self) -> Option<SecretKey> {
         self.secret_key.clone()
     }
+
+    pub fn set_private_key(&mut self, key: Option<PrivateKey>) {
+        self.private_key = key;
+    }
+
+    pub fn set_secret_key(&mut self, key: Option<SecretKey>) {
+        self.secret_key = key;
+    }
+
 }
 
 
@@ -129,6 +142,7 @@ impl Crypto for Service {
     fn sign(&mut self, data: &[u8]) -> Result<Signature, Error> {
         if let Some(private_key) = &self.private_key {
             let sig = crypto::pk_sign(&private_key, data).unwrap();
+            self.last_sig = Some(sig);
             Ok(sig)
         } else {
             Err(Error::NoPrivateKey)

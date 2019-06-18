@@ -57,6 +57,8 @@ impl Subscriber for Service {
 
             encrypted: flags.contains(Flags::ENCRYPTED),
             secret_key: None,
+
+            last_sig: page.signature(),
         })
     }
 

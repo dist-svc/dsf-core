@@ -195,8 +195,6 @@ impl Parse for Options {
         let option_kind = NetworkEndian::read_u16(&data[0..2]);
         let option_len = NetworkEndian::read_u16(&data[2..4]) as usize;
 
-        debug!("Option kind: {} len: {}", option_kind, option_len);
-
         let d = &data[OPTION_HEADER_LEN..OPTION_HEADER_LEN + option_len];
 
         match option_kind {
