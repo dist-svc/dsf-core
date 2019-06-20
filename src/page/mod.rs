@@ -402,7 +402,7 @@ impl TryFrom<Base> for Page {
         let private_options = base.private_options();
 
 
-        let info = if kind.is_page() && flags.contains(Flags::PRIMARY) {
+        let info = if kind.is_page() && !flags.contains(Flags::SECONDARY) {
             // Handle primary page parsing
 
             // Fetch public key from options

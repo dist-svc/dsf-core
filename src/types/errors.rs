@@ -39,6 +39,7 @@ pub enum Error {
     UnknownService,
     InvalidSignature,
     UnexpectedPageKind,
+    NoReplicasFound,
     Base(BaseError),
     Timeout,
 }
