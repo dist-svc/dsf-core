@@ -42,12 +42,12 @@ pub struct Page {
     // Common options
     #[builder(default = "SystemTime::now().into()")]
     issued: DateTime,
-    #[builder(default = "Some(SystemTime::now().add(Duration::from_secs(24 * 60 * 60)).into())")]
+    #[builder(default = "None")]
     expiry: Option<DateTime>,
 
     // Previous page signature
     #[builder(default = "None")]
-    previous_sig: Option<Signature>,
+    pub(crate) previous_sig: Option<Signature>,
 
     #[builder(default = "vec![]")]
     public_options: Vec<Options>,

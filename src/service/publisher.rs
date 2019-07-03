@@ -5,9 +5,11 @@ use std::ops::Add;
 use crate::types::*;
 use crate::service::Service;
 use crate::options::Options;
-use crate::base::{Body, PrivateOptions};
+use crate::base::{Base, Body, PrivateOptions};
 use crate::page::{Page, PageBuilder, PageInfo};
 
+/// Publisher trait allows services to generate primary, data, and secondary pages
+/// as well as to encode (and sign and optionally encrypt) generated pages
 pub trait Publisher {
     /// Generates a primary page to publish for the given service.
     fn publish_primary(&self) -> Page;
@@ -17,6 +19,9 @@ pub trait Publisher {
 
     /// Create a secondary page for publishing with the provided options
     fn publish_secondary(&self, options: SecondaryOptions) -> Page;
+
+    /// Sign and encode a page using the publisher service
+    fn encode<T: AsRef<[u8]> + AsMut<[u8]>>(&mut self, page: &mut Page, mut buff: T) -> Result<usize, Error>;
 }
 
 #[derive(Clone, Builder)]
@@ -90,6 +95,7 @@ impl Publisher for Service {
         let mut p = Page::new(self.id.clone(), self.application_id, self.kind.into(), flags, self.version, PageInfo::primary(self.public_key.clone()), self.body.clone(), SystemTime::now(), Some(SystemTime::now().add(Duration::from_secs(24 * 60 * 60))));
 
         p.public_key = Some(self.public_key());
+        p.previous_sig = self.last_sig;
 
         if let Some(key) = self.private_key {
             p.set_private_key(key);
@@ -129,6 +135,7 @@ impl Publisher for Service {
         let mut p = b.build().unwrap();
 
         p.public_key = Some(self.public_key());
+        p.previous_sig = self.last_sig;
 
         if let Some(key) = self.private_key {
             p.set_private_key(key);
@@ -154,6 +161,7 @@ impl Publisher for Service {
         let mut p = Page::new(self.id.clone(), self.application_id, options.data_kind, flags, self.data_index, PageInfo::Data(()), options.body, SystemTime::now(), options.expiry);
 
         p.public_key = Some(self.public_key());
+        p.previous_sig = self.last_sig;
 
         if let Some(key) = self.private_key {
             p.set_private_key(key);
@@ -185,5 +193,21 @@ impl Publisher for Service {
         }
 
         p
+    }
+
+    fn encode<T: AsRef<[u8]> + AsMut<[u8]>>(&mut self, page: &mut Page, mut buff: T) -> Result<usize, Error> {
+        // Map page to base object
+        let mut b = Base::from(&*page);
+
+        // Attach previous signature
+        b.parent = self.last_sig;
+
+        // Encode and sign object
+        let res = b.encode(|_id, _data| Err(()), buff)
+            .map_err(|e| panic!(e) );
+
+        // Update service last_sig
+
+        Err(Error::Unimplemented)
     }
 }

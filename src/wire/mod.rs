@@ -216,12 +216,14 @@ impl <'a, T: AsRef<[u8]>> Container<T> {
         // Fetch public options
         let mut peer_id = None;
         let mut pub_key = None;
+        let mut parent = None;
 
         let public_options: Vec<_> = container.public_options()
         .filter_map(|o| {
             match &o {
                 Options::PeerId(v) => { peer_id = Some(v.peer_id); Some(o) },
-                Options::PubKey(v) => { pub_key = Some(v.public_key); None }
+                Options::PubKey(v) => { pub_key = Some(v.public_key); None },
+                Options::PrevSig(v) => { parent = Some(v.sig); None }
                 _ => Some(o),
             }
         })
@@ -321,6 +323,7 @@ impl <'a, T: AsRef<[u8]>> Container<T> {
                 body,
                 private_options,
                 public_options,
+                parent,
                 signature: Some(signature),
 
                 public_key: Some(public_key),
@@ -397,6 +400,10 @@ impl <'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
         // Add public key option if specified
         if let Some(k) = base.public_key {
             public_options.push(Options::pub_key(k));
+        }
+
+        if let Some(s) = base.parent {
+            public_options.push(Options::prev_sig(&s));
         }
         
         public_options.append(&mut base.public_options().to_vec());

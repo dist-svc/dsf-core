@@ -206,6 +206,10 @@ impl Parse for Options {
                 let (opt, n) = PeerId::parse(d)?;
                 Ok((Options::PeerId(opt), n + OPTION_HEADER_LEN))
             },
+            option_kinds::PREV_SIG => {
+                let (opt, n) = PrevSig::parse(d)?;
+                Ok((Options::PrevSig(opt), n + OPTION_HEADER_LEN))
+            },
             option_kinds::KIND => {
                 let (opt, n) = Kind::parse(d)?;
                 Ok((Options::Kind(opt), n + OPTION_HEADER_LEN))
@@ -257,6 +261,9 @@ impl Encode for Options {
             Options::PeerId(ref o) => {
                 Ok(o.encode(data)?)
             },
+            Options::PrevSig(ref o) => {
+                Ok(o.encode(data)?)
+            }
             Options::Kind(ref o) => {
                 Ok(o.encode(data)?)
             },
@@ -744,6 +751,7 @@ mod tests {
         let tests = vec![
             Options::PubKey(PubKey::new([1u8; PUBLIC_KEY_LEN].into())),
             Options::PeerId(PeerId::new([2u8; ID_LEN].into())),
+            Options::PrevSig(PrevSig::new([3u8; SIGNATURE_LEN].into())),
             Options::Kind(Kind::new("test-kind")),
             Options::Name(Name::new("test-name")),
             Options::IPv4(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8080)),

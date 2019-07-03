@@ -21,6 +21,10 @@ pub struct Base {
     pub(crate) private_options: PrivateOptions,
     #[builder(default = "vec![]")]
     pub(crate) public_options: Vec<Options>,
+
+    #[builder(default = "None")]
+    pub(crate) parent:      Option<Signature>,
+
     #[builder(default = "None")]
     pub(crate) signature:      Option<Signature>,
     
@@ -43,6 +47,7 @@ impl PartialEq for Base {
         self.body == other.body &&
         self.private_options == other.private_options &&
         self.public_options == other.public_options &&
+        self.parent == other.parent &&
         self.signature == other.signature 
     }
 }
@@ -159,7 +164,7 @@ impl Base {
     pub fn new(id: Id, application_id: u16, kind: Kind, flags: Flags, version: u16, body: Body, public_options: Vec<Options>, private_options: PrivateOptions) -> Base {
         let header = Header::new(application_id, kind, version, flags);
         
-        Base{id, header, body, public_options, private_options, signature: None, public_key: None, private_key: None, encryption_key: None, raw: None}
+        Base{id, header, body, public_options, private_options, parent: None, signature: None, public_key: None, private_key: None, encryption_key: None, raw: None}
     }
 
     pub fn id(&self) -> &Id {
