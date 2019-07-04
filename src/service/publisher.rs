@@ -92,16 +92,8 @@ impl Publisher for Service {
 
         let mut p = Page::new(self.id.clone(), self.application_id, self.kind.into(), flags, self.version, PageInfo::primary(self.public_key.clone()), self.body.clone(), SystemTime::now(), Some(SystemTime::now().add(Duration::from_secs(24 * 60 * 60))));
 
+        // Attach public key to primary page
         p.public_key = Some(self.public_key());
-        p.previous_sig = self.last_sig;
-
-        if let Some(key) = self.private_key {
-            p.set_private_key(key);
-        }
-        
-        if let Some(key) = self.secret_key {
-            p.set_encryption_key(key);
-        }
     
         self.encode(&mut p, buff).map(|n| (n, p))
     }
@@ -132,17 +124,6 @@ impl Publisher for Service {
 
         let mut p = b.build().unwrap();
 
-        p.public_key = Some(self.public_key());
-        p.previous_sig = self.last_sig;
-
-        if let Some(key) = self.private_key {
-            p.set_private_key(key);
-        }
-        
-        if let Some(key) = self.secret_key {
-            p.set_encryption_key(key);
-        }
-
         self.encode(&mut p, buff).map(|n| (n, p))
     }
 
@@ -157,17 +138,6 @@ impl Publisher for Service {
         self.data_index += 1;
 
         let mut p = Page::new(self.id.clone(), self.application_id, options.data_kind, flags, self.data_index, PageInfo::Data(()), options.body, SystemTime::now(), options.expiry);
-
-        p.public_key = Some(self.public_key());
-        p.previous_sig = self.last_sig;
-
-        if let Some(key) = self.private_key {
-            p.set_private_key(key);
-        }
-        
-        if let Some(key) = self.secret_key {
-            p.set_encryption_key(key);
-        }
 
         self.encode(&mut p, buff).map(|n| (n, p))
     }
@@ -188,6 +158,9 @@ impl Service{
 
         // Update service last_sig
         self.last_sig = b.signature;
+
+        // Attach page sig
+        page.signature = b.signature;
 
         Ok(n)
     }

@@ -147,9 +147,11 @@ mod tests {
         page.public_key = Some(pub_key.clone());
 
         let mut b = Base::from(&page);
-        b.encode(|_id, data| crypto::pk_sign(&pri_key, data), &mut buff).expect("Error signing page");
+        let n = b.encode(Some(&pri_key), None, &mut buff).expect("Error signing page");
         let sig = b.signature().clone().unwrap();
+
         page.set_signature(sig);
+        page.raw = Some(buff[0..n].to_vec());
 
         let messages: Vec<Message> = vec![
             Message::Request(Request::new(id.clone(), RequestKind::Hello, flags.clone())),
@@ -173,7 +175,7 @@ mod tests {
             // Cast to base
             let mut b: Base = message.clone().into();
             // Encode base
-            let n = b.encode(|_id, data| crypto::pk_sign(&pri_key, data), &mut buff).expect("error encoding message");
+            let n = b.encode(Some(&pri_key), None, &mut buff).expect("error encoding message");
             // Parse base and check instances match
             let (mut d, m)= Base::parse(&buff[..n], |_id| Some(pub_key), |_id| None ).expect("error parsing message");
 

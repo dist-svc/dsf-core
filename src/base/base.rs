@@ -364,7 +364,7 @@ mod tests {
         let mut page = BaseBuilder::default().id(id).header(header).body(Body::Cleartext(data)).build().expect("Error building page");
 
         let mut buff = vec![0u8; 1024];
-        let n = page.encode(move |_id, data| crypto::pk_sign(&pri_key, data), &mut buff).expect("Error encoding page");
+        let n = page.encode(Some(&pri_key), None, &mut buff).expect("Error encoding page");
 
         let (mut decoded, m) = Base::parse(&buff[..n], |_id| Some(pub_key), |_id| None ).expect("Error decoding page");
 
@@ -385,7 +385,7 @@ mod tests {
         let mut page = BaseBuilder::default().id(fake_id).header(header).body(Body::Cleartext(data)).public_options(vec![Options::peer_id(id.clone())]).public_key(Some(pub_key.clone())).build().expect("Error building page");
 
         let mut buff = vec![0u8; 1024];
-        let n = page.encode(move |_id, data| crypto::pk_sign(&pri_key, data), &mut buff).expect("Error encoding page");
+        let n = page.encode(Some(&pri_key), None, &mut buff).expect("Error encoding page");
 
         let (mut decoded, m) = Base::parse(&buff[..n], |_id| Some(pub_key), |_id| None ).expect("Error decoding page with known public key");
 
@@ -407,10 +407,10 @@ mod tests {
         let header = HeaderBuilder::default().flags(Flags::ENCRYPTED).kind(PageKind::Generic.into()).build().expect("Error building page header");
         let data = vec![1, 2, 3, 4, 5, 6, 7];
 
-        let mut page = BaseBuilder::default().id(id).header(header).body(Body::Cleartext(data)).private_key(Some(pri_key)).encryption_key(Some(sec_key)).build().expect("Error building page");
+        let mut page = BaseBuilder::default().id(id).header(header).body(Body::Cleartext(data)).build().expect("Error building page");
 
         let mut buff = vec![0u8; 1024];
-        let n = page.encode(move |_id, data| crypto::pk_sign(&pri_key, data), &mut buff).expect("Error encoding page");
+        let n = page.encode(Some(&pri_key), Some(&sec_key), &mut buff).expect("Error encoding page");
 
         let (mut decoded, m) = Base::parse(&buff[..n], |_id| Some(pub_key), |_id| Some(sec_key) ).expect("Error decoding page");
 

@@ -125,59 +125,6 @@ impl Service
 
 }
 
-
-
-/// Service Cryptographic Methods
-pub trait Crypto {
-    fn sign(&mut self, data: &[u8]) -> Result<Signature, Error>;
-    fn validate(&self, signature: &Signature, data: &[u8]) -> Result<bool, Error>;
-
-    fn encrypt(&mut self, data: &[u8]) -> Result<Vec<u8>, Error>;
-    fn decrypt(&self, data: &[u8]) -> Result<Vec<u8>, Error>;
-}
-
-impl Crypto for Service {
-    /// Sign the provided data with the associated service key.
-    /// This returns an error if the service does not have an attached service private key
-    fn sign(&mut self, data: &[u8]) -> Result<Signature, Error> {
-        if let Some(private_key) = &self.private_key {
-            let sig = crypto::pk_sign(&private_key, data).unwrap();
-            self.last_sig = Some(sig);
-            Ok(sig)
-        } else {
-            Err(Error::NoPrivateKey)
-        }
-    }
-
-    /// Validate a signature against the service public key.
-    /// This returns true on success, false for an invalid signature, and an error if an internal fault occurs
-    fn validate(&self, signature: &Signature, data: &[u8]) -> Result<bool, Error> {
-        let valid = crypto::pk_validate(&self.public_key, signature, data).unwrap();
-        Ok(valid)
-    }
-
-    fn encrypt(&mut self, _data: &[u8]) -> Result<Vec<u8>, Error> {
-        if let Some(_secret_key) = &self.secret_key {
-            //let encrypted = crypto::sk_encrypt(&secret_key, data).unwrap();
-            //Ok(encrypted)
-            Err(Error::Unimplemented)
-        } else {
-            Err(Error::NoPrivateKey)
-        }
-    }
-
-    fn decrypt(&self, _data: &[u8]) -> Result<Vec<u8>, Error> {
-        if let Some(_secret_key) = &self.secret_key {
-            //let encrypted = crypto::sk_encrypt(&secret_key, data).unwrap();
-            //Ok(encrypted)
-            Err(Error::Unimplemented)
-        } else {
-            Err(Error::NoPrivateKey)
-        }
-    }
-}
-
-
 #[cfg(test)]
 mod test {
 
@@ -203,12 +150,10 @@ mod test {
                 .encrypt()
                 .build().unwrap();
 
-        println!("Generating service page");
-        let mut page1 = service.publish_primary();
-
-        println!("Encoding service page");
+        println!("Generating and encoding service page");
         let mut buff = vec![0u8; 1024];
-        let n = WireEncode::encode(&mut page1, &mut buff).expect("Error encoding service page");
+        let (n, mut page1) = service.publish_primary(&mut buff).expect("Error creating page");
+
         // Append sig to page1
         //page1.set_signature(base1.signature().clone().unwrap());
 
@@ -225,7 +170,7 @@ mod test {
         let (base2, m) = Base::parse(&buff[..n], |_id| Some(pub_key), |_id| sec_key ).expect("Error parsing service page");
         assert_eq!(n, m);
         let mut page2: Page = base2.try_into().expect("Error converting base message to page");
-        page2.clean();
+        page2.raw = None;
         assert_eq!(page1, page2);
 
         println!("Generating service replica");
@@ -238,7 +183,7 @@ mod test {
         assert_eq!(service.version, 1, "service.update updates service version");
 
         println!("Generating updated page");
-        let page3 = service.publish_primary();
+        let (_n, page3) = service.publish_primary(&mut buff).expect("Error publishing primary page");
 
         println!("Applying updated page to replica");
         replica.apply_primary(&page3).expect("Error updating service replica");
@@ -246,14 +191,14 @@ mod test {
 
         println!("Generating a secondary page");
         let secondary_options = SecondaryOptionsBuilder::default().id(s.id()).build().expect("Error building secondary options");
-        let secondary = service.publish_secondary(secondary_options);
+        let (_n, secondary) = service.publish_secondary(secondary_options, &mut buff).expect("Error publishing secondary page");
 
         println!("Validating secondary page");
         service.validate_secondary(&secondary).expect("Error validating secondary page against publisher");
 
         println!("Generating a data object");
         let data_options = DataOptionsBuilder::default().build().expect("Error building data options");
-        let data = service.publish_data(data_options);
+        let (_n, data) = service.publish_data(data_options, &mut buff).expect("Error publishing data object");
         
         println!("Validating data object");
         replica.validate_data(&data).expect("Error validating data against replica");

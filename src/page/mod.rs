@@ -45,14 +45,15 @@ pub struct Page {
     #[builder(default = "None")]
     expiry: Option<DateTime>,
 
-    // Previous page signature
-    #[builder(default = "None")]
-    pub(crate) previous_sig: Option<Signature>,
 
     #[builder(default = "vec![]")]
     public_options: Vec<Options>,
     #[builder(default = "PrivateOptions::None")]
     private_options: PrivateOptions,
+
+    // Previous page signature
+    #[builder(default = "None")]
+    pub(crate) previous_sig: Option<Signature>,
 
     // Public key (for decoding and encoding)
     #[builder(default = "None")]
@@ -60,15 +61,7 @@ pub struct Page {
 
     // Signature (if signed or decoded)
     #[builder(default = "None")]
-    signature: Option<Signature>,
-
-    // Private key (for signing when required)
-    #[builder(default = "None")]
-    private_key: Option<PrivateKey>,
-
-    // Encryption key (for encryption where specified)
-    #[builder(default = "None")]
-    encryption_key: Option<SecretKey>,
+    pub(crate) signature: Option<Signature>,
 
     // Raw (encoded) data
     #[builder(default = "None")]
@@ -108,8 +101,6 @@ impl Page {
             
             public_key: None,
             signature: None,
-            private_key: None,
-            encryption_key: None,
             raw: None,
         }
     }
@@ -170,21 +161,11 @@ impl Page {
         self.signature = Some(sig);
     }
 
-    pub fn set_private_key(&mut self, private_key: PrivateKey) {
-        self.private_key = Some(private_key);
-    }
-
-    pub fn set_encryption_key(&mut self, secret_key: SecretKey) {
-        self.encryption_key = Some(secret_key);
-    }
-
     pub fn raw(&self) -> &Option<Vec<u8>> {
         &self.raw
     }
 
     pub fn clean(&mut self) {
-        self.encryption_key = None;
-        self.private_key = None;
         self.raw = None;
     }
 }
@@ -249,7 +230,7 @@ impl Page {
 
         for p in pages {
             // Check page has associated signature
-            match (p.signature, p.private_key) {
+            match (p.signature, &p.raw) {
                 (None, None) => {
                     error!("cannot encode page without associated signature or private key");
                     continue;
@@ -325,11 +306,6 @@ impl From<&Page> for Base {
         // TODO: ideally these should be specified by type rather than an arbitrary list
         let mut public_options = page.public_options.clone();
         public_options.append(&mut default_options);
-
-        // Enable encryption if key is provided
-        if let Some(_key) = page.encryption_key {
-            flags |= Flags::ENCRYPTED;
-        }
 
         // Generate base object
         let mut b = Base::new(page.id, page.application_id, page.kind, flags, page.version, page.body.clone(), public_options, page.private_options.clone());
@@ -429,8 +405,6 @@ impl TryFrom<Base> for Page {
             signature: signature.clone(),
 
             public_key: base.public_key,
-            private_key: None,
-            encryption_key: None,
             raw: base.raw().clone(),
         })
     }
