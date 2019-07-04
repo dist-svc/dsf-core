@@ -32,10 +32,13 @@ pub struct Page {
     #[builder(default = "0")]
     version: u16,
 
+    // Page kind / identifier
     kind: Kind,
+
+    // Information associated with different object kinds
     info: PageInfo,
     
-    // Body
+    // Page Body
     #[builder(default = "Body::None")]
     body: Body,
 
@@ -54,10 +57,6 @@ pub struct Page {
     // Previous page signature
     #[builder(default = "None")]
     pub(crate) previous_sig: Option<Signature>,
-
-    // Public key (for decoding and encoding)
-    #[builder(default = "None")]
-    pub(crate) public_key: Option<PublicKey>,
 
     // Signature (if signed or decoded)
     #[builder(default = "None")]
@@ -82,7 +81,6 @@ impl PartialEq for Page {
         self.previous_sig == o.previous_sig &&
         self.public_options == o.public_options &&
         self.private_options == o.private_options &&
-        self.public_key == o.public_key &&
         self.signature == o.signature
     }
 }
@@ -95,11 +93,12 @@ impl Page {
             id, application_id, kind, flags, version, info, body, 
             issued: issued.into(), 
             expiry: expiry.map(|v| v.into() ), 
-            previous_sig: None,
+            
             public_options: vec![],
             private_options: PrivateOptions::None,
+
+            previous_sig: None,
             
-            public_key: None,
             signature: None,
             raw: None,
         }
@@ -147,10 +146,6 @@ impl Page {
 
     pub fn private_options(&self) -> &PrivateOptions {
         &self.private_options
-    }
-
-    pub fn public_key(&self) -> Option<PublicKey> {
-        self.public_key.clone()
     }
 
     pub fn signature(&self) -> Option<Signature> {
@@ -273,7 +268,7 @@ impl PageBuilder {
 
 impl From<&Page> for Base {
     fn from(page: &Page) -> Base {
-        let mut flags = page.flags.clone();
+        let flags = page.flags.clone();
         let sig = page.signature().clone();
 
         // Insert default options
@@ -309,8 +304,6 @@ impl From<&Page> for Base {
 
         // Generate base object
         let mut b = Base::new(page.id, page.application_id, page.kind, flags, page.version, page.body.clone(), public_options, page.private_options.clone());
-
-        b.public_key = page.public_key;
 
         if let Some(sig) = sig {
             b.set_signature(sig);
@@ -399,12 +392,13 @@ impl TryFrom<Base> for Page {
             body: base.body.clone(),
             issued: issued.expect("missing issued option"),
             expiry: expiry,
+
             previous_sig: previous_sig,
+
             public_options: public_options,
             private_options: base.private_options.clone(),
             signature: signature.clone(),
 
-            public_key: base.public_key,
             raw: base.raw().clone(),
         })
     }

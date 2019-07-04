@@ -133,7 +133,7 @@ mod test {
 
     use crate::service::subscriber::Subscriber;
     use crate::service::publisher::{Publisher, SecondaryOptionsBuilder, DataOptionsBuilder};
-    use crate::base::{WireEncode, Base};
+    use crate::base::{Base};
     use crate::page::Page;
 
     use super::*;

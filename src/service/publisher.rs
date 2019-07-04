@@ -88,12 +88,8 @@ impl Publisher for Service {
             flags |= Flags::ENCRYPTED;
         }
 
-        //Page::new(self.id.clone(), self.kind, flags, self.version, self.body.clone(), public_options, self.private_options.clone())
-
+        // Build page
         let mut p = Page::new(self.id.clone(), self.application_id, self.kind.into(), flags, self.version, PageInfo::primary(self.public_key.clone()), self.body.clone(), SystemTime::now(), Some(SystemTime::now().add(Duration::from_secs(24 * 60 * 60))));
-
-        // Attach public key to primary page
-        p.public_key = Some(self.public_key());
     
         self.encode(&mut p, buff).map(|n| (n, p))
     }

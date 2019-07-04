@@ -144,7 +144,6 @@ mod tests {
 
         // Create and sign page
         let mut page = PageBuilder::default().id(id.clone()).kind(PageKind::Generic.into()).info(PageInfo::primary(pub_key.clone())).build().expect("Error building page");
-        page.public_key = Some(pub_key.clone());
 
         let mut b = Base::from(&page);
         let n = b.encode(Some(&pri_key), None, &mut buff).expect("Error signing page");

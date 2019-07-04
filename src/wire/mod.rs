@@ -218,10 +218,13 @@ impl <'a, T: AsRef<[u8]>> Container<T> {
         let mut pub_key = None;
         let mut parent = None;
 
+        let public_options: Vec<_> = container.public_options().collect();
+        println!("RX Public options: {:?}", public_options);
+
         let public_options: Vec<_> = container.public_options()
         .filter_map(|o| {
             match &o {
-                Options::PeerId(v) => { peer_id = Some(v.peer_id); Some(o) },
+                Options::PeerId(v) => { peer_id = Some(v.peer_id); None },
                 Options::PubKey(v) => { pub_key = Some(v.public_key); None },
                 Options::PrevSig(v) => { parent = Some(v.sig); None }
                 _ => Some(o),
@@ -321,12 +324,17 @@ impl <'a, T: AsRef<[u8]>> Container<T> {
                 id: id,
                 header: Header::new(container.application_id(), container.kind(), container.index(), container.flags()),
                 body,
+                
                 private_options,
                 public_options,
+
                 parent,
+                peer_id,
+                public_key: pub_key,
+
                 signature: Some(signature),
 
-                public_key: Some(public_key),
+                
                 raw: Some(container.raw().to_vec()),
             },
             n,
@@ -402,8 +410,14 @@ impl <'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
         if let Some(s) = base.parent {
             public_options.push(Options::prev_sig(&s));
         }
+
+        if let Some(i) = base.peer_id {
+            public_options.push(Options::peer_id(i));
+        }
         
         public_options.append(&mut base.public_options().to_vec());
+
+        println!("Public options: {:?}", public_options);
 
         // Write public options
         let public_options_len = { Options::encode_vec(&public_options, &mut data[n..]).expect("error encoding public options") };

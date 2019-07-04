@@ -31,16 +31,22 @@ pub struct Base {
     pub(crate) public_options: Vec<Options>,
 
     /// Page parent / previous page link
-    /// Used for constructing a hash-chain of published objects
-    /// Included as a Public Option
+    /// Used for constructing a hash-chain of published objects and included as a public option
+    /// This is automatically included / extracted to simplify higher level parsing
     #[builder(default = "None")]
     pub(crate) parent:      Option<Signature>,
     
     /// Service public key
-    /// Used to support self-signed objects
-    /// Included as a Public Option
+    /// Used to support self-signed objects and included as a public option
+    /// This is automatically included / extracted to simplify higher level parsing
     #[builder(default = "None")]
     pub(crate) public_key:      Option<PublicKey>,
+
+    /// Object PeerID
+    /// Used to support secondary objects and included as a public option
+    /// This is automatically included / extracted to simplify higher level parsing
+    #[builder(default = "None")]
+    pub(crate) peer_id:      Option<Id>,
 
     /// Object signature
     #[builder(default = "None")]
@@ -59,6 +65,8 @@ impl PartialEq for Base {
         self.private_options == other.private_options &&
         self.public_options == other.public_options &&
         self.parent == other.parent &&
+        self.public_key == other.public_key &&
+        self.peer_id == other.peer_id &&
         self.signature == other.signature 
     }
 }
@@ -176,7 +184,9 @@ impl Base {
     pub fn new(id: Id, application_id: u16, kind: Kind, flags: Flags, version: u16, body: Body, public_options: Vec<Options>, private_options: PrivateOptions) -> Base {
         let header = Header::new(application_id, kind, version, flags);
         
-        Base{id, header, body, public_options, private_options, parent: None, signature: None, public_key: None, raw: None}
+        Base{id, header, body, public_options, private_options, 
+            parent: None, peer_id: None, public_key: None, 
+            signature: None, raw: None}
     }
 
     pub fn id(&self) -> &Id {
@@ -225,7 +235,7 @@ impl Base {
     }
 
     pub fn clean(&mut self) {
-        self.public_key = None;
+        
     }
 }
 
@@ -382,10 +392,11 @@ mod tests {
         let header = HeaderBuilder::default().flags(Flags::SECONDARY).kind(PageKind::Replica.into()).build().expect("Error building page header");
         let data = vec![1, 2, 3, 4, 5, 6, 7];
 
-        let mut page = BaseBuilder::default().id(fake_id).header(header).body(Body::Cleartext(data)).public_options(vec![Options::peer_id(id.clone())]).public_key(Some(pub_key.clone())).build().expect("Error building page");
+        let mut page = BaseBuilder::default().id(fake_id).header(header).body(Body::Cleartext(data)).peer_id(Some(id.clone())).public_key(Some(pub_key.clone())).build().expect("Error building page");
 
         let mut buff = vec![0u8; 1024];
         let n = page.encode(Some(&pri_key), None, &mut buff).expect("Error encoding page");
+        page.raw = Some(buff[..n].to_vec());
 
         let (mut decoded, m) = Base::parse(&buff[..n], |_id| Some(pub_key), |_id| None ).expect("Error decoding page with known public key");
 
