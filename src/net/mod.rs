@@ -1,16 +1,8 @@
 //! Messages are a high level representation of messages used to communicate between peers
 //! to maintain the network, publish and subscribe to services, and exchange data.
 
-
-
-
-
-
-
 use crate::types::*;
-
 use crate::base::{Base};
-
 
 pub mod request;
 pub use request::{Request, RequestKind};
@@ -20,6 +12,7 @@ pub use response::{Response, ResponseKind, Status};
 
 pub const BUFF_SIZE: usize = 10 * 1024;
 
+/// Message is a network request or response message
 #[derive(Clone, PartialEq, Debug)]
 pub enum Message {
     Request(Request),

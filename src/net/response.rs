@@ -7,7 +7,7 @@ use byteorder::{ByteOrder, NetworkEndian};
 
 use crate::types::*;
 use crate::options::Options;
-use crate::base::{Base, BaseBuilder, Body, PrivateOptions};
+use crate::base::{Base, BaseBuilder, Body};
 use crate::page::Page;
 
 use super::Common;

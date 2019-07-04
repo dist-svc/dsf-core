@@ -11,17 +11,15 @@ use crate::page::{Page, PageBuilder, PageInfo};
 /// Publisher trait allows services to generate primary, data, and secondary pages
 /// as well as to encode (and sign and optionally encrypt) generated pages
 pub trait Publisher {
-    /// Generates a primary page to publish for the given service.
-    fn publish_primary(&self) -> Page;
+    /// Generates a primary page to publish for the given service and encodes it into the provided buffer
+    fn publish_primary<T: AsRef<[u8]> + AsMut<[u8]>>(&mut self, buff: T) -> Result<(usize, Page), Error>;
 
-    /// Create a data object for publishing with the provided options
-    fn publish_data(&mut self, options: DataOptions) -> Page;
+    /// Create a data object for publishing with the provided options and encodes it into the provided buffer
+    fn publish_data<T: AsRef<[u8]> + AsMut<[u8]>>(&mut self, options: DataOptions, buff: T) -> Result<(usize, Page), Error>;
 
-    /// Create a secondary page for publishing with the provided options
-    fn publish_secondary(&self, options: SecondaryOptions) -> Page;
+    /// Create a secondary page for publishing with the provided options and encodes it into the provided buffer
+    fn publish_secondary<T: AsRef<[u8]> + AsMut<[u8]>>(&mut self, options: SecondaryOptions, buff: T) -> Result<(usize, Page), Error>;
 
-    /// Sign and encode a page using the publisher service
-    fn encode<T: AsRef<[u8]> + AsMut<[u8]>>(&mut self, page: &mut Page, mut buff: T) -> Result<usize, Error>;
 }
 
 #[derive(Clone, Builder)]
@@ -84,7 +82,7 @@ pub struct DataOptions {
 
 impl Publisher for Service {
     /// Publish generates a page to publishing for the given service.
-    fn publish_primary(&self) -> Page {
+    fn publish_primary<T: AsRef<[u8]> + AsMut<[u8]>>(&mut self, buff: T) -> Result<(usize, Page), Error> {
         let mut flags = Flags::default();
         if self.encrypted {
             flags |= Flags::ENCRYPTED;
@@ -105,11 +103,11 @@ impl Publisher for Service {
             p.set_encryption_key(key);
         }
     
-        p
+        self.encode(&mut p, buff).map(|n| (n, p))
     }
 
     /// Secondary generates a secondary page using this service to be attached to the provided service ID
-    fn publish_secondary(&self, options: SecondaryOptions) -> Page {
+    fn publish_secondary<T: AsRef<[u8]> + AsMut<[u8]>>(&mut self, options: SecondaryOptions, buff: T) -> Result<(usize, Page), Error> {
         let mut flags = Flags::SECONDARY;
         if self.encrypted {
             flags |= Flags::ENCRYPTED;
@@ -145,10 +143,10 @@ impl Publisher for Service {
             p.set_encryption_key(key);
         }
 
-        p
+        self.encode(&mut p, buff).map(|n| (n, p))
     }
 
-    fn publish_data(&mut self, options: DataOptions) -> Page {
+    fn publish_data<T: AsRef<[u8]> + AsMut<[u8]>>(&mut self, options: DataOptions, buff: T) -> Result<(usize, Page), Error> {
         let mut flags = Flags::default();
         if self.encrypted {
             flags |= Flags::ENCRYPTED;
@@ -171,31 +169,14 @@ impl Publisher for Service {
             p.set_encryption_key(key);
         }
 
-        p
+        self.encode(&mut p, buff).map(|n| (n, p))
     }
 
+}
 
-
-    #[cfg(feature = "nope")]
-    fn data(&self, body: Vec<u8>, public_options: Vec<Options>, private_options: Vec<Options>) -> Page {
-
-        let mut flags = Flags(0);
-        flags.set_encrypted(self.encrypted);
-
-        let mut p = Page::new(self.id.clone(), self.application_id, self.kind.into(), flags, self.version, PageInfo::primary(self.public_key.clone()), self.body.clone(), SystemTime::now(), SystemTime::now().add(Duration::from_secs(24 * 60 * 60)));
-
-        if let Some(key) = self.private_key {
-            p.set_private_key(key);
-        }
-        
-        if let Some(key) = self.secret_key {
-            p.set_encryption_key(key);
-        }
-
-        p
-    }
-
-    fn encode<T: AsRef<[u8]> + AsMut<[u8]>>(&mut self, page: &mut Page, mut buff: T) -> Result<usize, Error> {
+impl Service{
+    // Encode a page to the provided buffer, updating the internal signature state
+    fn encode<T: AsRef<[u8]> + AsMut<[u8]>>(&mut self, page: &mut Page, buff: T) -> Result<usize, Error> {
         // Map page to base object
         let mut b = Base::from(&*page);
 
@@ -203,11 +184,11 @@ impl Publisher for Service {
         b.parent = self.last_sig;
 
         // Encode and sign object
-        let res = b.encode(|_id, _data| Err(()), buff)
-            .map_err(|e| panic!(e) );
+        let n = b.encode(self.private_key.as_ref(), self.secret_key.as_ref(), buff)?;
 
         // Update service last_sig
+        self.last_sig = b.signature;
 
-        Err(Error::Unimplemented)
+        Ok(n)
     }
 }

@@ -11,7 +11,7 @@ impl ServiceBuilder {
     /// Validate service options prior to building
     pub(crate) fn validate(&self) -> Result<(), String> {
         // Ensure a secret key is available if private options are used
-        if let Some(private_opts) = &self.private_options {
+        if let Some(_private_opts) = &self.private_options {
             if self.secret_key.is_none() {
                 return Err("Private options cannot be used without specifying or creating an associated secret key".to_owned());
             }

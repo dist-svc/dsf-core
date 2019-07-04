@@ -3,7 +3,7 @@
 
 use byteorder::{ByteOrder, NetworkEndian};
 
-use crate::types::{Id, ID_LEN, Signature, SIGNATURE_LEN, Flags, Kind, PublicKey, SecretKey};
+use crate::types::{Id, ID_LEN, Signature, SIGNATURE_LEN, Flags, Kind, PublicKey, PrivateKey, SecretKey};
 use crate::base::{Encode, BaseError, Body, Header, PrivateOptions};
 use crate::options::{Options, OptionsIter};
 use crate::crypto;
@@ -327,8 +327,6 @@ impl <'a, T: AsRef<[u8]>> Container<T> {
                 signature: Some(signature),
 
                 public_key: Some(public_key),
-                private_key: None,
-                encryption_key: None,
                 raw: Some(container.raw().to_vec()),
             },
             n,
@@ -339,7 +337,7 @@ impl <'a, T: AsRef<[u8]>> Container<T> {
 impl <'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
     /// Encode a a higher level base object into a container using the provided buffer
     /// This encodes the base object into the buff and constructs a container from this encoded object
-    pub fn encode(mut buff: T, base: &Base) -> (Self, usize) {
+    pub fn encode(mut buff: T, base: &Base, signing_key: &PrivateKey, encryption_key: Option<&SecretKey>) -> (Self, usize) {
         let data = buff.as_mut();
 
         // Skip header until sizes are known
@@ -351,7 +349,7 @@ impl <'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
         n += ID_LEN;
 
         // Check encryption key exists if required
-        let encryption_key = match (base.flags().contains(Flags::ENCRYPTED), base.encryption_key) {
+        let encryption_key = match (base.flags().contains(Flags::ENCRYPTED), encryption_key) {
             (true, Some(k)) => Some(k),
             (true, None) => panic!("Attempted to encrypt object with no secret key"),
             _ => None,
@@ -374,7 +372,6 @@ impl <'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
             (Body::None, _) => {
                 0
             }
-            _ => panic!("attempted to encode invalid object")
         };
         n += body_len;
 
@@ -423,39 +420,15 @@ impl <'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
         NetworkEndian::write_u16(&mut header[offsets::PRIVATE_OPTIONS_LEN..], private_options_len as u16);
         NetworkEndian::write_u16(&mut header[offsets::PUBLIC_OPTIONS_LEN..], public_options_len as u16);
 
-        // Reserve signature (and write if existing)
-        let signature = &mut data[n..n+SIGNATURE_LEN];
-        if let Some(sig) = base.signature() {
-            signature.clone_from_slice(sig);
-        }
+        // Reserve and write signature
+        let sig = crypto::pk_sign(signing_key, &data[..n]).unwrap();
+
+        let signature_data = &mut data[n..n+SIGNATURE_LEN];
+        signature_data.copy_from_slice(&sig);
         n += SIGNATURE_LEN;
 
         (Container{buff}, n)
     }
-
-    /// Set the signature in the underlying buffer
-    fn set_signature(&mut self, signature: &[u8]) {
-        let n = self.len() - SIGNATURE_LEN;
-        let data = self.buff.as_mut();
-        
-        data[n..n+SIGNATURE_LEN].copy_from_slice(signature);
-    }
-
-    /// Sign the message with the given signer
-    pub fn sign<S, E>(&mut self, mut signer: S) -> Result<Signature, E>
-    where
-        S: FnMut(&Id, &[u8]) -> Result<Signature, E>
-    {
-        let _len = self.len() - SIGNATURE_LEN;
-        let id: Id = self.id().into();
-        let data = self.signed();
-        let sig = (signer)(&id, data)?;
-
-        self.set_signature(&sig);
-
-        Ok(sig)
-    }
-
 }
 
 #[cfg(test)]

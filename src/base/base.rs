@@ -8,34 +8,45 @@ use crate::base::Header;
 use crate::options::{Options, OptionsError};
 use crate::wire::Container;
 
-use crate::crypto;
-
 
 #[derive(Clone, Builder, Debug)]
 pub struct Base {
+    /// Page or Object Identifier
     pub(crate) id:             Id,
+
+    /// Header contains object parsing information and flags
     pub(crate) header:         Header,
+
+    /// Body contains arbitrary service data for Pages, Blocks, and Messages
     #[builder(default = "Body::None")]
     pub(crate) body:           Body,
+
+    /// Private options supports the addition of options that are only visible
+    /// to authorized service consumers
     #[builder(default = "PrivateOptions::None")]
     pub(crate) private_options: PrivateOptions,
+
+    /// Public options provide a simple mechanism for extension of objects
     #[builder(default = "vec![]")]
     pub(crate) public_options: Vec<Options>,
 
+    /// Page parent / previous page link
+    /// Used for constructing a hash-chain of published objects
+    /// Included as a Public Option
     #[builder(default = "None")]
     pub(crate) parent:      Option<Signature>,
-
-    #[builder(default = "None")]
-    pub(crate) signature:      Option<Signature>,
     
-    
+    /// Service public key
+    /// Used to support self-signed objects
+    /// Included as a Public Option
     #[builder(default = "None")]
     pub(crate) public_key:      Option<PublicKey>,
-    #[builder(default = "None")]
-    pub(crate) private_key:      Option<PrivateKey>,
-    #[builder(default = "None")]
-    pub(crate) encryption_key:   Option<SecretKey>,
 
+    /// Object signature
+    #[builder(default = "None")]
+    pub(crate) signature:      Option<Signature>,
+
+    /// Raw object container, used to avoid re-encoding objects
     #[builder(default = "None")]
     pub(crate) raw: Option<Vec<u8>>,
 }
@@ -104,6 +115,7 @@ pub enum BaseError {
     Options(OptionsError),
     InvalidSignature,
     NoPublicKey,
+    NoPrivateKey,
     NoPeerId,
     ValidateError,
     DecryptError,
@@ -164,7 +176,7 @@ impl Base {
     pub fn new(id: Id, application_id: u16, kind: Kind, flags: Flags, version: u16, body: Body, public_options: Vec<Options>, private_options: PrivateOptions) -> Base {
         let header = Header::new(application_id, kind, version, flags);
         
-        Base{id, header, body, public_options, private_options, parent: None, signature: None, public_key: None, private_key: None, encryption_key: None, raw: None}
+        Base{id, header, body, public_options, private_options, parent: None, signature: None, public_key: None, raw: None}
     }
 
     pub fn id(&self) -> &Id {
@@ -199,13 +211,6 @@ impl Base {
         self.signature = Some(sig);
     }
 
-    pub fn set_private_key(&mut self, private_key: PrivateKey) {
-        self.private_key = Some(private_key);
-    }
-
-    pub fn set_encryption_key(&mut self, secret_key: SecretKey) {
-        self.encryption_key = Some(secret_key);
-    }
 
     pub fn append_public_option(&mut self, o: Options) {
         self.public_options.push(o);
@@ -221,8 +226,6 @@ impl Base {
 
     pub fn clean(&mut self) {
         self.public_key = None;
-        self.encryption_key = None;
-        self.private_key = None;
     }
 }
 
@@ -310,46 +313,26 @@ impl Base {
 use std::io::Write;
 
 impl Base {
-    pub fn encode<'a, S, E, T: AsRef<[u8]> + AsMut<[u8]>>(&mut self, signer: S, mut buff: T) -> Result<usize, BaseError> 
-    where 
-        S: FnMut(&Id, &[u8]) -> Result<Signature, E>
-    {
+    pub fn encode<'a, T: AsRef<[u8]> + AsMut<[u8]>>(&mut self, signing_key: Option<&PrivateKey>, encryption_key: Option<&SecretKey>, mut buff: T) -> Result<usize, BaseError> {
+        // Short circuit if raw object is available
         if let Some(raw) = &self.raw {
             let mut d = buff.as_mut();
 
-            d.write(&raw);
+            d.write(&raw)?;
 
             return Ok(raw.len())
         }
 
-        // Build container and encode page
-        let (mut container, n) = Container::encode(buff, &self);
+        let signing_key = match signing_key {
+            Some(k) => k,
+            None => return Err(BaseError::NoPrivateKey),
+        };
 
-        match (&self.signature, &self.private_key) {
-            (Some(sig), _) => {
-                match self.public_key {
-                    Some(pub_key) => {
-                        if !crypto::pk_validate(&pub_key, sig, container.signed()).unwrap() {
-                            error!("invalid signature on encoded object");
-                            return Err(BaseError::InvalidSignature);
-                        }
-                    },
-                    None => {
-                        error!("no public key on encoded object");
-                    }
-                }
-            },
-            (None, Some(key)) => {
-                let sig = container.sign(|_id, data| crypto::pk_sign(&key, data))
-                    .map_err(|_e| BaseError::InvalidSignature )?;
-                self.set_signature(sig);
-            },
-            (None, None) => {
-                let sig = container.sign(signer)
-                    .map_err(|_e| BaseError::InvalidSignature )?;
-                self.set_signature(sig);
-            }
-        }
+        // Build container and encode / encrypt / sign page
+        let (container, n) = Container::encode(buff, &self, signing_key, encryption_key);
+
+        // Update base object signature
+        self.set_signature(container.signature().into());
 
         Ok(n)
     }

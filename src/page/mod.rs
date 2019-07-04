@@ -6,7 +6,7 @@ use std::ops::Add;
 use std::convert::TryFrom;
 
 use crate::types::*;
-use crate::base::{WireEncode, Body, PrivateOptions};
+use crate::base::{Body, PrivateOptions};
 use crate::options::Options;
 use crate::base::Base;
 use crate::crypto;
@@ -259,7 +259,7 @@ impl Page {
 
             // Convert and encode
             let mut b = Base::from(p);
-            let n = b.encode(|_id, _data| Err(Error::NoSignature) , &mut buff[i..])?;
+            let n = b.encode(None, None, &mut buff[i..])?;
 
             i += n;
         }
@@ -340,35 +340,11 @@ impl From<&Page> for Base {
             b.set_signature(sig);
         }
 
-        if let Some(key) = page.private_key {
-            b.set_private_key(key);
-        }
-        if let Some(key) = page.encryption_key {
-            b.set_encryption_key(key);
-        }
-
         if let Some(raw) = &page.raw {
             b.set_raw(raw.clone());
         }
     
         b
-    }
-}
-
-impl WireEncode for Page {
-    type Error = Error;
-
-    fn encode(&mut self, buff: &mut [u8]) -> Result<usize, Error> {
-        let mut b = Base::from(&*self);
-
-        let res = b.encode(|_id, _data| Err(()), buff)
-            .map_err(|e| panic!(e) );
-
-        if let Some(sig) = b.signature() {
-            self.set_signature(sig.clone());
-        }
-
-        res
     }
 }
 
@@ -399,8 +375,8 @@ impl TryFrom<Base> for Page {
             }
         }).map(|o| o.clone() ).collect();
 
-        let private_options = base.private_options();
-
+        // TODO: parse out private options too?
+        let _private_options = base.private_options();
 
         let info = if kind.is_page() && !flags.contains(Flags::SECONDARY) {
             // Handle primary page parsing
