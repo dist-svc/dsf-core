@@ -22,49 +22,52 @@ pub use info::PageInfo;
 #[derive(Debug, Clone, Builder)]
 pub struct Page {
     // Header
-    id: Id,
+    pub id: Id,
 
     #[builder(default = "0")]
-    application_id: u16,
+    pub application_id: u16,
 
     #[builder(default = "Flags::default()")]
-    flags: Flags,
+    pub flags: Flags,
     #[builder(default = "0")]
-    version: u16,
+    pub version: u16,
 
     // Page kind / identifier
-    kind: Kind,
+    pub kind: Kind,
 
     // Information associated with different object kinds
-    info: PageInfo,
+    pub info: PageInfo,
     
     // Page Body
     #[builder(default = "Body::None")]
-    body: Body,
+    pub body: Body,
 
     // Common options
     #[builder(default = "SystemTime::now().into()")]
-    issued: DateTime,
+    pub issued: DateTime,
     #[builder(default = "None")]
-    expiry: Option<DateTime>,
+    pub expiry: Option<DateTime>,
 
 
     #[builder(default = "vec![]")]
-    public_options: Vec<Options>,
+    pub public_options: Vec<Options>,
     #[builder(default = "PrivateOptions::None")]
-    private_options: PrivateOptions,
+    pub private_options: PrivateOptions,
 
     // Previous page signature
     #[builder(default = "None")]
-    pub(crate) previous_sig: Option<Signature>,
+    pub previous_sig: Option<Signature>,
 
     // Signature (if signed or decoded)
     #[builder(default = "None")]
-    pub(crate) signature: Option<Signature>,
+    pub signature: Option<Signature>,
 
     // Raw (encoded) data
     #[builder(default = "None")]
-    pub(crate) raw: Option<Vec<u8>>
+    pub raw: Option<Vec<u8>>,
+
+    #[builder(default = "()")]
+    _extend: (),
 }
 
 impl PartialEq for Page {
@@ -101,6 +104,8 @@ impl Page {
             
             signature: None,
             raw: None,
+
+            _extend: (),
         }
     }
 
@@ -400,6 +405,7 @@ impl TryFrom<Base> for Page {
             signature: signature.clone(),
 
             raw: base.raw().clone(),
+            _extend: (),
         })
     }
 }

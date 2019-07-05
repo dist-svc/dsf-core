@@ -3,7 +3,7 @@
 use crate::types::*;
 use crate::service::Service;
 use crate::base::{Base};
-use crate::net::{Request, Response};
+use crate::net::{Request, Response, Message};
 
 pub struct PublishOptions {
 
@@ -15,6 +15,9 @@ pub trait Net {
 
     /// Generate a protocol response object from a response message (and it's associated request)
     fn build_response(&self, req: &Request, from: Address, resp: &Response) -> Base;
+
+    /// Encode and sign a message
+    fn encode_message<T: AsRef<[u8]> + AsMut<[u8]>>(&self, msg: Message, buff: T) -> Result<usize, Error> ;
 }
 
 impl Net for Service {
@@ -35,5 +38,14 @@ impl Net for Service {
         resp.common.id = req.id;
         
         resp.into()
+    }
+
+    /// Encode a message
+    fn encode_message<T: AsRef<[u8]> + AsMut<[u8]>>(&self, msg: Message, buff: T) -> Result<usize, Error> {
+        let mut b: Base = msg.into();
+
+        let n = b.encode(self.private_key.as_ref(), None, buff)?;
+
+        Ok(n)
     }
 }

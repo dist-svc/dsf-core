@@ -218,9 +218,6 @@ impl <'a, T: AsRef<[u8]>> Container<T> {
         let mut pub_key = None;
         let mut parent = None;
 
-        let public_options: Vec<_> = container.public_options().collect();
-        println!("RX Public options: {:?}", public_options);
-
         let public_options: Vec<_> = container.public_options()
         .filter_map(|o| {
             match &o {
@@ -231,8 +228,6 @@ impl <'a, T: AsRef<[u8]>> Container<T> {
             }
         })
         .collect();
-
-        trace!("public options: {:?}", public_options);
 
         // Look for signing ID
         let signing_id: Id = match (flags.contains(Flags::SECONDARY), peer_id) {
@@ -416,8 +411,6 @@ impl <'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
         }
         
         public_options.append(&mut base.public_options().to_vec());
-
-        println!("Public options: {:?}", public_options);
 
         // Write public options
         let public_options_len = { Options::encode_vec(&public_options, &mut data[n..]).expect("error encoding public options") };
