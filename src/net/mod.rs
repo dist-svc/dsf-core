@@ -1,5 +1,6 @@
-//! Messages are a high level representation of messages used to communicate between peers
+//! Net module contains high-level message objects used to communicate between peers
 //! to maintain the network, publish and subscribe to services, and exchange data.
+//! These can be converted to and from base objects for encoding/decoding.
 
 use crate::types::*;
 use crate::base::{Base};

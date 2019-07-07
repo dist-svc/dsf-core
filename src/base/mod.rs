@@ -1,6 +1,8 @@
+//! Base module provides a low-level structure for data encoding and decoding
 
 mod header;
 pub use header::*;
+
 mod base;
 pub use base::*;
 

@@ -1,3 +1,6 @@
+//! Options are used to support extension of protocol objects
+//! with DSF and application-specific optional fields.
+
 use std::io::{Cursor, Write, Read};
 use std::str;
 use std::net::{SocketAddr, SocketAddrV4, SocketAddrV6};

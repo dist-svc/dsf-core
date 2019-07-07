@@ -1,4 +1,5 @@
-
+//! Crypto module provides cryptographic interfaces and implementations for DSF
+//! 
 
 use sodiumoxide::crypto::sign;
 use sodiumoxide::crypto::sign::ed25519::PublicKey as SodiumPublicKey;

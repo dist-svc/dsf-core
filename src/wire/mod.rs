@@ -1,5 +1,5 @@
-//! Container is a type that maps a byte array to fixed fields (and vice versa)
-//! for wire encoding.
+//! Wire provides a container type to map byte data to fixed fields (and vice versa)
+//! to support wire encoding and decoding.
 
 use byteorder::{ByteOrder, NetworkEndian};
 

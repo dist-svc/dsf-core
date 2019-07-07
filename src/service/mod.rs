@@ -1,4 +1,7 @@
-
+//! This module provides a DSF Service implementation.
+//! 
+//! `Publisher`, `Subscriber`, and `Net` traits provide functionality for publishing services, 
+//! subscribing to services, and sending messages respectively.
 
 
 use crate::types::*;

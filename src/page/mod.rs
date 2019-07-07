@@ -1,4 +1,4 @@
-//! Page is a high level representation of pages stored in the database
+//! Pages are a high level representation of pages stored in the database
 //! These can be converted into and from a base object for encoding and decoding.
 
 use std::time::{SystemTime, Duration};

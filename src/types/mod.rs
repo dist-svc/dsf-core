@@ -1,3 +1,6 @@
+//! Types defines common data types for use in DSF
+//! 
+//! 
 
 use std::fmt;
 use std::net::SocketAddr;
