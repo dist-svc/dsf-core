@@ -83,7 +83,8 @@ impl Service
     }
 
     /// Update a service.
-    /// This allows in-place editing of descriptors and options and causes an update of the service version number.
+    /// This allows in-place editing of descriptors and options and causes an update of the service version number
+    /// as well as a reset of the data_index.
     pub fn update<U>(&mut self, update_fn: U) -> Result<(), Error>
         where U: Fn(&mut Body, &mut Vec<Options>, &mut PrivateOptions)
     {
@@ -92,7 +93,12 @@ impl Service
         }
 
         update_fn(&mut self.body, &mut self.public_options, &mut self.private_options);
+
+        // Update service version
         self.version += 1;
+
+        // Reset data index to 0;
+        self.data_index = 0;
 
         Ok(())
     }
@@ -159,6 +165,7 @@ mod test {
 
         // Append sig to page1
         //page1.set_signature(base1.signature().clone().unwrap());
+        assert_eq!(service.version, 0, "initial service version");
 
         // Clear private data from encoded pages
         page1.clean();

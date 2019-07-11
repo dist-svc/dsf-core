@@ -10,7 +10,7 @@ use crate::types::{Id};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ServiceHandle {
-
+    pub id: Id,
 }
 
 /// A boxed future result to shorten method definitions
@@ -55,7 +55,7 @@ pub trait Publish {
 }
 
 /// A boxed future stream to shorten method definitions
-pub type FutureStream<I, E> = Box<Stream<Item=I, Error=E> + Send>;
+pub type FutureStream<I, E> = FutureResult<Stream<Item=I, Error=E>, E>;
 
 /// Subscriber API used by subscribers to service data
 pub trait Subscribe {
