@@ -5,7 +5,7 @@
 
 use futures::prelude::*;
 
-use crate::types::{Id};
+use crate::types::{Id, DataKind};
 
 
 #[derive(Debug, Clone, PartialEq)]
@@ -47,15 +47,14 @@ pub trait Locate {
 
 /// Publisher API trait used by publishers of service data
 pub trait Publish {
-    type Data;
     type Error;
 
     /// Publish service data
-    fn publish(&mut self, s: &ServiceHandle, data: Self::Data) -> FutureResult<(), Self::Error>;
+    fn publish(&mut self, s: &ServiceHandle, kind: Option<DataKind>, data: Option<&[u8]>) -> FutureResult<(), Self::Error>;
 }
 
 /// A boxed future stream to shorten method definitions
-pub type FutureStream<I, E> = FutureResult<Stream<Item=I, Error=E>, E>;
+pub type FutureStream<I, E> = FutureResult<Box<Stream<Item=I, Error=E>>, E>;
 
 /// Subscriber API used by subscribers to service data
 pub trait Subscribe {

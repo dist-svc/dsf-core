@@ -1,5 +1,5 @@
 use core::convert::TryFrom;
-
+use core::str::FromStr;
 
 #[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
 pub struct Kind(pub u16);
@@ -161,6 +161,7 @@ impl Into<Kind> for MessageKind {
 #[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
 pub enum DataKind {
     Generic,
+    Unknown(u16),
 }
 
 impl TryFrom<Kind> for DataKind {
@@ -184,9 +185,22 @@ impl Into<Kind> for DataKind {
     fn into(self) -> Kind {
         let base = match self {
             DataKind::Generic => kinds::DATA_GENERIC,
+            DataKind::Unknown(v) => kinds::DATA_FLAGS | v,
         };
 
         Kind(base)
+    }
+}
+
+impl FromStr for DataKind {
+    type Err = std::num::ParseIntError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.to_ascii_lowercase() == "generic" {
+            Ok(DataKind::Generic)
+        } else {
+            let v: u16 = s.parse()?;
+            Ok(DataKind::Unknown(v))
+        }
     }
 }
 
