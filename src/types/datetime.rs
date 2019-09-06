@@ -4,7 +4,8 @@ use std::fmt;
 use chrono::{Utc, TimeZone};
 
 /// New DateTime type because rust doesn't have second or millisecond sized versions
-#[derive(Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(PartialEq, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct DateTime (u64);
 
 impl DateTime {

@@ -206,5 +206,4 @@ mod test {
          assert_eq!(m, data.len());
          assert_eq!(data, &buff[..m]);
     }
-
 }

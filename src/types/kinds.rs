@@ -1,7 +1,8 @@
 use core::convert::TryFrom;
 use core::str::FromStr;
 
-#[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
+#[derive(PartialEq, Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct Kind(pub u16);
 
 impl Kind {
@@ -38,13 +39,14 @@ impl Into<u16> for Kind {
     }
 }
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Copy)]
 pub enum KindError {
     InvalidKind(u16),
     Unrecognized(u16),
 }
 
-#[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
+#[derive(PartialEq, Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub enum PageKind {
     Generic,
     Peer,
@@ -83,7 +85,8 @@ impl Into<Kind> for PageKind {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
+#[derive(PartialEq, Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub enum MessageKind {
     Hello,
     Ping,
@@ -158,7 +161,8 @@ impl Into<Kind> for MessageKind {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
+#[derive(PartialEq, Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub enum DataKind {
     Generic,
     Unknown(u16),

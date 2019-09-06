@@ -4,7 +4,8 @@ use std::io::Error as IoError;
 
 use crate::base::BaseError;
 
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(PartialEq, Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub enum Error {
     IO,
     Time,

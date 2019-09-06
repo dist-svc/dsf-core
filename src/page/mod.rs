@@ -349,6 +349,8 @@ impl TryFrom<Base> for Page {
             }
         }).map(|o| o.clone() ).collect();
 
+        let peer_id = base.peer_id;
+
         // TODO: parse out private options too?
         let _private_options = base.private_options();
 

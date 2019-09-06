@@ -10,7 +10,10 @@ use std::cmp::{PartialOrd, Ord, Ordering};
 use std::str::FromStr;
 
 use base64;
-use serde::{Serialize, Serializer, Deserialize, Deserializer};
+
+#[cfg(feature = "serde")]
+use serde::{Serializer, Deserializer};
+#[cfg(feature = "serde")]
 use serde::de::{self, Visitor};
 
 pub const ID_LEN: usize = 32;
@@ -185,7 +188,8 @@ macro_rules! arr {
             }
         }
 
-        impl Serialize for $name {
+        #[cfg(feature = "serde")]
+        impl serde::Serialize for $name {
             fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
             where
                 S: Serializer,
@@ -195,8 +199,8 @@ macro_rules! arr {
             }
         }
 
-
-        impl<'de> Deserialize<'de> for $name {
+        #[cfg(feature = "serde")]
+        impl<'de> serde::Deserialize<'de> for $name {
             fn deserialize<D>(deserializer: D) -> Result<$name, D::Error>
             where
                 D: Deserializer<'de>,

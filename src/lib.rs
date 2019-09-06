@@ -1,4 +1,5 @@
 //#![feature(try_from)]
+//#![feature(test)]
 
 extern crate byteorder;
 extern crate futures;
@@ -10,7 +11,7 @@ extern crate sodiumoxide;
 #[macro_use]
 extern crate derive_builder;
 
-#[macro_use]
+#[cfg(feature = "serde")]
 extern crate serde;
 
 #[macro_use]

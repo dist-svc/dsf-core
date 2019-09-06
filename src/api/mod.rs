@@ -14,7 +14,7 @@ pub struct ServiceHandle {
 }
 
 /// A boxed future result to shorten method definitions
-pub type FutureResult<I, E> = Box<Future<Item=I, Error=E> + Send>;
+pub type FutureResult<I, E> = Box<dyn Future<Item=I, Error=E> + Send>;
 
 /// Creation API used to create services
 pub trait Create {
@@ -54,7 +54,7 @@ pub trait Publish {
 }
 
 /// A boxed future stream to shorten method definitions
-pub type FutureStream<I, E> = FutureResult<Box<Stream<Item=I, Error=E>>, E>;
+pub type FutureStream<I, E> = FutureResult<Box<dyn Stream<Item=I, Error=E>>, E>;
 
 /// Subscriber API used by subscribers to service data
 pub trait Subscribe {

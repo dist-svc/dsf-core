@@ -72,7 +72,8 @@ impl PartialEq for Base {
 }
 
 /// Body may be empty, encrypted, or Cleartext
-#[derive(PartialEq, Debug, Clone, Serialize, Deserialize)]
+#[derive(PartialEq, Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub enum Body {
     None,
     Encrypted(Vec<u8>),
@@ -90,7 +91,8 @@ impl From<Vec<u8>> for Body {
 }
 
 /// Private options may be empty, encrypted, or Cleartext
-#[derive(PartialEq, Debug, Clone, Serialize, Deserialize)]
+#[derive(PartialEq, Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub enum PrivateOptions {
     None,
     Encrypted(Vec<u8>),
@@ -117,7 +119,8 @@ impl PrivateOptions {
     }
 }
 
-#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+#[derive(PartialEq, Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub enum BaseError {
     Io,
     Options(OptionsError),
