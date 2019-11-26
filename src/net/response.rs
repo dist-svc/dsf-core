@@ -238,7 +238,7 @@ impl Into<Base> for Response {
     fn into(self) -> Base {
 
         let kind: MessageKind;
-        let mut body: Vec<u8>;
+        let body: Vec<u8>;
 
         let mut buff = vec![0; BUFF_SIZE];
 

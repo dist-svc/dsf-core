@@ -5,18 +5,15 @@ This is intended to provide an embedded-compatible basis for the implementation 
 
 ## Status
 
-[![GitHub tag](https://img.shields.io/github/tag/ryankurte/dsf-core.svg)](https://github.com/ryankurte/dsf-core)
-[![Build Status](https://travis-ci.com/ryankurte/dsf-core.svg?branch=master)](https://travis-ci.com/ryankurte/dsf-core)
+[![GitHub tag](https://img.shields.io/github/tag/dist-svc/dsf-core.svg)](https://github.com/dist-svc/dsf-core)
+[![Build Status](https://travis-ci.com/dist-svc/dsf-core.svg?branch=master)](https://travis-ci.com/dist-svc/dsf-core)
 [![Crates.io](https://img.shields.io/crates/v/dsf-core.svg)](https://crates.io/crates/dsf-core)
 [![Docs.rs](https://docs.rs/dsf-core/badge.svg)](https://docs.rs/dsf-core)
 
-[Open Issues](https://github.com/ryankurte/dsf-core/issues)
+[Open Issues](https://github.com/dist-svc/dsf-core/issues)
 
 
 ***Work In Progress***
 
-
-## Layout
-
-TODO
+Currently this depends heavily on `std`, in future this requirement should be mitigated and/or removed.
 

@@ -1,23 +1,27 @@
 [package]
-name = "dsf-core"
-version = "0.1.0"
 authors = ["Ryan Kurte <ryankurte@gmail.com>"]
 edition = "2018"
 license = "GPLv3"
-
+name = "dsf-core"
+version = "0.1.0"
 [dependencies]
-sodiumoxide = "0.2.0"
-futures = "0.1.25"
+base64 = "0.10.1"
+bitflags = "1.1.0"
 byteorder = "1.2.7"
 bytes = "0.4.11"
-base64 = "0.10.1"
-rand = "0.6.4"
-derive_builder = "0.7.0"
-newtype_array = "0.1.6"
-futures-timer = "0.1.1"
-serde = { version = "1.0", features = ["derive"], optional=true }
-log = "0.4.6"
+cargo-fix = "*"
 chrono = "0.4.6"
-slice-ext = "0.1.0"
+derive_builder = "0.7.0"
+futures = "0.1.25"
+futures-timer = "0.1.1"
+log = "0.4.6"
 ls = "0.0.0"
-bitflags = "1.1.0"
+newtype_array = "0.1.6"
+rand = "0.6.4"
+slice-ext = "0.1.0"
+sodiumoxide = "0.2.0"
+
+[dependencies.serde]
+features = ["derive"]
+optional = true
+version = "1.0"
