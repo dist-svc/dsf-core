@@ -4,6 +4,7 @@ edition = "2018"
 license = "GPLv3"
 name = "dsf-core"
 version = "0.1.0"
+
 [dependencies]
 base64 = "0.10.1"
 bitflags = "1.1.0"
@@ -25,3 +26,4 @@ sodiumoxide = "0.2.0"
 features = ["derive"]
 optional = true
 version = "1.0"
+
