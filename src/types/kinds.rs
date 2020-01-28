@@ -6,6 +6,10 @@ use core::str::FromStr;
 pub struct Kind(pub u16);
 
 impl Kind {
+    pub fn is_application(&self) -> bool {
+        self.0 & kinds::APP_FLAG != 0
+    }
+
     pub fn is_page(&self) -> bool {
         self.0 & kinds::KIND_MASK == kinds::PAGE_FLAGS
     }
@@ -108,6 +112,8 @@ impl TryFrom<Kind> for MessageKind {
     type Error = KindError;
 
     fn try_from(v: Kind) -> Result<Self, Self::Error> {
+        // TODO: do not attempt to parse application specific flags
+        
         let base = match v.0 & kinds::KIND_MASK {
             kinds::REQUEST_FLAGS => {
                 match v.0 {
@@ -211,7 +217,9 @@ impl FromStr for DataKind {
 pub mod kinds {
     pub const NONE          : u16 = 0x0000;
 
-    pub const KIND_MASK     : u16 = 0b1100_0000_0000_0000;
+    pub const KIND_MASK     : u16 = 0b0110_0000_0000_0000;
+
+    pub const APP_FLAG      : u16 = 0b1000_0000_0000_0000;
 
     // Page Kinds
     pub const PAGE_FLAGS     : u16 = 0b0000_0000_0000_0000;
@@ -221,7 +229,7 @@ pub mod kinds {
     pub const PAGE_PRIVATE   : u16 = 0x0FFF | PAGE_FLAGS;
     
     // Message Kinds
-    pub const REQUEST_FLAGS  : u16 = 0b0100_0000_0000_0000;
+    pub const REQUEST_FLAGS  : u16 = 0b0010_0000_0000_0000;
     pub const HELLO          : u16 = 0x0000 | REQUEST_FLAGS;
     pub const PING           : u16 = 0x0001 | REQUEST_FLAGS;
     pub const FIND_NODES     : u16 = 0x0002 | REQUEST_FLAGS;
@@ -231,14 +239,14 @@ pub mod kinds {
     pub const QUERY          : u16 = 0x0006 | REQUEST_FLAGS;
     pub const PUSH_DATA      : u16 = 0x0007 | REQUEST_FLAGS;
 
-    pub const RESPONSE_FLAGS : u16 = 0b1000_0000_0000_0000;
+    pub const RESPONSE_FLAGS : u16 = 0b0100_0000_0000_0000;
     pub const STATUS         : u16 = 0x0000 | RESPONSE_FLAGS;
     pub const NO_RESULT      : u16 = 0x0001 | RESPONSE_FLAGS;
     pub const NODES_FOUND    : u16 = 0x0002 | RESPONSE_FLAGS;
     pub const VALUES_FOUND   : u16 = 0x0003 | RESPONSE_FLAGS;
     pub const PULL_DATA      : u16 = 0x0004 | RESPONSE_FLAGS;
     
-    pub const DATA_FLAGS     : u16 = 0b1100_0000_0000_0000;
+    pub const DATA_FLAGS     : u16 = 0b0110_0000_0000_0000;
     pub const DATA_GENERIC   : u16 = 0x0000 | DATA_FLAGS;
 }
 
@@ -270,20 +278,20 @@ mod tests {
     #[test]
     fn test_message_kinds() {
         let tests = vec![
-            (MessageKind::Hello,       Kind(0b0100_0000_0000_0000)),
-            (MessageKind::Ping,        Kind(0b0100_0000_0000_0001)),
-            (MessageKind::FindNodes,   Kind(0b0100_0000_0000_0010)),
-            (MessageKind::FindValues,  Kind(0b0100_0000_0000_0011)),
-            (MessageKind::Store,       Kind(0b0100_0000_0000_0100)),
-            (MessageKind::Subscribe,   Kind(0b0100_0000_0000_0101)),
-            (MessageKind::Query,       Kind(0b0100_0000_0000_0110)),
-            (MessageKind::PushData,    Kind(0b0100_0000_0000_0111)),
+            (MessageKind::Hello,       Kind(0b0010_0000_0000_0000)),
+            (MessageKind::Ping,        Kind(0b0010_0000_0000_0001)),
+            (MessageKind::FindNodes,   Kind(0b0010_0000_0000_0010)),
+            (MessageKind::FindValues,  Kind(0b0010_0000_0000_0011)),
+            (MessageKind::Store,       Kind(0b0010_0000_0000_0100)),
+            (MessageKind::Subscribe,   Kind(0b0010_0000_0000_0101)),
+            (MessageKind::Query,       Kind(0b0010_0000_0000_0110)),
+            (MessageKind::PushData,    Kind(0b0010_0000_0000_0111)),
 
-            (MessageKind::Status,      Kind(0b1000_0000_0000_0000)),
-            (MessageKind::NoResult,    Kind(0b1000_0000_0000_0001)),
-            (MessageKind::NodesFound,  Kind(0b1000_0000_0000_0010)),
-            (MessageKind::ValuesFound, Kind(0b1000_0000_0000_0011)),
-            (MessageKind::PullData,    Kind(0b1000_0000_0000_0100)),
+            (MessageKind::Status,      Kind(0b0100_0000_0000_0000)),
+            (MessageKind::NoResult,    Kind(0b0100_0000_0000_0001)),
+            (MessageKind::NodesFound,  Kind(0b0100_0000_0000_0010)),
+            (MessageKind::ValuesFound, Kind(0b0100_0000_0000_0011)),
+            (MessageKind::PullData,    Kind(0b0100_0000_0000_0100)),
         ];
 
         for (t, v) in tests {
@@ -299,7 +307,7 @@ mod tests {
         #[test]
     fn test_data_kinds() {
         let tests = vec![
-            (DataKind::Generic,          Kind(0b1100_0000_0000_0000)),
+            (DataKind::Generic,          Kind(0b0110_0000_0000_0000)),
         ];
 
         for (t, v) in tests {

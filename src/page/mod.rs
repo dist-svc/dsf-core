@@ -29,6 +29,7 @@ pub struct Page {
 
     #[builder(default = "Flags::default()")]
     pub flags: Flags,
+    
     #[builder(default = "0")]
     pub version: u16,
 
