@@ -43,13 +43,13 @@ pub enum RequestKind {
 impl Request {
     pub fn new(from: Id, data: RequestKind, flags: Flags) -> Request {
         let common = Common{ from, id: rand::random(), flags, public_key: None, remote_address: None };
-        Request { common, data }
+        let r = Request { common, data };
+        r
     }
 
     pub fn flags(&mut self) -> &mut Flags {
         &mut self.common.flags
     }
-
 
     pub fn set_public_key(&mut self, pk: PublicKey) {
         self.common.public_key = Some(pk);

@@ -30,6 +30,7 @@ mod builder;
 #[derive(PartialEq, Debug, Clone, Builder)]
 #[builder(default, build_fn(validate = "Self::validate"))]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "diesel", derive(diesel::Queryable))]
 pub struct Service {
     id: Id,
 
@@ -119,7 +120,6 @@ impl Service
     pub fn private_key(&self) -> Option<PrivateKey> {
         self.private_key.clone()
     }
-
 
     pub fn secret_key(&self) -> Option<SecretKey> {
         self.secret_key.clone()

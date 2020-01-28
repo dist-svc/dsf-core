@@ -8,6 +8,8 @@ extern crate base64;
 extern crate rand;
 extern crate sodiumoxide;
 
+extern crate async_trait;
+
 #[macro_use]
 extern crate derive_builder;
 

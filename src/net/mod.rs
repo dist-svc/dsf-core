@@ -21,6 +21,14 @@ pub enum Message {
 }
 
 impl Message {
+    pub fn request(req: Request) -> Self {
+        Self::Request(req)
+    }
+
+    pub fn response(resp: Response) -> Self {
+        Self::Response(resp)
+    }
+
     pub fn request_id(&self) -> RequestId {
         match self {
             Message::Request(req) => req.id,
@@ -190,6 +198,8 @@ mod tests {
             let message2 = Message::convert(d, |_id| Some(pub_key) ).expect("error converting base object to message");
 
             assert_eq!(message, message2);
+
+            assert_eq!(message.request_id(), message2.request_id());
         }
 
     }

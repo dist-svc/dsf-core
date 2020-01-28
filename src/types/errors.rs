@@ -42,9 +42,9 @@ pub enum Error {
     UnexpectedPageKind,
     NoReplicasFound,
     Base(BaseError),
-    Timeout,
+    Timeout, Unknown,
 }
-
+  
 impl From<IoError> for Error {
     fn from(e: IoError) -> Error {
         error!("io error: {}", e);

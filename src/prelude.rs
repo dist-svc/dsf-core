@@ -9,4 +9,4 @@ pub use crate::base::{Encode, Parse, Base, Body, PrivateOptions};
 
 pub use crate::page::{Page, PageInfo};
 
-pub use crate::net::Message;
+pub use crate::net::{Message as NetMessage, Request as NetRequest, Response as NetResponse};

@@ -16,7 +16,7 @@ byteorder = "1.2.7"
 bytes = "0.4.11"
 chrono = "0.4.6"
 derive_builder = "0.7.0"
-futures = "0.1.25"
+futures = "0.3.1"
 futures-timer = "0.1.1"
 log = "0.4.6"
 ls = "0.0.0"
@@ -24,6 +24,11 @@ newtype_array = "0.1.6"
 rand = "0.6.4"
 slice-ext = "0.1.0"
 sodiumoxide = "0.2.0"
+async-trait = "0.1.19"
+
+[dependencies.diesel]
+version = "1.4.3"
+optional = true
 
 [dependencies.serde]
 features = ["derive"]
