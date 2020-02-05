@@ -49,7 +49,7 @@ pub enum KindError {
     Unrecognized(u16),
 }
 
-#[derive(PartialEq, Debug, Clone, Copy)]
+#[derive(PartialEq, Debug, Clone, Copy, Display, EnumString)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub enum PageKind {
     Generic,
@@ -89,7 +89,7 @@ impl Into<Kind> for PageKind {
     }
 }
 
-#[derive(PartialEq, Debug, Clone, Copy)]
+#[derive(PartialEq, Debug, Clone, Copy, Display, EnumString)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub enum MessageKind {
     Hello,
