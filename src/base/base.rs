@@ -52,6 +52,10 @@ pub struct Base {
     #[builder(default = "None")]
     pub(crate) signature:      Option<Signature>,
 
+    /// Verified flag indicates object signature verification status
+    #[builder(default = "false")]
+    pub(crate) verified: bool,
+
     /// Raw object container, used to avoid re-encoding objects
     #[builder(default = "None")]
     pub(crate) raw: Option<Vec<u8>>,
@@ -189,7 +193,7 @@ impl Base {
         
         Base{id, header, body, public_options, private_options, 
             parent: None, peer_id: None, public_key: None, 
-            signature: None, raw: None}
+            signature: None, verified: false, raw: None}
     }
 
     pub fn id(&self) -> &Id {
