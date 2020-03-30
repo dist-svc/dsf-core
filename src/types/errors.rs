@@ -3,6 +3,7 @@ use std::time::SystemTimeError;
 use std::io::Error as IoError;
 
 use crate::base::BaseError;
+use crate::options::OptionsError;
 
 #[derive(PartialEq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
@@ -42,7 +43,9 @@ pub enum Error {
     UnexpectedPageKind,
     NoReplicasFound,
     Base(BaseError),
-    Timeout, Unknown,
+    Options(OptionsError),
+    Timeout, 
+    Unknown,
 }
   
 impl From<IoError> for Error {
@@ -61,5 +64,10 @@ impl From<SystemTimeError> for Error {
 impl From<BaseError> for Error {
     fn from(e: BaseError) -> Error {
         Error::Base(e)
+    }
+}
+impl From<OptionsError> for Error {
+    fn from(e: OptionsError) -> Error {
+        Error::Options(e)
     }
 }

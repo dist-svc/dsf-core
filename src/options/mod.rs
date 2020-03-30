@@ -7,12 +7,12 @@ use std::net::{SocketAddr, SocketAddrV4, SocketAddrV6};
 
 use byteorder::{ByteOrder, NetworkEndian, ReadBytesExt, WriteBytesExt};
 
-use crate::types::{Id, ID_LEN, PublicKey, PUBLIC_KEY_LEN, Signature, SIGNATURE_LEN, DateTime};
+use crate::types::{Id, ID_LEN, PublicKey, PUBLIC_KEY_LEN, Signature, SIGNATURE_LEN, DateTime, ImmutableData};
 use crate::base::{Encode, Parse};
 
 mod helpers;
 
-/// D-IoT Optional fields
+/// DSF defined options fields
 #[derive(PartialEq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub enum Options {
@@ -29,6 +29,18 @@ pub enum Options {
     Limit(Limit),
     Metadata(Metadata),
 }
+
+
+/// Generic list of options over generic buffers
+#[derive(PartialEq, Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+pub enum OptionsList<C: AsRef<[Options]>, E: ImmutableData> {
+    Cleartext(C),
+    Encrypted(E),
+    None,
+}
+
+
 
 #[derive(PartialEq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]

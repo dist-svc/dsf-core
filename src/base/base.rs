@@ -3,7 +3,7 @@
 
 use std::net::{SocketAddr};
 
-use crate::types::{Id, Signature, Flags, Kind, PublicKey, PrivateKey, SecretKey, Address, DateTime};
+use crate::types::*;
 use crate::base::Header;
 use crate::options::{Options, OptionsError};
 use crate::wire::Container;
@@ -71,14 +71,17 @@ impl PartialEq for Base {
     }
 }
 
-/// Body may be empty, encrypted, or Cleartext
 #[derive(PartialEq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-pub enum Body {
+pub enum NewBody<T: ImmutableData> {
+    Cleartext(T),
+    Encrypted(T),
     None,
-    Encrypted(Vec<u8>),
-    Cleartext(Vec<u8>),
 }
+
+/// Body may be empty, encrypted, or Cleartext
+// TODO: move NewBody from wire to here, propagate generic types
+pub type Body = NewBody<Vec<u8>>;
 
 impl From<Vec<u8>> for Body {
     fn from(o: Vec<u8>) -> Self {
@@ -90,14 +93,9 @@ impl From<Vec<u8>> for Body {
     }
 }
 
-/// Private options may be empty, encrypted, or Cleartext
-#[derive(PartialEq, Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-pub enum PrivateOptions {
-    None,
-    Encrypted(Vec<u8>),
-    Cleartext(Vec<Options>),
-}
+//pub type OptionsList = crate::wire::builder::OptionsList<Vec<Options>, Vec<u8>>;
+pub type PrivateOptions = crate::options::OptionsList<Vec<Options>, Vec<u8>>;
+
 
 impl From<Vec<Options>> for PrivateOptions {
     fn from(o: Vec<Options>) -> Self {

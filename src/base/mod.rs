@@ -1,9 +1,9 @@
 //! Base module provides a low-level structure for data encoding and decoding
 
-mod header;
+pub mod header;
 pub use header::*;
 
-mod base;
+pub mod base;
 pub use base::*;
 
 /// Parse trait for building parse-able objects

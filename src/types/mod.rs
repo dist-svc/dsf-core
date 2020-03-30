@@ -16,26 +16,52 @@ use serde::{Serializer, Deserializer};
 #[cfg(feature = "serde")]
 use serde::de::{self, Visitor};
 
+/// ImmutableData trait wraps AsRef<[u8]>
+pub trait ImmutableData: AsRef<[u8]> {}
+
+/// Generic impl of ImmutableData trait (since we don't have trait aliasing)
+impl <T: AsRef<[u8]>> ImmutableData for T {}
+
+/// MutableData trait, wraps AsMut<[u8]> and ImmutableData traits
+pub trait MutableData: AsMut<[u8]> + ImmutableData {}
+
+/// Generic impl of MutableData trait (since we don't have trait aliasing)
+impl <T: AsMut<[u8]> + ImmutableData> MutableData for T {}
+
+
 pub const ID_LEN: usize = 32;
+
+/// ID type
 pub type Id = Array32;
 
 pub const REQUEST_ID_LEN: usize = 2;
+
+/// Request ID type
 pub type RequestId = u16;
 
 pub const PUBLIC_KEY_LEN: usize = 32;
+
+/// Public key type
 pub type PublicKey = Array32;
 
 pub const PRIVATE_KEY_LEN: usize = 64;
+
+/// Private key type
 pub type PrivateKey = Array64;
 
 pub const SIGNATURE_LEN: usize = 64;
 //pub struct Signature([u8; SIGNATURE_LEN]);
+
+/// Signature type
 pub type Signature = Array64;
 
 pub const SECRET_KEY_LEN: usize = 32;
+
+/// Secret key type
 pub type SecretKey = Array32;
 
 pub const HASH_LEN: usize = 32;
+
 pub type CryptoHash = Array32;
 
 pub const ENCRYPTED_META_LEN: usize = 64;

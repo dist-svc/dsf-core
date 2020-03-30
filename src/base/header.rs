@@ -1,14 +1,27 @@
 //! Header is a high level representation of the protocol header used in all DSF objects
 
-use std::io::{Cursor, Error as IoError};
-
-use byteorder::{NetworkEndian, ReadBytesExt, WriteBytesExt};
 
 use crate::types::{Kind, Flags};
-use crate::base::{Encode, Parse};
 
+/// Header object length
+pub const HEADER_LEN: usize = 16;
 
-/// Header encodes information for a given page in the database
+/// Offsets for fixed fields in the protocol header
+pub mod offsets {
+    pub const PROTO_VERSION: usize = 0;
+    pub const APPLICATION_ID: usize = 2;
+    pub const OBJECT_KIND: usize = 4;
+    pub const FLAGS: usize = 6;
+    pub const INDEX: usize = 8;
+    pub const DATA_LEN: usize = 10;
+    pub const PRIVATE_OPTIONS_LEN: usize = 12;
+    pub const PUBLIC_OPTIONS_LEN: usize = 14;
+    pub const ID: usize = 16;
+    pub const BODY: usize = 48;
+}
+
+/// Header encodes information for a given page in the database.
+/// Wire encoding and decoding exists in `wire::header`
 #[derive(Clone, PartialEq, Debug, Builder)]
 pub struct Header {
     #[builder(default = "0")]
@@ -27,6 +40,7 @@ pub struct Header {
     /// Index is the Page Version for Pages, or the Request ID for messages
     index: u16,
 }
+
 
 impl HeaderBuilder {
     pub fn address_request(&mut self) -> &mut Self {
@@ -60,62 +74,5 @@ impl Header {
 
     pub fn index(&self) -> u16 {
         self.index
-    }
-}
-
-impl Parse for Header {
-    type Output = Header;
-    type Error = IoError;
-
-    fn parse(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
-        let mut r = Cursor::new(data);
-        
-        let protocol_version = r.read_u16::<NetworkEndian>()?;
-        let application_id = r.read_u16::<NetworkEndian>()?;
-        let kind = Kind::from(r.read_u16::<NetworkEndian>()?);
-        let flags_raw = r.read_u16::<NetworkEndian>()?;
-        let flags = Flags::from_bits(flags_raw).unwrap();
-        let index = r.read_u16::<NetworkEndian>()?;
-
-        // TODO: validate incoming fields here
-
-        Ok((Header {protocol_version, application_id, kind, flags, index}, r.position() as usize))
-    }
-}
-
-impl Encode for Header {
-    type Error = IoError;
-
-    fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
-        let mut w = Cursor::new(data);
-        
-        w.write_u16::<NetworkEndian>(self.protocol_version)?;
-        w.write_u16::<NetworkEndian>(self.application_id)?;
-        w.write_u16::<NetworkEndian>(self.kind.into())?;
-        w.write_u16::<NetworkEndian>(self.flags.bits())?;
-        w.write_u16::<NetworkEndian>(self.index)?;
-
-        Ok(w.position() as usize)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-
-    use super::*;
-
-    use crate::types::PageKind;
-
-    #[test]
-    fn test_encode_page_header() {
-        let h1 = Header::new(0, PageKind::Generic.into(), 1, Flags::SECONDARY);
-
-        let mut buff = [0u8; 1024];
-        let n1 = h1.encode(&mut buff).expect("Header encoding failed");
-        let b = &buff[..n1];
-
-        let (h2, n2) = Header::parse(&b).expect("Header parsing failed");
-        assert_eq!(h1, h2);
-        assert_eq!(n1, n2);
     }
 }
