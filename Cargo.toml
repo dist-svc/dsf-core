@@ -25,6 +25,8 @@ rand = "0.6.4"
 slice-ext = "0.1.0"
 sodiumoxide = "0.2.0"
 async-trait = "0.1.19"
+ed25519-dalek = "0.9.1"
+sha2 = "0.8.1"
 
 [dependencies.diesel]
 version = "1.4.3"

@@ -71,10 +71,7 @@ impl <T: MutableData> Builder<Init, T> {
     /// Set the object header.
     /// Note that length fields will be overwritten by actual lengths
     pub fn header(mut self, header: &Header) -> Self {
-        let d = self.buf.as_mut();
-
         self.header_mut().encode(header);
-
         self
     }
 
