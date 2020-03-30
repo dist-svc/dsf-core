@@ -90,29 +90,34 @@ impl <'a, T: AsRef<[u8]>> Container<T> {
         }?;
 
         // Fetch public key
-        let public_key: PublicKey = match ((pub_key_s)(&signing_id), pub_key) {
-            (Some(key), _) => Ok(key),
-            (None, Some(key)) => Ok(key),
+        let public_key: Option<PublicKey> = match ((pub_key_s)(&signing_id), pub_key) {
+            (Some(key), _) => Some(key),
+            (None, Some(key)) => Some(key),
             _ => {
                 warn!("Missing public key for message: {:?} signing id: {:?}", id, signing_id);
-                Err(BaseError::NoPublicKey)
+                None
             },
-        }?;
+        };
 
         // Late validation for self-signed objects from unknown sources
-        if !verified {
-            // Check ID matches key
-            if signing_id != crypto::hash(&public_key).unwrap() {
-                return Err(BaseError::PublicKeyIdMismatch);
-            }
+        match (verified, public_key) {
+            (false, Some(public_key)) => {
+                // Check ID matches key
+                if signing_id != crypto::hash(&public_key).unwrap() {
+                    return Err(BaseError::PublicKeyIdMismatch);
+                }
 
-            // Verify body
-            verified = crypto::pk_validate(&public_key, &signature, container.signed()).map_err(|_e| BaseError::ValidateError )?;
+                // Verify body
+                verified = crypto::pk_validate(&public_key, &signature, container.signed()).map_err(|_e| BaseError::ValidateError )?;
 
-            // Stop processing on verification error
-            if !verified {
-                info!("Invalid signature for self-signed object");
-                return Err(BaseError::InvalidSignature);
+                // Stop processing on verification error
+                if !verified {
+                    info!("Invalid signature for self-signed object");
+                    return Err(BaseError::InvalidSignature);
+                }
+            },
+            _ => {
+                warn!("No verification for object");
             }
         }
 
@@ -181,7 +186,7 @@ impl <'a, T: AsRef<[u8]>> Container<T> {
                 public_key: pub_key,
 
                 signature: Some(signature),
-
+                verified,
                 
                 raw: Some(container.raw().to_vec()),
             },

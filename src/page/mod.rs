@@ -29,6 +29,7 @@ pub struct Page {
 
     #[builder(default = "Flags::default()")]
     pub flags: Flags,
+    
     #[builder(default = "0")]
     pub version: u16,
 
@@ -61,6 +62,10 @@ pub struct Page {
     // Signature (if signed or decoded)
     #[builder(default = "None")]
     pub signature: Option<Signature>,
+
+    /// Verified flag
+    #[builder(default = "false")]
+    pub verified: bool,
 
     // Raw (encoded) data
     #[builder(default = "None")]
@@ -103,6 +108,7 @@ impl Page {
             previous_sig: None,
             
             signature: None,
+            verified: false,
             raw: None,
 
             _extend: (),
@@ -200,6 +206,7 @@ impl Page {
                 // Fail if no public key is found
                 None
             },
+            // No encryption key source available here
             |_id| None
             )?;
 
@@ -317,6 +324,8 @@ impl From<&Page> for Base {
         if let Some(raw) = &page.raw {
             b.set_raw(raw.clone());
         }
+
+        b.verified = page.verified;
     
         b
     }
@@ -405,6 +414,7 @@ impl TryFrom<Base> for Page {
             public_options: public_options,
             private_options: base.private_options.clone(),
             signature: signature.clone(),
+            verified: base.verified,
 
             raw: base.raw().clone(),
             _extend: (),
