@@ -42,6 +42,7 @@ pub enum Error {
     InvalidSignature,
     UnexpectedPageKind,
     NoReplicasFound,
+    UnknownPeer,
     Base(BaseError),
     Options(OptionsError),
     Timeout, 

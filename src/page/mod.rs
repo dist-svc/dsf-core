@@ -19,6 +19,7 @@ pub use info::PageInfo;
 
 /// High level description of a database page
 /// Check out `PageBuilder` for a helper for constructing `Page` objects
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[derive(Debug, Clone, Builder)]
 pub struct Page {
     // Header

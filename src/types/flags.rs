@@ -3,6 +3,7 @@ bitflags! {
 
     /// Page and Message Flags.
     #[derive(Default)]
+    #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
     pub struct Flags: u16 {
         const SECONDARY       = (1 << 0);
         const ENCRYPTED       = (1 << 1);
