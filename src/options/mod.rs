@@ -48,6 +48,7 @@ pub enum OptionsError {
     IO,
     InvalidMetadata,
     InvalidOptionLength,
+    InvalidOptionKind,
     Unimplemented,
 }
 
@@ -101,21 +102,24 @@ where T: AsRef<[u8]>
 }
 
 
-/// D-IoT Option types
-mod option_kinds {
-    pub const PUBKEY:       u16 = 0x00; // Public Key
-    pub const PEER_ID:      u16 = 0x01; // ID of Peer responsible for secondary page
-    pub const PREV_SIG:     u16 = 0x02; // Previous object signature
-    pub const KIND:         u16 = 0x03; // Service KIND in utf-8
-    pub const NAME:         u16 = 0x04; // Service NAME in utf-8
-    pub const ADDR_IPV4:    u16 = 0x05; // IPv4 service address
-    pub const ADDR_IPV6:    u16 = 0x06; // IPv6 service address
-    pub const ISSUED:       u16 = 0x07; // ISSUED option defines object creation time
-    pub const EXPIRY:       u16 = 0x08; // EXPIRY option defines object expiry time
-    pub const LIMIT:        u16 = 0x09; // LIMIT option defines maximum number of objects to return
-    pub const META:         u16 = 0x0a; // META option supports generic metadata key:value pairs
+/// D-IoT Option kind identifiers
+pub mod option_kinds {
+    pub const PUBKEY:       u16 = 0x0000; // Public Key
+    pub const PEER_ID:      u16 = 0x0001; // ID of Peer responsible for secondary page
+    pub const PREV_SIG:     u16 = 0x0002; // Previous object signature
+    pub const KIND:         u16 = 0x0003; // Service KIND in utf-8
+    pub const NAME:         u16 = 0x0004; // Service NAME in utf-8
+    pub const ADDR_IPV4:    u16 = 0x0005; // IPv4 service address
+    pub const ADDR_IPV6:    u16 = 0x0006; // IPv6 service address
+    pub const ISSUED:       u16 = 0x0007; // ISSUED option defines object creation time
+    pub const EXPIRY:       u16 = 0x0008; // EXPIRY option defines object expiry time
+    pub const LIMIT:        u16 = 0x0009; // LIMIT option defines maximum number of objects to return
+    pub const META:         u16 = 0x000a; // META option supports generic metadata key:value pairs
+
+    pub const APP:          u16 = 0x8000; // APP flag indictates option is application specific and should not be parsed here
 }
 
+/// Option header length
 const OPTION_HEADER_LEN: usize = 4;
 
 impl Options {
