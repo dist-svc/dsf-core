@@ -1,6 +1,6 @@
 [package]
 name = "dsf-core"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Ryan Kurte <ryankurte@gmail.com>"]
 description = "DSF core object definitions"
 repository = "https://github.com/dist-svc/dsf-core"
