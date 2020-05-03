@@ -187,8 +187,12 @@ mod test {
         let pub_key = s.public_key();
         let sec_key = s.secret_key();
 
-        let (base2, m) = Base::parse(&buff[..n], |_id| Some(pub_key.clone()), |_id| sec_key.clone())
-            .expect("Error parsing service page");
+        let (base2, m) = Base::parse(
+            &buff[..n],
+            |_id| Some(pub_key.clone()),
+            |_id| sec_key.clone(),
+        )
+        .expect("Error parsing service page");
         assert_eq!(n, m);
         let mut page2: Page = base2
             .try_into()

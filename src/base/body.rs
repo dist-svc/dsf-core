@@ -408,8 +408,8 @@ mod tests {
             .encode(Some(&pri_key), None, &mut buff)
             .expect("Error encoding page");
 
-        let (mut decoded, m) =
-            Base::parse(&buff[..n], |_id| Some(pub_key.clone()), |_id| None).expect("Error decoding page");
+        let (mut decoded, m) = Base::parse(&buff[..n], |_id| Some(pub_key.clone()), |_id| None)
+            .expect("Error decoding page");
 
         decoded.clean();
 
@@ -482,8 +482,12 @@ mod tests {
             .encode(Some(&pri_key), Some(&sec_key), &mut buff)
             .expect("Error encoding page");
 
-        let (mut decoded, m) = Base::parse(&buff[..n], |_id| Some(pub_key.clone()), |_id| Some(sec_key.clone()))
-            .expect("Error decoding page");
+        let (mut decoded, m) = Base::parse(
+            &buff[..n],
+            |_id| Some(pub_key.clone()),
+            |_id| Some(sec_key.clone()),
+        )
+        .expect("Error decoding page");
 
         decoded.clean();
 
