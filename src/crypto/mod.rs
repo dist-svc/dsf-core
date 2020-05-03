@@ -1,12 +1,12 @@
 //! Crypto module provides cryptographic interfaces and implementations for DSF
-//! 
+//!
 
 use crate::types::*;
 
 pub mod sodium;
 pub use sodium::*;
 
-#[cfg(feature="crypto-dalek")]
+#[cfg(feature = "crypto-dalek")]
 pub mod dalek;
 
 /// Signer trait, used for generating page signatures

@@ -1,33 +1,30 @@
 //! Types defines common data types for use in DSF
-//! 
-//! 
+//!
+//!
 
+use std::cmp::{Ord, Ordering, PartialOrd};
 use std::fmt;
+use std::hash::{Hash, Hasher};
 use std::net::SocketAddr;
 use std::ops::{Deref, DerefMut};
-use std::hash::{Hash, Hasher};
-use std::cmp::{PartialOrd, Ord, Ordering};
 use std::str::FromStr;
 
-use base64;
-
-#[cfg(feature = "serde")]
-use serde::{Serializer, Deserializer};
 #[cfg(feature = "serde")]
 use serde::de::{self, Visitor};
+#[cfg(feature = "serde")]
+use serde::{Deserializer, Serializer};
 
 /// ImmutableData trait wraps AsRef<[u8]>
 pub trait ImmutableData: AsRef<[u8]> {}
 
 /// Generic impl of ImmutableData trait (since we don't have trait aliasing)
-impl <T: AsRef<[u8]>> ImmutableData for T {}
+impl<T: AsRef<[u8]>> ImmutableData for T {}
 
 /// MutableData trait, wraps AsMut<[u8]> and ImmutableData traits
 pub trait MutableData: AsMut<[u8]> + ImmutableData {}
 
 /// Generic impl of MutableData trait (since we don't have trait aliasing)
-impl <T: AsMut<[u8]> + ImmutableData> MutableData for T {}
-
+impl<T: AsMut<[u8]> + ImmutableData> MutableData for T {}
 
 pub const ID_LEN: usize = 32;
 
@@ -86,10 +83,9 @@ pub mod datetime;
 pub use self::datetime::DateTime;
 
 macro_rules! arr {
-    ($name:ident, $len:expr) => (
-        
+    ($name:ident, $len:expr) => {
         #[derive(Clone, Copy)]
-        pub struct $name ([u8; $len]);
+        pub struct $name([u8; $len]);
 
         impl AsRef<[u8]> for $name {
             fn as_ref(&self) -> &[u8] {
@@ -244,23 +240,18 @@ macro_rules! arr {
                     where
                         E: de::Error,
                     {
-                        $name::from_str(value).map_err(|_e| de::Error::custom("decoding b64") )
+                        $name::from_str(value).map_err(|_e| de::Error::custom("decoding b64"))
                     }
                 }
 
                 deserializer.deserialize_str(B64Visitor)
             }
         }
-
-    );
+    };
 }
-
-
-
 
 arr!(Array32, 32);
 arr!(Array64, 64);
-
 
 #[cfg(test)]
 mod tests {
@@ -268,7 +259,6 @@ mod tests {
 
     #[test]
     fn encode_decode_array32() {
-
         let a = Array32([0u8; 32]);
 
         let b = a.to_string();
@@ -277,8 +267,6 @@ mod tests {
 
         let c = Array32::from_str(&b).unwrap();
 
-
         assert_eq!(a, c);
     }
-
 }

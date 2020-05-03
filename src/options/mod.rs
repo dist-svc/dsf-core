@@ -1,14 +1,16 @@
 //! Options are used to support extension of protocol objects
 //! with DSF and application-specific optional fields.
 
-use std::io::{Cursor, Write, Read};
-use std::str;
+use std::io::{Cursor, Read, Write};
 use std::net::{SocketAddr, SocketAddrV4, SocketAddrV6};
+use std::str;
 
 use byteorder::{ByteOrder, NetworkEndian, ReadBytesExt, WriteBytesExt};
 
-use crate::types::{Id, ID_LEN, PublicKey, PUBLIC_KEY_LEN, Signature, SIGNATURE_LEN, DateTime, ImmutableData};
 use crate::base::{Encode, Parse};
+use crate::types::{
+    DateTime, Id, ImmutableData, PublicKey, Signature, ID_LEN, PUBLIC_KEY_LEN, SIGNATURE_LEN,
+};
 
 mod helpers;
 
@@ -30,7 +32,6 @@ pub enum Options {
     Metadata(Metadata),
 }
 
-
 /// Generic list of options over generic buffers
 #[derive(PartialEq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
@@ -39,8 +40,6 @@ pub enum OptionsList<C: AsRef<[Options]>, E: ImmutableData> {
     Encrypted(E),
     None,
 }
-
-
 
 #[derive(PartialEq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
@@ -64,16 +63,18 @@ pub struct OptionsIter<T> {
     buff: T,
 }
 
-impl <T> OptionsIter<T> 
-where T: AsRef<[u8]> 
+impl<T> OptionsIter<T>
+where
+    T: AsRef<[u8]>,
 {
     pub(crate) fn new(buff: T) -> Self {
-        Self{index: 0, buff}
+        Self { index: 0, buff }
     }
 }
 
-impl <T> Iterator for OptionsIter<T> 
-where T: AsRef<[u8]> 
+impl<T> Iterator for OptionsIter<T>
+where
+    T: AsRef<[u8]>,
 {
     type Item = Options;
 
@@ -83,14 +84,14 @@ where T: AsRef<[u8]>
 
         // Short circuit if we're too short
         if rem.len() < OPTION_HEADER_LEN {
-            return None
+            return None;
         }
 
         let (o, n) = match Options::parse(&rem) {
             Ok(v) => v,
             Err(e) => {
                 error!("Option parsing error: {:?}", e);
-                return None
+                return None;
             }
         };
 
@@ -98,25 +99,23 @@ where T: AsRef<[u8]>
 
         Some(o)
     }
-
 }
-
 
 /// D-IoT Option kind identifiers
 pub mod option_kinds {
-    pub const PUBKEY:       u16 = 0x0000; // Public Key
-    pub const PEER_ID:      u16 = 0x0001; // ID of Peer responsible for secondary page
-    pub const PREV_SIG:     u16 = 0x0002; // Previous object signature
-    pub const KIND:         u16 = 0x0003; // Service KIND in utf-8
-    pub const NAME:         u16 = 0x0004; // Service NAME in utf-8
-    pub const ADDR_IPV4:    u16 = 0x0005; // IPv4 service address
-    pub const ADDR_IPV6:    u16 = 0x0006; // IPv6 service address
-    pub const ISSUED:       u16 = 0x0007; // ISSUED option defines object creation time
-    pub const EXPIRY:       u16 = 0x0008; // EXPIRY option defines object expiry time
-    pub const LIMIT:        u16 = 0x0009; // LIMIT option defines maximum number of objects to return
-    pub const META:         u16 = 0x000a; // META option supports generic metadata key:value pairs
+    pub const PUBKEY: u16 = 0x0000; // Public Key
+    pub const PEER_ID: u16 = 0x0001; // ID of Peer responsible for secondary page
+    pub const PREV_SIG: u16 = 0x0002; // Previous object signature
+    pub const KIND: u16 = 0x0003; // Service KIND in utf-8
+    pub const NAME: u16 = 0x0004; // Service NAME in utf-8
+    pub const ADDR_IPV4: u16 = 0x0005; // IPv4 service address
+    pub const ADDR_IPV6: u16 = 0x0006; // IPv6 service address
+    pub const ISSUED: u16 = 0x0007; // ISSUED option defines object creation time
+    pub const EXPIRY: u16 = 0x0008; // EXPIRY option defines object expiry time
+    pub const LIMIT: u16 = 0x0009; // LIMIT option defines maximum number of objects to return
+    pub const META: u16 = 0x000a; // META option supports generic metadata key:value pairs
 
-    pub const APP:          u16 = 0x8000; // APP flag indictates option is application specific and should not be parsed here
+    pub const APP: u16 = 0x8000; // APP flag indictates option is application specific and should not be parsed here
 }
 
 /// Option header length
@@ -170,13 +169,17 @@ impl Options {
         Options::Metadata(Metadata::new(key.clone(), value.clone()))
     }
 
-    pub fn issued<T>(now: T) -> Options 
-    where T: Into<DateTime> {
+    pub fn issued<T>(now: T) -> Options
+    where
+        T: Into<DateTime>,
+    {
         Options::Issued(Issued::new(now))
     }
 
     pub fn expiry<T>(when: T) -> Options
-    where T: Into<DateTime>  {
+    where
+        T: Into<DateTime>,
+    {
         Options::Expiry(Expiry::new(when))
     }
 
@@ -188,8 +191,9 @@ impl Options {
         Options::PubKey(PubKey::new(public_key))
     }
 
-    pub fn address<T>(address: T) -> Options 
-    where T: Into<SocketAddr>
+    pub fn address<T>(address: T) -> Options
+    where
+        T: Into<SocketAddr>,
     {
         match address.into() {
             SocketAddr::V4(v4) => Options::IPv4(v4),
@@ -208,7 +212,6 @@ impl Parse for Options {
     type Error = OptionsError;
 
     fn parse<'a>(data: &'a [u8]) -> Result<(Self::Output, usize), Self::Error> {
-
         if data.len() < OPTION_HEADER_LEN {
             return Err(OptionsError::InvalidOptionLength);
         }
@@ -222,47 +225,47 @@ impl Parse for Options {
             option_kinds::PUBKEY => {
                 let (opt, n) = PubKey::parse(d)?;
                 Ok((Options::PubKey(opt), n + OPTION_HEADER_LEN))
-            },
+            }
             option_kinds::PEER_ID => {
                 let (opt, n) = PeerId::parse(d)?;
                 Ok((Options::PeerId(opt), n + OPTION_HEADER_LEN))
-            },
+            }
             option_kinds::PREV_SIG => {
                 let (opt, n) = PrevSig::parse(d)?;
                 Ok((Options::PrevSig(opt), n + OPTION_HEADER_LEN))
-            },
+            }
             option_kinds::KIND => {
                 let (opt, n) = Kind::parse(d)?;
                 Ok((Options::Kind(opt), n + OPTION_HEADER_LEN))
-            },
+            }
             option_kinds::NAME => {
                 let (opt, n) = Name::parse(d)?;
                 Ok((Options::Name(opt), n + OPTION_HEADER_LEN))
-            },
+            }
             option_kinds::ADDR_IPV4 => {
                 let (opt, n) = SocketAddrV4::parse(d)?;
                 Ok((Options::IPv4(opt), n + OPTION_HEADER_LEN))
-            },
+            }
             option_kinds::ADDR_IPV6 => {
                 let (opt, n) = SocketAddrV6::parse(d)?;
                 Ok((Options::IPv6(opt), n + OPTION_HEADER_LEN))
-            },
+            }
             option_kinds::META => {
                 let (opt, n) = Metadata::parse(d)?;
                 Ok((Options::Metadata(opt), n + OPTION_HEADER_LEN))
-            },
+            }
             option_kinds::ISSUED => {
                 let (opt, n) = Issued::parse(d)?;
                 Ok((Options::Issued(opt), n + OPTION_HEADER_LEN))
-            },
+            }
             option_kinds::EXPIRY => {
                 let (opt, n) = Expiry::parse(d)?;
                 Ok((Options::Expiry(opt), n + OPTION_HEADER_LEN))
-            },
+            }
             option_kinds::LIMIT => {
                 let (opt, n) = Limit::parse(d)?;
                 Ok((Options::Limit(opt), n + OPTION_HEADER_LEN))
-            },
+            }
             _ => {
                 // Unrecognised option types (and None) are skipped
                 Ok((Options::None, OPTION_HEADER_LEN + option_len))
@@ -276,39 +279,17 @@ impl Encode for Options {
 
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
         match *self {
-            Options::PubKey(ref o) => {
-                Ok(o.encode(data)?)
-            },
-            Options::PeerId(ref o) => {
-                Ok(o.encode(data)?)
-            },
-            Options::PrevSig(ref o) => {
-                Ok(o.encode(data)?)
-            }
-            Options::Kind(ref o) => {
-                Ok(o.encode(data)?)
-            },
-            Options::Name(ref o) => {
-                Ok(o.encode(data)?)
-            },
-            Options::IPv4(ref o) => {
-                Ok(o.encode(data)?)
-            },
-            Options::IPv6(ref o) => {
-                Ok(o.encode(data)?)
-            },
-            Options::Metadata(ref o) => {
-                Ok(o.encode(data)?)
-            },
-            Options::Issued(ref o) => {
-                Ok(o.encode(data)?)
-            },
-            Options::Expiry(ref o) => {
-                Ok(o.encode(data)?)
-            },
-            Options::Limit(ref o) => {
-                Ok(o.encode(data)?)
-            },
+            Options::PubKey(ref o) => Ok(o.encode(data)?),
+            Options::PeerId(ref o) => Ok(o.encode(data)?),
+            Options::PrevSig(ref o) => Ok(o.encode(data)?),
+            Options::Kind(ref o) => Ok(o.encode(data)?),
+            Options::Name(ref o) => Ok(o.encode(data)?),
+            Options::IPv4(ref o) => Ok(o.encode(data)?),
+            Options::IPv6(ref o) => Ok(o.encode(data)?),
+            Options::Metadata(ref o) => Ok(o.encode(data)?),
+            Options::Issued(ref o) => Ok(o.encode(data)?),
+            Options::Expiry(ref o) => Ok(o.encode(data)?),
+            Options::Limit(ref o) => Ok(o.encode(data)?),
             _ => {
                 println!("Option encoding not implemented for object {:?}", *self);
                 unimplemented!();
@@ -316,7 +297,6 @@ impl Encode for Options {
         }
     }
 }
-
 
 #[derive(PartialEq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
@@ -338,7 +318,12 @@ impl Parse for PubKey {
         let mut public_key = [0u8; PUBLIC_KEY_LEN];
         public_key.copy_from_slice(&data[..PUBLIC_KEY_LEN]);
 
-        Ok((PubKey { public_key: public_key.into() }, PUBLIC_KEY_LEN))
+        Ok((
+            PubKey {
+                public_key: public_key.into(),
+            },
+            PUBLIC_KEY_LEN,
+        ))
     }
 }
 
@@ -347,7 +332,7 @@ impl Encode for PubKey {
 
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
         let mut w = Cursor::new(data);
-        
+
         w.write_u16::<NetworkEndian>(option_kinds::PUBKEY)?;
         w.write_u16::<NetworkEndian>(PUBLIC_KEY_LEN as u16)?;
         w.write(&self.public_key)?;
@@ -375,7 +360,12 @@ impl Parse for PeerId {
     fn parse(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
         let mut peer_id = [0u8; ID_LEN];
         peer_id.copy_from_slice(&data[..ID_LEN]);
-        Ok((PeerId { peer_id: peer_id.into() }, ID_LEN))
+        Ok((
+            PeerId {
+                peer_id: peer_id.into(),
+            },
+            ID_LEN,
+        ))
     }
 }
 
@@ -384,7 +374,7 @@ impl Encode for PeerId {
 
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
         let mut w = Cursor::new(data);
-        
+
         w.write_u16::<NetworkEndian>(option_kinds::PEER_ID)?;
         w.write_u16::<NetworkEndian>(ID_LEN as u16)?;
         w.write(&self.peer_id)?;
@@ -421,7 +411,7 @@ impl Encode for PrevSig {
 
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
         let mut w = Cursor::new(data);
-        
+
         w.write_u16::<NetworkEndian>(option_kinds::PREV_SIG)?;
         w.write_u16::<NetworkEndian>(SIGNATURE_LEN as u16)?;
         w.write(&self.sig)?;
@@ -429,7 +419,6 @@ impl Encode for PrevSig {
         Ok(w.position() as usize)
     }
 }
-
 
 #[derive(PartialEq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
@@ -450,7 +439,6 @@ impl Parse for Kind {
     type Error = OptionsError;
 
     fn parse(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
-
         let value = str::from_utf8(&data).unwrap().to_owned();
 
         Ok((Kind { value }, data.len()))
@@ -490,7 +478,6 @@ impl Parse for Name {
     type Error = OptionsError;
 
     fn parse(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
-
         let value = str::from_utf8(&data).unwrap().to_owned();
 
         Ok((Name { value }, data.len()))
@@ -517,7 +504,7 @@ impl Parse for SocketAddrV4 {
 
     fn parse(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
         let mut r = Cursor::new(data);
-        
+
         let mut ip = [0u8; 4];
         r.read(&mut ip)?;
         let port = r.read_u16::<NetworkEndian>()?;
@@ -547,7 +534,7 @@ impl Parse for SocketAddrV6 {
 
     fn parse(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
         let mut r = Cursor::new(data);
-        
+
         let mut ip = [0u8; 16];
         r.read(&mut ip)?;
         let port = r.read_u16::<NetworkEndian>()?;
@@ -571,7 +558,6 @@ impl Encode for SocketAddrV6 {
     }
 }
 
-
 #[derive(PartialEq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct Metadata {
@@ -593,14 +579,19 @@ impl Parse for Metadata {
     type Error = OptionsError;
 
     fn parse(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
-
         let kv = str::from_utf8(&data).unwrap().to_owned();
         let split: Vec<_> = kv.split("|").collect();
         if split.len() != 2 {
-            return Err(OptionsError::InvalidMetadata)
+            return Err(OptionsError::InvalidMetadata);
         }
 
-        Ok((Metadata { key: split[0].to_owned(), value: split[1].to_owned() }, data.len()))
+        Ok((
+            Metadata {
+                key: split[0].to_owned(),
+                value: split[1].to_owned(),
+            },
+            data.len(),
+        ))
     }
 }
 
@@ -609,7 +600,7 @@ impl Encode for Metadata {
 
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
         let mut w = Cursor::new(data);
-        
+
         let data = format!("{}|{}", self.key, self.value);
 
         w.write_u16::<NetworkEndian>(option_kinds::META)?;
@@ -633,8 +624,10 @@ pub struct Issued {
 }
 
 impl Issued {
-    pub fn new<T>(when: T) -> Issued 
-    where T: Into<DateTime> {
+    pub fn new<T>(when: T) -> Issued
+    where
+        T: Into<DateTime>,
+    {
         Issued { when: when.into() }
     }
 }
@@ -673,11 +666,12 @@ pub struct Expiry {
 }
 
 impl Expiry {
-    pub fn new<T>(when: T) -> Expiry 
-    where T: Into<DateTime> {
+    pub fn new<T>(when: T) -> Expiry
+    where
+        T: Into<DateTime>,
+    {
         Expiry { when: when.into() }
     }
-
 }
 
 impl Parse for Expiry {
@@ -724,7 +718,12 @@ impl Parse for Limit {
     type Error = OptionsError;
 
     fn parse(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
-        Ok((Self { n: NetworkEndian::read_u32(data) }, 4))
+        Ok((
+            Self {
+                n: NetworkEndian::read_u32(data),
+            },
+            4,
+        ))
     }
 }
 
@@ -733,7 +732,7 @@ impl Encode for Limit {
 
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
         let mut w = Cursor::new(data);
-        
+
         w.write_u16::<NetworkEndian>(option_kinds::LIMIT)?;
         w.write_u16::<NetworkEndian>(4)?;
         w.write_u32::<NetworkEndian>(self.n)?;
@@ -748,7 +747,7 @@ mod tests {
     use super::*;
 
     use std::net::{Ipv4Addr, Ipv6Addr};
-    use std::time::{SystemTime};
+    use std::time::SystemTime;
 
     #[test]
     fn encode_decode_option_types() {
@@ -758,7 +757,12 @@ mod tests {
             Options::Kind(Kind::new("test-kind")),
             Options::Name(Name::new("test-name")),
             Options::IPv4(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8080)),
-            Options::IPv6(SocketAddrV6::new(Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 1), 8080, 0, 0)),
+            Options::IPv6(SocketAddrV6::new(
+                Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 1),
+                8080,
+                0,
+                0,
+            )),
             Options::Metadata(Metadata::new("test-key", "test-value")),
             Options::Issued(Issued::new(SystemTime::now())),
             Options::Expiry(Expiry::new(SystemTime::now())),
@@ -767,11 +771,17 @@ mod tests {
 
         for o in tests.iter() {
             let mut data = vec![0u8; 1024];
-            let n1 = o.encode(&mut data).expect(&format!("Error encoding {:?}", o));
+            let n1 = o
+                .encode(&mut data)
+                .expect(&format!("Error encoding {:?}", o));
 
             let (decoded, n2) = Options::parse(&data).expect(&format!("Error decoding {:?}", o));
 
-            assert_eq!(n1, n2, "Mismatch between encoded and decoded lengths for object: {:?}", o);
+            assert_eq!(
+                n1, n2,
+                "Mismatch between encoded and decoded lengths for object: {:?}",
+                o
+            );
             assert_eq!(o, &decoded, "Mismatch between original and decode objects");
         }
     }
@@ -785,7 +795,12 @@ mod tests {
             Options::Kind(Kind::new("test-kind")),
             Options::Name(Name::new("test-name")),
             Options::IPv4(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8080)),
-            Options::IPv6(SocketAddrV6::new(Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 1), 8080, 0, 0)),
+            Options::IPv6(SocketAddrV6::new(
+                Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 1),
+                8080,
+                0,
+                0,
+            )),
             Options::Metadata(Metadata::new("test-key", "test-value")),
             Options::Issued(Issued::new(SystemTime::now())),
             Options::Expiry(Expiry::new(SystemTime::now())),
@@ -796,8 +811,11 @@ mod tests {
 
         let encoded = &data[0..n1];
         let (decoded, n2) = Options::parse_vec(encoded).expect("Error decoding options vector");
-            
+
         assert_eq!(n1, n2, "Mismatch between encoded and decoded length");
-        assert_eq!(&tests, &decoded, "Mismatch between original and decode vectors");
+        assert_eq!(
+            &tests, &decoded,
+            "Mismatch between original and decode vectors"
+        );
     }
 }

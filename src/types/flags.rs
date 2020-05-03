@@ -1,4 +1,3 @@
-
 bitflags! {
 
     /// Page and Message Flags.

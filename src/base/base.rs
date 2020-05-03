@@ -1,25 +1,24 @@
 //! Base object is a common owned object that is used to represent pages / messages / data
 //! and can be encoded and decoded for wire communication.
 
-use std::net::{SocketAddr};
+use std::net::SocketAddr;
 
-use crate::types::*;
 use crate::base::Header;
 use crate::options::{Options, OptionsError};
+use crate::types::*;
 use crate::wire::Container;
-
 
 #[derive(Clone, Builder, Debug)]
 pub struct Base {
     /// Page or Object Identifier
-    pub(crate) id:             Id,
+    pub(crate) id: Id,
 
     /// Header contains object parsing information and flags
-    pub(crate) header:         Header,
+    pub(crate) header: Header,
 
     /// Body contains arbitrary service data for Pages, Blocks, and Messages
     #[builder(default = "Body::None")]
-    pub(crate) body:           Body,
+    pub(crate) body: Body,
 
     /// Private options supports the addition of options that are only visible
     /// to authorized service consumers
@@ -34,23 +33,23 @@ pub struct Base {
     /// Used for constructing a hash-chain of published objects and included as a public option
     /// This is automatically included / extracted to simplify higher level parsing
     #[builder(default = "None")]
-    pub(crate) parent:      Option<Signature>,
-    
+    pub(crate) parent: Option<Signature>,
+
     /// Service public key
     /// Used to support self-signed objects and included as a public option
     /// This is automatically included / extracted to simplify higher level parsing
     #[builder(default = "None")]
-    pub(crate) public_key:      Option<PublicKey>,
+    pub(crate) public_key: Option<PublicKey>,
 
     /// Object PeerID
     /// Used to support secondary objects and included as a public option
     /// This is automatically included / extracted to simplify higher level parsing
     #[builder(default = "None")]
-    pub(crate) peer_id:      Option<Id>,
+    pub(crate) peer_id: Option<Id>,
 
     /// Object signature
     #[builder(default = "None")]
-    pub(crate) signature:      Option<Signature>,
+    pub(crate) signature: Option<Signature>,
 
     /// Verified flag indicates object signature verification status
     #[builder(default = "false")]
@@ -63,15 +62,15 @@ pub struct Base {
 
 impl PartialEq for Base {
     fn eq(&self, other: &Self) -> bool {
-        self.id == other.id &&
-        self.header == other.header &&
-        self.body == other.body &&
-        self.private_options == other.private_options &&
-        self.public_options == other.public_options &&
-        self.parent == other.parent &&
-        self.public_key == other.public_key &&
-        self.peer_id == other.peer_id &&
-        self.signature == other.signature 
+        self.id == other.id
+            && self.header == other.header
+            && self.body == other.body
+            && self.private_options == other.private_options
+            && self.public_options == other.public_options
+            && self.parent == other.parent
+            && self.public_key == other.public_key
+            && self.peer_id == other.peer_id
+            && self.signature == other.signature
     }
 }
 
@@ -99,7 +98,6 @@ impl From<Vec<u8>> for Body {
 
 //pub type OptionsList = crate::wire::builder::OptionsList<Vec<Options>, Vec<u8>>;
 pub type PrivateOptions = crate::options::OptionsList<Vec<Options>, Vec<u8>>;
-
 
 impl From<Vec<Options>> for PrivateOptions {
     fn from(o: Vec<Options>) -> Self {
@@ -136,8 +134,8 @@ pub enum BaseError {
     PublicKeyIdMismatch,
 }
 
-use crate::page;
 use crate::net;
+use crate::page;
 
 pub enum Parent<'a, 'b, 'c> {
     None,
@@ -160,7 +158,14 @@ impl From<std::io::Error> for BaseError {
 }
 
 impl BaseBuilder {
-    pub fn base(&mut self, id: Id, application_id: u16, kind: Kind, index: u16, flags: Flags) -> &mut Self {
+    pub fn base(
+        &mut self,
+        id: Id,
+        application_id: u16,
+        kind: Kind,
+        index: u16,
+        flags: Flags,
+    ) -> &mut Self {
         let header = Header::new(application_id, kind, index, flags);
         self.id = Some(id);
         self.header = Some(header);
@@ -175,7 +180,7 @@ impl BaseBuilder {
         self
     }
 
-     pub fn append_private_option(&mut self, o: Options) -> &mut Self {
+    pub fn append_private_option(&mut self, o: Options) -> &mut Self {
         match &mut self.private_options {
             Some(PrivateOptions::Cleartext(opts)) => opts.push(o),
             _ => self.private_options = Some(PrivateOptions::Cleartext(vec![o])),
@@ -184,14 +189,32 @@ impl BaseBuilder {
     }
 }
 
-
 impl Base {
-    pub fn new(id: Id, application_id: u16, kind: Kind, flags: Flags, version: u16, body: Body, public_options: Vec<Options>, private_options: PrivateOptions) -> Base {
+    pub fn new(
+        id: Id,
+        application_id: u16,
+        kind: Kind,
+        flags: Flags,
+        version: u16,
+        body: Body,
+        public_options: Vec<Options>,
+        private_options: PrivateOptions,
+    ) -> Base {
         let header = Header::new(application_id, kind, version, flags);
-        
-        Base{id, header, body, public_options, private_options, 
-            parent: None, peer_id: None, public_key: None, 
-            signature: None, verified: false, raw: None}
+
+        Base {
+            id,
+            header,
+            body,
+            public_options,
+            private_options,
+            parent: None,
+            peer_id: None,
+            public_key: None,
+            signature: None,
+            verified: false,
+            raw: None,
+        }
     }
 
     pub fn id(&self) -> &Id {
@@ -226,7 +249,6 @@ impl Base {
         self.signature = Some(sig);
     }
 
-
     pub fn append_public_option(&mut self, o: Options) {
         self.public_options.push(o);
     }
@@ -239,68 +261,51 @@ impl Base {
         }
     }
 
-    pub fn clean(&mut self) {
-        
-    }
+    pub fn clean(&mut self) {}
 }
 
 // TODO: move these to the options module?
 impl Base {
-
-
     pub fn pub_key_option(options: &[Options]) -> Option<PublicKey> {
-        options.iter().find_map(|o| {
-            match o { 
-                Options::PubKey(pk) => Some(pk.public_key.clone()),
-                 _ => None 
-            } 
+        options.iter().find_map(|o| match o {
+            Options::PubKey(pk) => Some(pk.public_key.clone()),
+            _ => None,
         })
     }
 
     pub fn peer_id_option(options: &[Options]) -> Option<Id> {
-        options.iter().find_map(|o| {
-            match o { 
-                Options::PeerId(peer_id) => Some(peer_id.peer_id.clone()),
-                 _ => None 
-            } 
+        options.iter().find_map(|o| match o {
+            Options::PeerId(peer_id) => Some(peer_id.peer_id.clone()),
+            _ => None,
         })
     }
 
     pub fn issued_option(options: &[Options]) -> Option<DateTime> {
-        options.iter().find_map(|o| {
-            match o { 
-                Options::Issued(t) => Some(t.when),
-                 _ => None 
-            } 
+        options.iter().find_map(|o| match o {
+            Options::Issued(t) => Some(t.when),
+            _ => None,
         })
     }
 
     pub fn expiry_option(options: &[Options]) -> Option<DateTime> {
-        options.iter().find_map(|o| {
-            match o { 
-                Options::Expiry(t) => Some(t.when),
-                 _ => None 
-            } 
+        options.iter().find_map(|o| match o {
+            Options::Expiry(t) => Some(t.when),
+            _ => None,
         })
     }
 
-
     pub fn prev_sig_option(options: &[Options]) -> Option<Signature> {
-        options.iter().find_map(|o| {
-            match o { 
-                Options::PrevSig(s) => Some(s.sig),
-                 _ => None 
-            } 
+        options.iter().find_map(|o| match o {
+            Options::PrevSig(s) => Some(s.sig),
+            _ => None,
         })
     }
 
     pub fn address_option(options: &[Options]) -> Option<Address> {
-        options.iter().find_map(|o| {
-            match o { 
-                Options::IPv4(addr) => Some(SocketAddr::V4(*addr)),
-                Options::IPv6(addr) => Some(SocketAddr::V6(*addr)),
-                 _ => None 
-            } 
+        options.iter().find_map(|o| match o {
+            Options::IPv4(addr) => Some(SocketAddr::V4(*addr)),
+            Options::IPv6(addr) => Some(SocketAddr::V6(*addr)),
+            _ => None,
         })
     }
 
@@ -310,14 +315,18 @@ impl Base {
 
     pub fn set_raw(&mut self, raw: Vec<u8>) {
         self.raw = Some(raw);
-    } 
+    }
 }
 
 impl Base {
-    /// Parses a data array into a base object using the pubkey_source to locate 
+    /// Parses a data array into a base object using the pubkey_source to locate
     /// a key for validation
-    pub fn parse<'a, P, S, T: AsRef<[u8]>>(data: T, pub_key_s: P, sec_key_s: S) -> Result<(Base, usize), BaseError>
-    where 
+    pub fn parse<'a, P, S, T: AsRef<[u8]>>(
+        data: T,
+        pub_key_s: P,
+        sec_key_s: S,
+    ) -> Result<(Base, usize), BaseError>
+    where
         P: FnMut(&Id) -> Option<PublicKey>,
         S: FnMut(&Id) -> Option<SecretKey>,
     {
@@ -328,14 +337,19 @@ impl Base {
 use std::io::Write;
 
 impl Base {
-    pub fn encode<'a, T: AsRef<[u8]> + AsMut<[u8]>>(&mut self, signing_key: Option<&PrivateKey>, encryption_key: Option<&SecretKey>, mut buff: T) -> Result<usize, BaseError> {
+    pub fn encode<'a, T: AsRef<[u8]> + AsMut<[u8]>>(
+        &mut self,
+        signing_key: Option<&PrivateKey>,
+        encryption_key: Option<&SecretKey>,
+        mut buff: T,
+    ) -> Result<usize, BaseError> {
         // Short circuit if raw object is available
         if let Some(raw) = &self.raw {
             let mut d = buff.as_mut();
 
             d.write(&raw)?;
 
-            return Ok(raw.len())
+            return Ok(raw.len());
         }
 
         let signing_key = match signing_key {
@@ -363,8 +377,11 @@ mod tests {
     use crate::crypto;
 
     fn setup() -> (Id, PublicKey, PrivateKey, SecretKey) {
-        let (pub_key, pri_key) = crypto::new_pk().expect("Error generating new public/private key pair");
-        let id = crypto::hash(&pub_key).expect("Error generating new ID").into();
+        let (pub_key, pri_key) =
+            crypto::new_pk().expect("Error generating new public/private key pair");
+        let id = crypto::hash(&pub_key)
+            .expect("Error generating new ID")
+            .into();
         let sec_key = crypto::new_sk().expect("Error generating new secret key");
         (id, pub_key, pri_key, sec_key)
     }
@@ -373,15 +390,26 @@ mod tests {
     fn encode_decode_primary_page() {
         let (id, pub_key, pri_key, _sec_key) = setup();
 
-        let header = HeaderBuilder::default().kind(PageKind::Generic.into()).build().expect("Error building page header");
+        let header = HeaderBuilder::default()
+            .kind(PageKind::Generic.into())
+            .build()
+            .expect("Error building page header");
         let data = vec![1, 2, 3, 4, 5, 6, 7];
 
-        let mut page = BaseBuilder::default().id(id).header(header).body(Body::Cleartext(data)).build().expect("Error building page");
+        let mut page = BaseBuilder::default()
+            .id(id)
+            .header(header)
+            .body(Body::Cleartext(data))
+            .build()
+            .expect("Error building page");
 
         let mut buff = vec![0u8; 1024];
-        let n = page.encode(Some(&pri_key), None, &mut buff).expect("Error encoding page");
+        let n = page
+            .encode(Some(&pri_key), None, &mut buff)
+            .expect("Error encoding page");
 
-        let (mut decoded, m) = Base::parse(&buff[..n], |_id| Some(pub_key), |_id| None ).expect("Error decoding page");
+        let (mut decoded, m) =
+            Base::parse(&buff[..n], |_id| Some(pub_key), |_id| None).expect("Error decoding page");
 
         decoded.clean();
 
@@ -389,27 +417,42 @@ mod tests {
         assert_eq!(n, m);
     }
 
-        #[test]
+    #[test]
     fn encode_decode_secondary_page() {
         let (id, pub_key, pri_key, _sec_key) = setup();
         let fake_id = crypto::hash(&[0x00, 0x11, 0x22]).unwrap();
 
-        let header = HeaderBuilder::default().flags(Flags::SECONDARY).kind(PageKind::Replica.into()).build().expect("Error building page header");
+        let header = HeaderBuilder::default()
+            .flags(Flags::SECONDARY)
+            .kind(PageKind::Replica.into())
+            .build()
+            .expect("Error building page header");
         let data = vec![1, 2, 3, 4, 5, 6, 7];
 
-        let mut page = BaseBuilder::default().id(fake_id).header(header).body(Body::Cleartext(data)).peer_id(Some(id.clone())).public_key(Some(pub_key.clone())).build().expect("Error building page");
+        let mut page = BaseBuilder::default()
+            .id(fake_id)
+            .header(header)
+            .body(Body::Cleartext(data))
+            .peer_id(Some(id.clone()))
+            .public_key(Some(pub_key.clone()))
+            .build()
+            .expect("Error building page");
 
         let mut buff = vec![0u8; 1024];
-        let n = page.encode(Some(&pri_key), None, &mut buff).expect("Error encoding page");
+        let n = page
+            .encode(Some(&pri_key), None, &mut buff)
+            .expect("Error encoding page");
         page.raw = Some(buff[..n].to_vec());
 
-        let (mut decoded, m) = Base::parse(&buff[..n], |_id| Some(pub_key), |_id| None ).expect("Error decoding page with known public key");
+        let (mut decoded, m) = Base::parse(&buff[..n], |_id| Some(pub_key), |_id| None)
+            .expect("Error decoding page with known public key");
 
         decoded.clean();
         assert_eq!(page, decoded);
         assert_eq!(n, m);
 
-        let (mut decoded, m) = Base::parse(&buff[..n], |_id| None, |_id| None ).expect("Error decoding page with unknown public key");
+        let (mut decoded, m) = Base::parse(&buff[..n], |_id| None, |_id| None)
+            .expect("Error decoding page with unknown public key");
 
         decoded.clean();
         assert_eq!(page, decoded);
@@ -420,20 +463,31 @@ mod tests {
     fn encode_decode_encrypted_page() {
         let (id, pub_key, pri_key, sec_key) = setup();
 
-        let header = HeaderBuilder::default().flags(Flags::ENCRYPTED).kind(PageKind::Generic.into()).build().expect("Error building page header");
+        let header = HeaderBuilder::default()
+            .flags(Flags::ENCRYPTED)
+            .kind(PageKind::Generic.into())
+            .build()
+            .expect("Error building page header");
         let data = vec![1, 2, 3, 4, 5, 6, 7];
 
-        let mut page = BaseBuilder::default().id(id).header(header).body(Body::Cleartext(data)).build().expect("Error building page");
+        let mut page = BaseBuilder::default()
+            .id(id)
+            .header(header)
+            .body(Body::Cleartext(data))
+            .build()
+            .expect("Error building page");
 
         let mut buff = vec![0u8; 1024];
-        let n = page.encode(Some(&pri_key), Some(&sec_key), &mut buff).expect("Error encoding page");
+        let n = page
+            .encode(Some(&pri_key), Some(&sec_key), &mut buff)
+            .expect("Error encoding page");
 
-        let (mut decoded, m) = Base::parse(&buff[..n], |_id| Some(pub_key), |_id| Some(sec_key) ).expect("Error decoding page");
+        let (mut decoded, m) = Base::parse(&buff[..n], |_id| Some(pub_key), |_id| Some(sec_key))
+            .expect("Error decoding page");
 
         decoded.clean();
 
         assert_eq!(page, decoded);
         assert_eq!(n, m);
     }
-
 }

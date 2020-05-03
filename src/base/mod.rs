@@ -24,7 +24,6 @@ pub trait Encode {
     fn encode(&self, buff: &mut [u8]) -> Result<usize, Self::Error>;
 }
 
-
 pub trait WireEncode {
     type Error;
 
@@ -43,5 +42,3 @@ pub trait WireDecode {
     /// Parse method consumes a slice and returns an object and the remaining slice.
     fn decode(ctx: Self::Ctx, buff: &[u8]) -> Result<(Self::Output, usize), Self::Error>;
 }
-
-

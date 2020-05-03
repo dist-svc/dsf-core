@@ -1,13 +1,9 @@
-
-
-use crate::types::*;
+use crate::base::Base;
+use crate::net::{Message, Request, Response};
 use crate::service::Service;
-use crate::base::{Base};
-use crate::net::{Request, Response, Message};
+use crate::types::*;
 
-pub struct PublishOptions {
-
-}
+pub struct PublishOptions {}
 
 pub trait Net {
     /// Generate a protocol request object from a request message
@@ -17,7 +13,11 @@ pub trait Net {
     fn build_response(&self, req: &Request, from: Address, resp: &Response) -> Base;
 
     /// Encode and sign a message
-    fn encode_message<T: AsRef<[u8]> + AsMut<[u8]>>(&self, msg: Message, buff: T) -> Result<usize, Error> ;
+    fn encode_message<T: AsRef<[u8]> + AsMut<[u8]>>(
+        &self,
+        msg: Message,
+        buff: T,
+    ) -> Result<usize, Error>;
 }
 
 impl Net for Service {
@@ -26,7 +26,7 @@ impl Net for Service {
         let mut req = req.clone();
 
         req.common.from = self.id;
-        
+
         req.into()
     }
 
@@ -36,12 +36,16 @@ impl Net for Service {
 
         resp.common.from = self.id;
         resp.common.id = req.id;
-        
+
         resp.into()
     }
 
     /// Encode a message
-    fn encode_message<T: AsRef<[u8]> + AsMut<[u8]>>(&self, msg: Message, buff: T) -> Result<usize, Error> {
+    fn encode_message<T: AsRef<[u8]> + AsMut<[u8]>>(
+        &self,
+        msg: Message,
+        buff: T,
+    ) -> Result<usize, Error> {
         let mut b: Base = msg.into();
 
         let n = b.encode(self.private_key.as_ref(), None, buff)?;

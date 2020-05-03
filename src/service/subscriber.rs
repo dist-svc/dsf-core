@@ -1,15 +1,14 @@
 use std::convert::TryInto;
 
-use crate::types::*;
-use crate::service::Service;
-use crate::page::{Page, PageInfo};
 use crate::crypto;
-
+use crate::page::{Page, PageInfo};
+use crate::service::Service;
+use crate::types::*;
 
 pub trait Subscriber {
     /// Create a service instance (or replica) from a given primary service page
     fn load(page: &Page) -> Result<Service, Error>;
-    
+
     /// Apply an updated primary page to an existing service instance
     fn apply_primary(&mut self, primary: &Page) -> Result<bool, Error>;
 
@@ -18,10 +17,8 @@ pub trait Subscriber {
 }
 
 impl Subscriber for Service {
-
     /// Create a service instance from a given page
     fn load(page: &Page) -> Result<Service, Error> {
-
         let flags = page.flags();
 
         let public_key = match page.info() {
@@ -37,8 +34,7 @@ impl Subscriber for Service {
         let public_options = page.public_options();
         let private_options = page.private_options();
 
-
-        Ok(Service{
+        Ok(Service {
             id: page.id().clone(),
 
             application_id: page.application_id(),
@@ -74,10 +70,10 @@ impl Subscriber for Service {
         self.validate_primary(update)?;
 
         if update.version() == self.version {
-            return Ok(false)
+            return Ok(false);
         }
         if update.version() <= self.version {
-            return Err(Error::InvalidServiceVersion)
+            return Err(Error::InvalidServiceVersion);
         }
 
         self.version = update.version();
@@ -85,7 +81,7 @@ impl Subscriber for Service {
         self.body = body.clone();
         self.public_options = public_options.to_vec();
         self.private_options = private_options.clone();
-    
+
         Ok(true)
     }
 
@@ -102,7 +98,6 @@ impl Subscriber for Service {
             Err(Error::UnexpectedPageKind)
         }
     }
-
 }
 
 impl Service {
@@ -112,17 +107,17 @@ impl Service {
             return Err(Error::ExpectedPrimaryPage);
         }
         if page.flags().contains(Flags::SECONDARY) {
-            return Err(Error::ExpectedPrimaryPage)
+            return Err(Error::ExpectedPrimaryPage);
         }
 
         if page.id() != &self.id {
-            return Err(Error::UnexpectedServiceId)
+            return Err(Error::UnexpectedServiceId);
         }
         if page.application_id() != self.application_id {
-            return Err(Error::UnexpectedApplicationId)
+            return Err(Error::UnexpectedApplicationId);
         }
         if page.kind() != self.kind.into() {
-            return Err(Error::InvalidPageKind)
+            return Err(Error::InvalidPageKind);
         }
 
         // Fetch public key from options
@@ -136,15 +131,15 @@ impl Service {
 
         // Check public key and ID match
         if self.id != crypto::hash(&public_key).unwrap() {
-            return Err(Error::KeyIdMismatch)
+            return Err(Error::KeyIdMismatch);
         }
 
         // Check public key hasn't changed
         if self.public_key != public_key {
-            return Err(Error::PublicKeyChanged)
+            return Err(Error::PublicKeyChanged);
         }
 
-        return Ok(())
+        return Ok(());
     }
 
     /// Validate a secondary page
@@ -153,22 +148,22 @@ impl Service {
             return Err(Error::ExpectedPrimaryPage);
         }
         if !secondary.flags().contains(Flags::SECONDARY) {
-            return Err(Error::ExpectedSecondaryPage)
+            return Err(Error::ExpectedSecondaryPage);
         }
 
         let publisher_id = match secondary.info().peer_id() {
             Some(p) => p,
-            None => return Err(Error::NoPeerId)
+            None => return Err(Error::NoPeerId),
         };
         if publisher_id != self.id {
-            return Err(Error::UnexpectedPeerId)
+            return Err(Error::UnexpectedPeerId);
         }
 
         if secondary.application_id() != self.application_id {
-            return Err(Error::UnexpectedApplicationId)
+            return Err(Error::UnexpectedApplicationId);
         }
 
-        return Ok(())
+        return Ok(());
     }
 
     /// Validate a data objects
@@ -178,12 +173,12 @@ impl Service {
         }
 
         if data.id() != &self.id {
-            return Err(Error::UnexpectedServiceId)
+            return Err(Error::UnexpectedServiceId);
         }
         if data.application_id() != self.application_id {
-            return Err(Error::UnexpectedApplicationId)
+            return Err(Error::UnexpectedApplicationId);
         }
 
-        return Ok(())
+        return Ok(());
     }
 }

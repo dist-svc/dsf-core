@@ -1,4 +1,3 @@
-
 use crate::types::{Id, PublicKey};
 
 #[derive(Debug, PartialEq, Clone)]
@@ -6,16 +5,16 @@ use crate::types::{Id, PublicKey};
 pub enum PageInfo {
     Primary(Primary),
     Secondary(Secondary),
-    Data(())
+    Data(()),
 }
 
 impl PageInfo {
     pub fn primary(pub_key: PublicKey) -> Self {
-        PageInfo::Primary(Primary{pub_key})
+        PageInfo::Primary(Primary { pub_key })
     }
 
     pub fn secondary(peer_id: Id) -> Self {
-        PageInfo::Secondary(Secondary{peer_id})
+        PageInfo::Secondary(Secondary { peer_id })
     }
 
     pub fn is_primary(&self) -> bool {

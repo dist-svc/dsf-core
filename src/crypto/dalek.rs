@@ -4,11 +4,9 @@ extern crate ed25519_dalek;
 
 use crate::types::*;
 
-
-use ed25519_dalek::{Signature, Keypair};
-use sha2::Sha512;
+use ed25519_dalek::{Keypair, Signature};
 use rand::rngs::OsRng;
-
+use sha2::Sha512;
 
 pub fn pk_new() -> (PublicKey, PrivateKey) {
     let mut csprng = OsRng::new().unwrap();

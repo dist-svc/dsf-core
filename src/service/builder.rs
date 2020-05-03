@@ -1,8 +1,6 @@
-
-
-use crate::types::{PageKind};
 use crate::crypto;
 use crate::options::Options;
+use crate::types::PageKind;
 
 pub use super::ServiceBuilder;
 
@@ -62,7 +60,7 @@ impl ServiceBuilder {
         self
     }
 
-     pub fn append_private_option(&mut self, o: Options) -> &mut Self {
+    pub fn append_private_option(&mut self, o: Options) -> &mut Self {
         match &mut self.private_options {
             Some(opts) => opts.append(o),
             None => panic!("attempting to append private option to encrypted field"),

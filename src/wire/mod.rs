@@ -1,11 +1,10 @@
 //! Wire provides a container type to map byte data to fixed fields (and vice versa)
 //! to support wire encoding and decoding.
 
-
-use crate::types::*;
 use crate::base::{BaseError, Body, Header, PrivateOptions};
-use crate::options::{Options, OptionsList};
 use crate::crypto;
+use crate::options::{Options, OptionsList};
+use crate::types::*;
 
 use crate::base::Base;
 
@@ -20,13 +19,15 @@ pub use builder::Builder;
 pub mod container;
 pub use container::Container;
 
-
-
-impl <'a, T: AsRef<[u8]>> Container<T> {
-    /// Parses a data array into a base object using the pub_key and sec_key functions to locate 
+impl<'a, T: AsRef<[u8]>> Container<T> {
+    /// Parses a data array into a base object using the pub_key and sec_key functions to locate
     /// keys for validation and decyption
-    pub fn parse<P, S>(data: T, mut pub_key_s: P, mut sec_key_s: S) -> Result<(Base, usize), BaseError>
-    where 
+    pub fn parse<P, S>(
+        data: T,
+        mut pub_key_s: P,
+        mut sec_key_s: S,
+    ) -> Result<(Base, usize), BaseError>
+    where
         P: FnMut(&Id) -> Option<PublicKey>,
         S: FnMut(&Id) -> Option<SecretKey>,
     {
@@ -47,7 +48,6 @@ impl <'a, T: AsRef<[u8]>> Container<T> {
 
         // Validate primary types immediately if pubkey is known
         if !flags.contains(Flags::SECONDARY) {
-            
             // Lookup public key
             if let Some(key) = (pub_key_s)(&id) {
                 // Check ID matches key
@@ -56,7 +56,8 @@ impl <'a, T: AsRef<[u8]>> Container<T> {
                 }
 
                 // Validate message body against key
-                verified = crypto::pk_validate(&key, &signature, container.signed()).map_err(|_e| BaseError::ValidateError )?;
+                verified = crypto::pk_validate(&key, &signature, container.signed())
+                    .map_err(|_e| BaseError::ValidateError)?;
 
                 // Stop processing if signature is invalid
                 if !verified {
@@ -71,22 +72,30 @@ impl <'a, T: AsRef<[u8]>> Container<T> {
         let mut pub_key = None;
         let mut parent = None;
 
-        let public_options: Vec<_> = container.public_options()
-        .filter_map(|o| {
-            match &o {
-                Options::PeerId(v) => { peer_id = Some(v.peer_id); None },
-                Options::PubKey(v) => { pub_key = Some(v.public_key); None },
-                Options::PrevSig(v) => { parent = Some(v.sig); None }
+        let public_options: Vec<_> = container
+            .public_options()
+            .filter_map(|o| match &o {
+                Options::PeerId(v) => {
+                    peer_id = Some(v.peer_id);
+                    None
+                }
+                Options::PubKey(v) => {
+                    pub_key = Some(v.public_key);
+                    None
+                }
+                Options::PrevSig(v) => {
+                    parent = Some(v.sig);
+                    None
+                }
                 _ => Some(o),
-            }
-        })
-        .collect();
+            })
+            .collect();
 
         // Look for signing ID
         let signing_id: Id = match (flags.contains(Flags::SECONDARY), peer_id) {
             (false, _) => Ok(container.id().into()),
             (true, Some(id)) => Ok(id),
-            _ => Err(BaseError::NoPeerId), 
+            _ => Err(BaseError::NoPeerId),
         }?;
 
         // Fetch public key
@@ -94,9 +103,12 @@ impl <'a, T: AsRef<[u8]>> Container<T> {
             (Some(key), _) => Some(key),
             (None, Some(key)) => Some(key),
             _ => {
-                warn!("Missing public key for message: {:?} signing id: {:?}", id, signing_id);
+                warn!(
+                    "Missing public key for message: {:?} signing id: {:?}",
+                    id, signing_id
+                );
                 None
-            },
+            }
         };
 
         // Late validation for self-signed objects from unknown sources
@@ -108,14 +120,15 @@ impl <'a, T: AsRef<[u8]>> Container<T> {
                 }
 
                 // Verify body
-                verified = crypto::pk_validate(&public_key, &signature, container.signed()).map_err(|_e| BaseError::ValidateError )?;
+                verified = crypto::pk_validate(&public_key, &signature, container.signed())
+                    .map_err(|_e| BaseError::ValidateError)?;
 
                 // Stop processing on verification error
                 if !verified {
                     info!("Invalid signature for self-signed object");
                     return Err(BaseError::InvalidSignature);
                 }
-            },
+            }
             _ => {
                 warn!("No verification for object");
             }
@@ -129,55 +142,53 @@ impl <'a, T: AsRef<[u8]>> Container<T> {
             (true, Some(sk)) if body_data.len() > 0 => {
                 // Decrypt body
                 let n = crypto::sk_decrypt2(&sk, &mut body_data)
-                        .map_err(|_e| BaseError::InvalidSignature )?;
+                    .map_err(|_e| BaseError::InvalidSignature)?;
                 body_data = (&body_data[..n]).to_vec();
 
                 Body::Cleartext(body_data)
-            },
+            }
             (true, None) if body_data.len() > 0 => {
                 debug!("No encryption key found for data");
 
                 Body::Encrypted(body_data)
-            },
-            (false, _) if body_data.len() > 0 => {
-                Body::Cleartext(body_data)
-            },
-            _ => {
-                Body::None
             }
+            (false, _) if body_data.len() > 0 => Body::Cleartext(body_data),
+            _ => Body::None,
         };
 
         // Handle private_options decryption or parsing
         let private_options = match (flags.contains(Flags::ENCRYPTED), sec_key_s(&id)) {
             (true, Some(sk)) if private_options_data.len() > 0 => {
-
                 // Decrypt private options
                 let n = crypto::sk_decrypt2(&sk, &mut private_options_data)
-                        .map_err(|_e| BaseError::InvalidSignature )?;
+                    .map_err(|_e| BaseError::InvalidSignature)?;
                 private_options_data = (&private_options_data[..n]).to_vec();
 
                 // Decode private options
-                let (private_options, _n)= Options::parse_vec(&private_options_data)?;
+                let (private_options, _n) = Options::parse_vec(&private_options_data)?;
 
                 PrivateOptions::Cleartext(private_options)
-            },
+            }
             (true, None) if private_options_data.len() > 0 => {
                 debug!("No encryption key found for data");
 
                 PrivateOptions::Encrypted(private_options_data)
-            },
-            _ => {
-                PrivateOptions::None
-            },
+            }
+            _ => PrivateOptions::None,
         };
 
         // Return page and options
         Ok((
             Base {
-                id: id,
-                header: Header::new(header.application_id(), header.kind(), header.index(), header.flags()),
+                id,
+                header: Header::new(
+                    header.application_id(),
+                    header.kind(),
+                    header.index(),
+                    header.flags(),
+                ),
                 body,
-                
+
                 private_options,
                 public_options,
 
@@ -187,7 +198,7 @@ impl <'a, T: AsRef<[u8]>> Container<T> {
 
                 signature: Some(signature),
                 verified,
-                
+
                 raw: Some(container.raw().to_vec()),
             },
             n,
@@ -195,14 +206,15 @@ impl <'a, T: AsRef<[u8]>> Container<T> {
     }
 }
 
-
-impl <'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
-    pub fn encode(buff: T, base: &Base, signing_key: &PrivateKey, encryption_key: Option<&SecretKey>) -> (Self, usize) {
-
+impl<'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
+    pub fn encode(
+        buff: T,
+        base: &Base,
+        signing_key: &PrivateKey,
+        encryption_key: Option<&SecretKey>,
+    ) -> (Self, usize) {
         // Setup base builder with header and ID
-        let bb = Builder::new(buff)
-            .id(base.id())
-            .header(base.header());
+        let bb = Builder::new(buff).id(base.id()).header(base.header());
 
         // Check encryption key exists if required
         let encryption_key = match (base.flags().contains(Flags::ENCRYPTED), encryption_key) {
@@ -215,7 +227,9 @@ impl <'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
         let bb = bb.body(base.body(), encryption_key).unwrap();
 
         // Write private options
-        let mut bb = bb.private_options(base.private_options(), encryption_key).unwrap();
+        let mut bb = bb
+            .private_options(base.private_options(), encryption_key)
+            .unwrap();
 
         // Write public options
         // Add public key option if specified
@@ -235,17 +249,12 @@ impl <'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
         let bb = bb.public_options(&opts).unwrap();
 
         // Sign object
-        let c= bb.sign(signing_key).unwrap();
+        let c = bb.sign(signing_key).unwrap();
         let len = c.len;
 
         (c, len)
     }
 }
 
-
-
 #[cfg(test)]
-mod test {
-
-}
-
+mod test {}

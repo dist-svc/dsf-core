@@ -1,7 +1,7 @@
-use std::io::{Cursor, Write, Error as IoError};
+use std::io::{Cursor, Error as IoError, Write};
 use std::ops::Add;
 use std::str;
-use std::time::{SystemTime, Duration};
+use std::time::{Duration, SystemTime};
 
 use byteorder::{NetworkEndian, ReadBytesExt, WriteBytesExt};
 
@@ -16,7 +16,7 @@ impl Parse for String {
 
         let length = c.read_u16::<NetworkEndian>()? as usize;
         let value = str::from_utf8(&data[2..2 + length]).unwrap().to_owned();
-        
+
         Ok((value, c.position() as usize))
     }
 }

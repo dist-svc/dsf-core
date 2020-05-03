@@ -1,4 +1,3 @@
-
 use std::collections::HashMap;
 
 #[derive(PartialEq, Debug, Clone)]
@@ -8,7 +7,7 @@ pub enum ServiceKind {
     Peer,
     Replica,
     Unknown,
-    Private
+    Private,
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -24,5 +23,3 @@ pub struct Generic {
 pub struct Unknown {
     pub body: Vec<u8>,
 }
-
-

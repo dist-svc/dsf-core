@@ -1,25 +1,34 @@
-
-use std::time::{Duration, SystemTime};
 use std::ops::Add;
+use std::time::{Duration, SystemTime};
 
-use crate::types::*;
-use crate::service::Service;
-use crate::options::Options;
 use crate::base::{Base, Body, PrivateOptions};
+use crate::options::Options;
 use crate::page::{Page, PageBuilder, PageInfo};
+use crate::service::Service;
+use crate::types::*;
 
 /// Publisher trait allows services to generate primary, data, and secondary pages
 /// as well as to encode (and sign and optionally encrypt) generated pages
 pub trait Publisher {
     /// Generates a primary page to publish for the given service and encodes it into the provided buffer
-    fn publish_primary<T: AsRef<[u8]> + AsMut<[u8]>>(&mut self, buff: T) -> Result<(usize, Page), Error>;
+    fn publish_primary<T: AsRef<[u8]> + AsMut<[u8]>>(
+        &mut self,
+        buff: T,
+    ) -> Result<(usize, Page), Error>;
 
     /// Create a data object for publishing with the provided options and encodes it into the provided buffer
-    fn publish_data<T: AsRef<[u8]> + AsMut<[u8]>>(&mut self, options: DataOptions, buff: T) -> Result<(usize, Page), Error>;
+    fn publish_data<T: AsRef<[u8]> + AsMut<[u8]>>(
+        &mut self,
+        options: DataOptions,
+        buff: T,
+    ) -> Result<(usize, Page), Error>;
 
     /// Create a secondary page for publishing with the provided options and encodes it into the provided buffer
-    fn publish_secondary<T: AsRef<[u8]> + AsMut<[u8]>>(&mut self, options: SecondaryOptions, buff: T) -> Result<(usize, Page), Error>;
-
+    fn publish_secondary<T: AsRef<[u8]> + AsMut<[u8]>>(
+        &mut self,
+        options: SecondaryOptions,
+        buff: T,
+    ) -> Result<(usize, Page), Error>;
 }
 
 #[derive(Clone, Builder)]
@@ -27,7 +36,7 @@ pub struct SecondaryOptions {
     /// ID of primary service
     id: Id,
 
-    /// Application ID of primary service 
+    /// Application ID of primary service
     #[builder(default = "0")]
     application_id: u16,
 
@@ -35,7 +44,7 @@ pub struct SecondaryOptions {
     #[builder(default = "Kind(0)")]
     page_kind: Kind,
 
-    /// Page version 
+    /// Page version
     /// This is monotonically increased for any successive publishing of the same page
     #[builder(default = "0")]
     version: u16,
@@ -74,28 +83,45 @@ pub struct DataOptions {
     /// Public options attached to the data object
     #[builder(default = "vec![]")]
     public_options: Vec<Options>,
-    
+
     /// Private options attached to the data object
     #[builder(default = "PrivateOptions::None")]
-    private_options: PrivateOptions
+    private_options: PrivateOptions,
 }
 
 impl Publisher for Service {
     /// Publish generates a page to publishing for the given service.
-    fn publish_primary<T: AsRef<[u8]> + AsMut<[u8]>>(&mut self, buff: T) -> Result<(usize, Page), Error> {
+    fn publish_primary<T: AsRef<[u8]> + AsMut<[u8]>>(
+        &mut self,
+        buff: T,
+    ) -> Result<(usize, Page), Error> {
         let mut flags = Flags::default();
         if self.encrypted {
             flags |= Flags::ENCRYPTED;
         }
 
         // Build page
-        let mut p = Page::new(self.id.clone(), self.application_id, self.kind.into(), flags, self.version, PageInfo::primary(self.public_key.clone()), self.body.clone(), SystemTime::now(), Some(SystemTime::now().add(Duration::from_secs(24 * 60 * 60))));
-    
+        let mut p = Page::new(
+            self.id.clone(),
+            self.application_id,
+            self.kind.into(),
+            flags,
+            self.version,
+            PageInfo::primary(self.public_key.clone()),
+            self.body.clone(),
+            SystemTime::now(),
+            Some(SystemTime::now().add(Duration::from_secs(24 * 60 * 60))),
+        );
+
         self.encode(&mut p, buff).map(|n| (n, p))
     }
 
     /// Secondary generates a secondary page using this service to be attached to the provided service ID
-    fn publish_secondary<T: AsRef<[u8]> + AsMut<[u8]>>(&mut self, options: SecondaryOptions, buff: T) -> Result<(usize, Page), Error> {
+    fn publish_secondary<T: AsRef<[u8]> + AsMut<[u8]>>(
+        &mut self,
+        options: SecondaryOptions,
+        buff: T,
+    ) -> Result<(usize, Page), Error> {
         let mut flags = Flags::SECONDARY;
         if self.encrypted {
             flags |= Flags::ENCRYPTED;
@@ -116,14 +142,18 @@ impl Publisher for Service {
             .public_options(options.public_options)
             .private_options(options.private_options)
             .issued(SystemTime::now().into())
-            .expiry(options.expiry.map(|v| v.into() ));
+            .expiry(options.expiry.map(|v| v.into()));
 
         let mut p = b.build().unwrap();
 
         self.encode(&mut p, buff).map(|n| (n, p))
     }
 
-    fn publish_data<T: AsRef<[u8]> + AsMut<[u8]>>(&mut self, options: DataOptions, buff: T) -> Result<(usize, Page), Error> {
+    fn publish_data<T: AsRef<[u8]> + AsMut<[u8]>>(
+        &mut self,
+        options: DataOptions,
+        buff: T,
+    ) -> Result<(usize, Page), Error> {
         let mut flags = Flags::default();
         if self.encrypted {
             flags |= Flags::ENCRYPTED;
@@ -133,16 +163,29 @@ impl Publisher for Service {
 
         self.data_index += 1;
 
-        let mut p = Page::new(self.id.clone(), self.application_id, options.data_kind, flags, self.data_index, PageInfo::Data(()), options.body, SystemTime::now(), options.expiry);
+        let mut p = Page::new(
+            self.id.clone(),
+            self.application_id,
+            options.data_kind,
+            flags,
+            self.data_index,
+            PageInfo::Data(()),
+            options.body,
+            SystemTime::now(),
+            options.expiry,
+        );
 
         self.encode(&mut p, buff).map(|n| (n, p))
     }
-
 }
 
-impl Service{
+impl Service {
     // Encode a page to the provided buffer, updating the internal signature state
-    fn encode<T: AsRef<[u8]> + AsMut<[u8]>>(&mut self, page: &mut Page, buff: T) -> Result<usize, Error> {
+    fn encode<T: AsRef<[u8]> + AsMut<[u8]>>(
+        &mut self,
+        page: &mut Page,
+        buff: T,
+    ) -> Result<usize, Error> {
         // Map page to base object
         let mut b = Base::from(&*page);
 

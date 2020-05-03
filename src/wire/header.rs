@@ -1,7 +1,7 @@
 use byteorder::{ByteOrder, NetworkEndian};
 
-use crate::types::{Flags, Kind, MutableData, ImmutableData};
-use crate::base::header::{Header, offsets};
+use crate::base::header::{offsets, Header};
+use crate::types::{Flags, ImmutableData, Kind, MutableData};
 
 /// Header generic over arbitrary storage for wire encoding
 // TODO: decide what to do with the high / low level impls
@@ -9,22 +9,17 @@ pub struct WireHeader<T: ImmutableData> {
     pub(crate) buff: T,
 }
 
-impl <T: ImmutableData> From<&WireHeader<T>> for Header {
+impl<T: ImmutableData> From<&WireHeader<T>> for Header {
     /// Build a base::Header object from a WireHeader
     fn from(wh: &WireHeader<T>) -> Header {
-        Header::new (
-            wh.application_id(),
-            wh.kind(),
-            wh.index(),
-            wh.flags(),
-        )
+        Header::new(wh.application_id(), wh.kind(), wh.index(), wh.flags())
     }
 }
 
-impl <T: ImmutableData> WireHeader<T> {
+impl<T: ImmutableData> WireHeader<T> {
     /// Create a new header object
     pub fn new(buff: T) -> Self {
-       Self{buff} 
+        Self { buff }
     }
 
     pub fn protocol_version(&self) -> u16 {
@@ -49,20 +44,20 @@ impl <T: ImmutableData> WireHeader<T> {
         NetworkEndian::read_u16(&self.buff.as_ref()[offsets::INDEX..])
     }
 
-    pub fn data_len(&self) -> usize {        
+    pub fn data_len(&self) -> usize {
         NetworkEndian::read_u16(&self.buff.as_ref()[offsets::DATA_LEN..]) as usize
     }
 
-    pub fn private_options_len(&self) -> usize {        
+    pub fn private_options_len(&self) -> usize {
         NetworkEndian::read_u16(&self.buff.as_ref()[offsets::PRIVATE_OPTIONS_LEN..]) as usize
     }
 
-    pub fn public_options_len(&self) -> usize {        
+    pub fn public_options_len(&self) -> usize {
         NetworkEndian::read_u16(&self.buff.as_ref()[offsets::PUBLIC_OPTIONS_LEN..]) as usize
     }
 }
 
-impl <T: MutableData> WireHeader<T> {
+impl<T: MutableData> WireHeader<T> {
     /// Write a base::Header
     pub fn encode(&mut self, h: &Header) {
         self.set_protocol_version(h.protocol_version());
@@ -79,7 +74,10 @@ impl <T: MutableData> WireHeader<T> {
 
     /// Set the application ID
     pub fn set_application_id(&mut self, application_id: u16) {
-        NetworkEndian::write_u16(&mut self.buff.as_mut()[offsets::APPLICATION_ID..], application_id)
+        NetworkEndian::write_u16(
+            &mut self.buff.as_mut()[offsets::APPLICATION_ID..],
+            application_id,
+        )
     }
 
     /// Set object flags
@@ -98,18 +96,27 @@ impl <T: MutableData> WireHeader<T> {
     }
 
     /// Set the body field length
-    pub fn set_data_len(&mut self, data_len: usize) {        
-        NetworkEndian::write_u16(&mut self.buff.as_mut()[offsets::DATA_LEN..], data_len as u16)
+    pub fn set_data_len(&mut self, data_len: usize) {
+        NetworkEndian::write_u16(
+            &mut self.buff.as_mut()[offsets::DATA_LEN..],
+            data_len as u16,
+        )
     }
 
     /// Set the private options field length
-    pub fn set_private_options_len(&mut self, private_options_len: usize) {        
-        NetworkEndian::write_u16(&mut self.buff.as_mut()[offsets::PRIVATE_OPTIONS_LEN..], private_options_len as u16)
+    pub fn set_private_options_len(&mut self, private_options_len: usize) {
+        NetworkEndian::write_u16(
+            &mut self.buff.as_mut()[offsets::PRIVATE_OPTIONS_LEN..],
+            private_options_len as u16,
+        )
     }
 
     /// Set the public options field length
-    pub fn set_public_options_len(&mut self, public_options_len: usize) {        
-        NetworkEndian::write_u16(&mut self.buff.as_mut()[offsets::PUBLIC_OPTIONS_LEN..], public_options_len as u16)
+    pub fn set_public_options_len(&mut self, public_options_len: usize) {
+        NetworkEndian::write_u16(
+            &mut self.buff.as_mut()[offsets::PUBLIC_OPTIONS_LEN..],
+            public_options_len as u16,
+        )
     }
 }
 

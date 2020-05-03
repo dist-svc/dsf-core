@@ -1,11 +1,10 @@
-
 //! API module defines the DSF remote API
 //! This allows for limited capability devices to perform network operations via
 //! a full-featured device
 
 use async_trait::async_trait;
 
-use crate::types::{Id};
+use crate::types::Id;
 
 /// ServiceHandle objects are used to pass around instances of a service
 #[derive(Debug, Clone, PartialEq)]
@@ -15,7 +14,7 @@ pub struct ServiceHandle {
 
 impl ServiceHandle {
     pub fn new(id: Id) -> Self {
-        Self{id}
+        Self { id }
     }
 }
 
@@ -29,7 +28,6 @@ pub trait Create {
     async fn create(&mut self, options: Self::Options) -> Result<ServiceHandle, Self::Error>;
 }
 
-
 /// Producer API trait used to register an existing service
 #[async_trait]
 pub trait Register {
@@ -40,7 +38,6 @@ pub trait Register {
     /// Register a service in the distributed database
     async fn register(&mut self, options: Self::Options) -> Result<Self::Info, Self::Error>;
 }
-
 
 /// Locate API trait used to find an existing service
 #[async_trait]
@@ -53,7 +50,6 @@ pub trait Locate {
     /// This returns a future that will resolve to the desired service or an error
     async fn locate(&mut self, options: Self::Options) -> Result<Self::Info, Self::Error>;
 }
-
 
 /// Publisher API trait used by publishers of service data
 #[async_trait]
@@ -81,4 +77,3 @@ pub trait Subscribe {
     /// This returns a future that will resolve to the desired service or an error
     async fn subscribe(&mut self, options: Self::Options) -> Result<Self::Streamable, Self::Error>;
 }
-

@@ -1,7 +1,6 @@
 //! Header is a high level representation of the protocol header used in all DSF objects
 
-
-use crate::types::{Kind, Flags};
+use crate::types::{Flags, Kind};
 
 /// Header object length
 pub const HEADER_LEN: usize = 16;
@@ -32,7 +31,7 @@ pub struct Header {
 
     /// Object kind
     kind: Kind,
-    
+
     #[builder(default = "Flags::default()")]
     flags: Flags,
 
@@ -40,7 +39,6 @@ pub struct Header {
     /// Index is the Page Version for Pages, or the Request ID for messages
     index: u16,
 }
-
 
 impl HeaderBuilder {
     pub fn address_request(&mut self) -> &mut Self {
@@ -53,7 +51,13 @@ impl HeaderBuilder {
 
 impl Header {
     pub fn new(application_id: u16, kind: Kind, index: u16, flags: Flags) -> Header {
-        Header{protocol_version: 0, application_id, kind, flags, index}
+        Header {
+            protocol_version: 0,
+            application_id,
+            kind,
+            flags,
+            index,
+        }
     }
 
     pub fn protocol_version(&self) -> u16 {

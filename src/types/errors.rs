@@ -1,6 +1,5 @@
-
-use std::time::SystemTimeError;
 use std::io::Error as IoError;
+use std::time::SystemTimeError;
 
 use crate::base::BaseError;
 use crate::options::OptionsError;
@@ -45,10 +44,10 @@ pub enum Error {
     UnknownPeer,
     Base(BaseError),
     Options(OptionsError),
-    Timeout, 
+    Timeout,
     Unknown,
 }
-  
+
 impl From<IoError> for Error {
     fn from(e: IoError) -> Error {
         error!("io error: {}", e);

@@ -1,12 +1,12 @@
-use std::time::{SystemTime};
 use std::fmt;
+use std::time::SystemTime;
 
-use chrono::{Utc, TimeZone};
+use chrono::{TimeZone, Utc};
 
 /// New DateTime type because rust doesn't have second or millisecond sized versions
 #[derive(PartialEq, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-pub struct DateTime (u64);
+pub struct DateTime(u64);
 
 impl DateTime {
     pub fn now() -> Self {
