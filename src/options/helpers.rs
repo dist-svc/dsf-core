@@ -29,7 +29,7 @@ impl Encode for String {
 
         let value = self.as_bytes();
         w.write_u16::<NetworkEndian>(value.len() as u16)?;
-        w.write(value)?;
+        w.write_all(value)?;
 
         Ok(w.position() as usize)
     }
@@ -56,7 +56,7 @@ impl Encode for Vec<u8> {
         let mut w = Cursor::new(data);
 
         w.write_u16::<NetworkEndian>(8)?;
-        w.write(self)?;
+        w.write_all(self)?;
 
         Ok(w.position() as usize)
     }

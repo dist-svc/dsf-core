@@ -154,11 +154,11 @@ impl Options {
 impl Options {
     // Helper to generate name metadata
     pub fn name(value: &str) -> Options {
-        Options::Name(Name::new(value.clone()))
+        Options::Name(Name::new(value))
     }
 
     pub fn kind(value: &str) -> Options {
-        Options::Kind(Kind::new(value.clone()))
+        Options::Kind(Kind::new(value))
     }
 
     pub fn prev_sig(value: &Signature) -> Options {
@@ -166,7 +166,7 @@ impl Options {
     }
 
     pub fn meta(key: &str, value: &str) -> Options {
-        Options::Metadata(Metadata::new(key.clone(), value.clone()))
+        Options::Metadata(Metadata::new(key, value))
     }
 
     pub fn issued<T>(now: T) -> Options
@@ -335,7 +335,7 @@ impl Encode for PubKey {
 
         w.write_u16::<NetworkEndian>(option_kinds::PUBKEY)?;
         w.write_u16::<NetworkEndian>(PUBLIC_KEY_LEN as u16)?;
-        w.write(&self.public_key)?;
+        w.write_all(&self.public_key)?;
 
         Ok(w.position() as usize)
     }
@@ -377,7 +377,7 @@ impl Encode for PeerId {
 
         w.write_u16::<NetworkEndian>(option_kinds::PEER_ID)?;
         w.write_u16::<NetworkEndian>(ID_LEN as u16)?;
-        w.write(&self.peer_id)?;
+        w.write_all(&self.peer_id)?;
 
         Ok(w.position() as usize)
     }
@@ -414,7 +414,7 @@ impl Encode for PrevSig {
 
         w.write_u16::<NetworkEndian>(option_kinds::PREV_SIG)?;
         w.write_u16::<NetworkEndian>(SIGNATURE_LEN as u16)?;
-        w.write(&self.sig)?;
+        w.write_all(&self.sig)?;
 
         Ok(w.position() as usize)
     }
@@ -453,7 +453,7 @@ impl Encode for Kind {
 
         w.write_u16::<NetworkEndian>(option_kinds::KIND)?;
         w.write_u16::<NetworkEndian>(self.value.len() as u16)?;
-        w.write(self.value.as_bytes())?;
+        w.write_all(self.value.as_bytes())?;
 
         Ok(w.position() as usize)
     }
@@ -492,7 +492,7 @@ impl Encode for Name {
 
         w.write_u16::<NetworkEndian>(option_kinds::NAME)?;
         w.write_u16::<NetworkEndian>(self.value.len() as u16)?;
-        w.write(self.value.as_bytes())?;
+        w.write_all(self.value.as_bytes())?;
 
         Ok(w.position() as usize)
     }
@@ -506,7 +506,7 @@ impl Parse for SocketAddrV4 {
         let mut r = Cursor::new(data);
 
         let mut ip = [0u8; 4];
-        r.read(&mut ip)?;
+        r.read_exact(&mut ip)?;
         let port = r.read_u16::<NetworkEndian>()?;
 
         Ok((SocketAddrV4::new(ip.into(), port), data.len()))
@@ -521,7 +521,7 @@ impl Encode for SocketAddrV4 {
 
         w.write_u16::<NetworkEndian>(option_kinds::ADDR_IPV4)?;
         w.write_u16::<NetworkEndian>(6)?;
-        w.write(&self.ip().octets())?;
+        w.write_all(&self.ip().octets())?;
         w.write_u16::<NetworkEndian>(self.port())?;
 
         Ok(w.position() as usize)
@@ -536,7 +536,7 @@ impl Parse for SocketAddrV6 {
         let mut r = Cursor::new(data);
 
         let mut ip = [0u8; 16];
-        r.read(&mut ip)?;
+        r.read_exact(&mut ip)?;
         let port = r.read_u16::<NetworkEndian>()?;
 
         Ok((SocketAddrV6::new(ip.into(), port, 0, 0), data.len()))
@@ -551,7 +551,7 @@ impl Encode for SocketAddrV6 {
 
         w.write_u16::<NetworkEndian>(option_kinds::ADDR_IPV6)?;
         w.write_u16::<NetworkEndian>(18)?;
-        w.write(&self.ip().octets())?;
+        w.write_all(&self.ip().octets())?;
         w.write_u16::<NetworkEndian>(self.port())?;
 
         Ok(w.position() as usize)
@@ -605,7 +605,7 @@ impl Encode for Metadata {
 
         w.write_u16::<NetworkEndian>(option_kinds::META)?;
         w.write_u16::<NetworkEndian>(data.len() as u16)?;
-        w.write(data.as_bytes())?;
+        w.write_all(data.as_bytes())?;
 
         Ok(w.position() as usize)
     }

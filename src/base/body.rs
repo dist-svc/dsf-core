@@ -347,7 +347,7 @@ impl Base {
         if let Some(raw) = &self.raw {
             let mut d = buff.as_mut();
 
-            d.write(&raw)?;
+            d.write_all(&raw)?;
 
             return Ok(raw.len());
         }
