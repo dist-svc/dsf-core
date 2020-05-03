@@ -213,9 +213,9 @@ impl Page {
                     };
 
                     // Check for last entry second
-                    if let Some(prev) = last_key {
+                    if let Some(prev) = &last_key {
                         if &prev.0 == id {
-                            return Some(prev.1);
+                            return Some(prev.1.clone());
                         }
                     }
 
@@ -253,7 +253,7 @@ impl Page {
 
         for p in pages {
             // Check page has associated signature
-            match (p.signature, &p.raw) {
+            match (&p.signature, &p.raw) {
                 (None, None) => {
                     error!("cannot encode page without associated signature or private key");
                     continue;
@@ -306,17 +306,17 @@ impl From<&Page> for Base {
             default_options.push(Options::expiry(expiry));
         }
 
-        if let Some(prev_sig) = page.previous_sig {
-            default_options.push(Options::prev_sig(&prev_sig));
+        if let Some(prev_sig) = &page.previous_sig {
+            default_options.push(Options::prev_sig(prev_sig));
         }
 
         // Add public fields for different object types
         match &page.info {
             PageInfo::Primary(primary) => {
-                default_options.push(Options::public_key(primary.pub_key));
+                default_options.push(Options::public_key(primary.pub_key.clone()));
             }
             PageInfo::Secondary(secondary) => {
-                default_options.push(Options::peer_id(secondary.peer_id));
+                default_options.push(Options::peer_id(secondary.peer_id.clone()));
             }
             PageInfo::Data(_data) => {}
         }
@@ -328,7 +328,7 @@ impl From<&Page> for Base {
 
         // Generate base object
         let mut b = Base::new(
-            page.id,
+            page.id.clone(),
             page.application_id,
             page.kind,
             flags,
@@ -380,11 +380,11 @@ impl TryFrom<Base> for Page {
                     None
                 }
                 Options::PrevSig(v) => {
-                    previous_sig = Some(v.sig);
+                    previous_sig = Some(v.sig.clone());
                     None
                 }
                 Options::PeerId(v) => {
-                    peer_id = Some(v.peer_id);
+                    peer_id = Some(v.peer_id.clone());
                     None
                 }
                 _ => Some(o),
@@ -392,7 +392,7 @@ impl TryFrom<Base> for Page {
             .map(|o| o.clone())
             .collect();
 
-        let peer_id = base.peer_id;
+        let peer_id = base.peer_id.clone();
 
         // TODO: parse out private options too?
         let _private_options = base.private_options();
@@ -401,8 +401,8 @@ impl TryFrom<Base> for Page {
             // Handle primary page parsing
 
             // Fetch public key from options
-            let public_key: PublicKey = match base.public_key {
-                Some(pk) => Ok(pk),
+            let public_key: PublicKey = match &base.public_key {
+                Some(pk) => Ok(pk.clone()),
                 None => Err(Error::NoPublicKey),
             }?;
 

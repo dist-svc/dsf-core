@@ -139,7 +139,7 @@ impl Service {
             return Err(Error::PublicKeyChanged);
         }
 
-        return Ok(());
+        Ok(())
     }
 
     /// Validate a secondary page
@@ -163,7 +163,7 @@ impl Service {
             return Err(Error::UnexpectedApplicationId);
         }
 
-        return Ok(());
+        Ok(())
     }
 
     /// Validate a data objects
@@ -179,6 +179,6 @@ impl Service {
             return Err(Error::UnexpectedApplicationId);
         }
 
-        return Ok(());
+        Ok(())
     }
 }

@@ -243,7 +243,7 @@ mod tests {
                 .encode(Some(&pri_key), None, &mut buff)
                 .expect("error encoding message");
             // Parse base and check instances match
-            let (mut d, m) = Base::parse(&buff[..n], |_id| Some(pub_key), |_id| None)
+            let (mut d, m) = Base::parse(&buff[..n], |_id| Some(pub_key.clone()), |_id| None)
                 .expect("error parsing message");
 
             assert_eq!(n, m);
@@ -254,7 +254,7 @@ mod tests {
             assert_eq!(b, d);
 
             // Cast to message and check instances match
-            let message2 = Message::convert(d, |_id| Some(pub_key))
+            let message2 = Message::convert(d, |_id| Some(pub_key.clone()))
                 .expect("error converting base object to message");
 
             assert_eq!(message, message2);

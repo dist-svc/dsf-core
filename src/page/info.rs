@@ -33,14 +33,14 @@ impl PageInfo {
 
     pub fn pub_key(&self) -> Option<PublicKey> {
         match self {
-            PageInfo::Primary(p) => Some(p.pub_key),
+            PageInfo::Primary(p) => Some(p.pub_key.clone()),
             _ => None,
         }
     }
 
     pub fn peer_id(&self) -> Option<Id> {
         match self {
-            PageInfo::Secondary(s) => Some(s.peer_id),
+            PageInfo::Secondary(s) => Some(s.peer_id.clone()),
             _ => None,
         }
     }

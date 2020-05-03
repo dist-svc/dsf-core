@@ -76,15 +76,15 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
             .public_options()
             .filter_map(|o| match &o {
                 Options::PeerId(v) => {
-                    peer_id = Some(v.peer_id);
+                    peer_id = Some(v.peer_id.clone());
                     None
                 }
                 Options::PubKey(v) => {
-                    pub_key = Some(v.public_key);
+                    pub_key = Some(v.public_key.clone());
                     None
                 }
                 Options::PrevSig(v) => {
-                    parent = Some(v.sig);
+                    parent = Some(v.sig.clone());
                     None
                 }
                 _ => Some(o),
@@ -92,16 +92,16 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
             .collect();
 
         // Look for signing ID
-        let signing_id: Id = match (flags.contains(Flags::SECONDARY), peer_id) {
+        let signing_id: Id = match (flags.contains(Flags::SECONDARY), &peer_id) {
             (false, _) => Ok(container.id().into()),
-            (true, Some(id)) => Ok(id),
+            (true, Some(id)) => Ok(id.clone()),
             _ => Err(BaseError::NoPeerId),
         }?;
 
         // Fetch public key
-        let public_key: Option<PublicKey> = match ((pub_key_s)(&signing_id), pub_key) {
+        let public_key: Option<PublicKey> = match ((pub_key_s)(&signing_id), &pub_key) {
             (Some(key), _) => Some(key),
-            (None, Some(key)) => Some(key),
+            (None, Some(key)) => Some(key.clone()),
             _ => {
                 warn!(
                     "Missing public key for message: {:?} signing id: {:?}",
@@ -193,8 +193,8 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
                 public_options,
 
                 parent,
-                peer_id,
-                public_key: pub_key,
+                peer_id: peer_id.clone(),
+                public_key: pub_key.clone(),
 
                 signature: Some(signature),
                 verified,
@@ -233,16 +233,16 @@ impl<'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
 
         // Write public options
         // Add public key option if specified
-        if let Some(k) = base.public_key {
-            bb.public_option(&Options::pub_key(k)).unwrap();
+        if let Some(k) = &base.public_key {
+            bb.public_option(&Options::pub_key(k.clone())).unwrap();
         }
 
-        if let Some(s) = base.parent {
-            bb.public_option(&Options::prev_sig(&s)).unwrap();
+        if let Some(s) = &base.parent {
+            bb.public_option(&Options::prev_sig(s)).unwrap();
         }
 
-        if let Some(i) = base.peer_id {
-            bb.public_option(&Options::peer_id(i)).unwrap();
+        if let Some(i) = &base.peer_id {
+            bb.public_option(&Options::peer_id(i.clone())).unwrap();
         }
 
         let opts = OptionsList::<_, &[u8]>::Cleartext(base.public_options());

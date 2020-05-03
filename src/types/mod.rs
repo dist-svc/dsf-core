@@ -84,7 +84,7 @@ pub use self::datetime::DateTime;
 
 macro_rules! arr {
     ($name:ident, $len:expr) => {
-        #[derive(Clone, Copy)]
+        #[derive(Clone)]
         pub struct $name([u8; $len]);
 
         impl AsRef<[u8]> for $name {

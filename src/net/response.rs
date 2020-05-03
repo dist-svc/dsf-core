@@ -223,7 +223,7 @@ impl Response {
         };
 
         // Fetch other key options
-        let public_key = base.public_key;
+        let public_key = base.public_key.clone();
 
         //let remote_address = Base::filter_address_option(&mut public_options);
 
@@ -265,9 +265,9 @@ impl Into<Base> for Response {
                 // Build options list from nodes
                 let mut options = Vec::with_capacity(nodes.len() * 3);
                 for n in nodes {
-                    options.push(Options::peer_id(n.0));
+                    options.push(Options::peer_id(n.0.clone()));
                     options.push(Options::address(n.1));
-                    options.push(Options::pub_key(n.2));
+                    options.push(Options::pub_key(n.2.clone()));
                 }
 
                 // Encode options list to body
@@ -295,15 +295,15 @@ impl Into<Base> for Response {
 
         let builder = builder
             .base(
-                self.common.from,
+                self.common.from.clone(),
                 0,
                 kind.into(),
-                self.common.id,
+                self.common.id.clone(),
                 self.common.flags,
             )
             .body(Body::from(body));
 
-        builder.public_key(self.common.public_key);
+        builder.public_key(self.common.public_key.clone());
 
         if let Some(a) = self.remote_address {
             builder.append_public_option(Options::address(a));

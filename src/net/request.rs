@@ -44,8 +44,7 @@ impl Request {
             public_key: None,
             remote_address: None,
         };
-        let r = Request { common, data };
-        r
+        Request { common, data }
     }
 
     pub fn flags(&mut self) -> &mut Flags {
@@ -151,7 +150,7 @@ impl Request {
         };
 
         // Fetch other key options
-        let public_key = base.public_key;
+        let public_key = base.public_key.clone();
         //let remote_address = Base::filter_address_option(&mut public_options);
 
         let common = Common {
@@ -222,10 +221,10 @@ impl Into<Base> for Request {
         }
 
         let builder = builder
-            .base(self.from, 0, kind.into(), self.id, self.flags)
+            .base(self.from.clone(), 0, kind.into(), self.id, self.flags)
             .body(Body::from(body));
 
-        builder.public_key(self.public_key);
+        builder.public_key(self.public_key.clone());
         if let Some(a) = self.remote_address {
             builder.append_public_option(Options::address(a));
         }

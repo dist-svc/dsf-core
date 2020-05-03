@@ -190,7 +190,7 @@ impl Service {
         let mut b = Base::from(&*page);
 
         // Attach previous signature
-        b.parent = self.last_sig;
+        b.parent = self.last_sig.clone();
 
         // Encode and sign object
         let n = b.encode(self.private_key.as_ref(), self.secret_key.as_ref(), buff)?;
@@ -199,7 +199,7 @@ impl Service {
         self.last_sig = b.signature;
 
         // Attach page sig
-        page.signature = b.signature;
+        page.signature = self.last_sig.clone();
 
         // TODO: should we attach the raw object here..?
 

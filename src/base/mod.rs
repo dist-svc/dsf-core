@@ -3,8 +3,8 @@
 pub mod header;
 pub use header::*;
 
-pub mod base;
-pub use base::*;
+pub mod body;
+pub use body::*;
 
 /// Parse trait for building parse-able objects
 pub trait Parse {

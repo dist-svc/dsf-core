@@ -93,7 +93,7 @@ impl Service {
     where
         U: Fn(&mut Body, &mut Vec<Options>, &mut PrivateOptions),
     {
-        if let None = self.private_key() {
+        if self.private_key().is_none() {
             return Err(Error::NoPrivateKey);
         }
 
@@ -113,7 +113,7 @@ impl Service {
     }
 
     pub fn is_origin(&self) -> bool {
-        match (self.private_key, self.encrypted, self.secret_key) {
+        match (&self.private_key, &self.encrypted, &self.secret_key) {
             (Some(_), false, _) => true,
             (Some(_), true, Some(_)) => true,
             _ => false,
@@ -187,7 +187,7 @@ mod test {
         let pub_key = s.public_key();
         let sec_key = s.secret_key();
 
-        let (base2, m) = Base::parse(&buff[..n], |_id| Some(pub_key), |_id| sec_key)
+        let (base2, m) = Base::parse(&buff[..n], |_id| Some(pub_key.clone()), |_id| sec_key.clone())
             .expect("Error parsing service page");
         assert_eq!(n, m);
         let mut page2: Page = base2

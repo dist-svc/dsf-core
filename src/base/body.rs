@@ -296,7 +296,7 @@ impl Base {
 
     pub fn prev_sig_option(options: &[Options]) -> Option<Signature> {
         options.iter().find_map(|o| match o {
-            Options::PrevSig(s) => Some(s.sig),
+            Options::PrevSig(s) => Some(s.sig.clone()),
             _ => None,
         })
     }
@@ -409,7 +409,7 @@ mod tests {
             .expect("Error encoding page");
 
         let (mut decoded, m) =
-            Base::parse(&buff[..n], |_id| Some(pub_key), |_id| None).expect("Error decoding page");
+            Base::parse(&buff[..n], |_id| Some(pub_key.clone()), |_id| None).expect("Error decoding page");
 
         decoded.clean();
 
@@ -444,7 +444,7 @@ mod tests {
             .expect("Error encoding page");
         page.raw = Some(buff[..n].to_vec());
 
-        let (mut decoded, m) = Base::parse(&buff[..n], |_id| Some(pub_key), |_id| None)
+        let (mut decoded, m) = Base::parse(&buff[..n], |_id| Some(pub_key.clone()), |_id| None)
             .expect("Error decoding page with known public key");
 
         decoded.clean();
@@ -482,7 +482,7 @@ mod tests {
             .encode(Some(&pri_key), Some(&sec_key), &mut buff)
             .expect("Error encoding page");
 
-        let (mut decoded, m) = Base::parse(&buff[..n], |_id| Some(pub_key), |_id| Some(sec_key))
+        let (mut decoded, m) = Base::parse(&buff[..n], |_id| Some(pub_key.clone()), |_id| Some(sec_key.clone()))
             .expect("Error decoding page");
 
         decoded.clean();
