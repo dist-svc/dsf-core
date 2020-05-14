@@ -82,6 +82,27 @@ pub enum NewBody<T: ImmutableData> {
     None,
 }
 
+impl Body {
+    pub fn decrypt(&mut self, secret_key: Option<&SecretKey>) -> Result<(), ()>{
+        let body = match (&self, &secret_key) {
+            (NewBody::Cleartext(b), _) => b.to_vec(),
+            (NewBody::Encrypted(e), Some(sk)) => {
+                let mut d = e.to_vec();
+
+                let n = crate::crypto::sk_decrypt2(sk, &mut d).unwrap();
+                d.truncate(n);
+                
+                d
+            },
+            _ => return Err(()),
+        };
+
+        *self = Self::Cleartext(body);
+
+        Ok(())
+    }
+}
+
 /// Body may be empty, encrypted, or Cleartext
 // TODO: move NewBody from wire to here, propagate generic types
 pub type Body = NewBody<Vec<u8>>;
@@ -92,6 +113,15 @@ impl From<Vec<u8>> for Body {
             Body::Cleartext(o)
         } else {
             Body::None
+        }
+    }
+}
+
+impl From<Option<Body>> for Body {
+    fn from(o: Option<Body>) -> Self {
+        match o {
+            Some(b) => b,
+            None => Body::None,
         }
     }
 }
