@@ -42,6 +42,8 @@ pub enum Error {
     UnexpectedPageKind,
     NoReplicasFound,
     UnknownPeer,
+    NoSecretKey,
+    SecretKeyMismatch,
     Base(BaseError),
     Options(OptionsError),
     Timeout,
