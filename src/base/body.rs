@@ -83,7 +83,7 @@ pub enum NewBody<T: ImmutableData> {
 }
 
 impl Body {
-    pub fn decrypt(&mut self, secret_key: Option<&SecretKey>) -> Result<(), Error>{
+    pub fn decrypt(&mut self, secret_key: Option<&SecretKey>) -> Result<(), Error> {
         let body = match (&self, &secret_key) {
             (NewBody::Cleartext(b), _) => b.to_vec(),
             (NewBody::Encrypted(e), Some(sk)) => {
@@ -91,13 +91,13 @@ impl Body {
 
                 let n = match crate::crypto::sk_decrypt2(sk, &mut d) {
                     Ok(n) => n,
-                    Err(_) => return Err(Error::SecretKeyMismatch)
+                    Err(_) => return Err(Error::SecretKeyMismatch),
                 };
 
                 d.truncate(n);
-                
+
                 d
-            },
+            }
             _ => return Err(Error::NoSecretKey),
         };
 
