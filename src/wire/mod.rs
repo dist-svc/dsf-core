@@ -116,6 +116,7 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
             (false, Some(public_key)) => {
                 // Check ID matches key
                 if signing_id != crypto::hash(&public_key).unwrap() {
+                    error!("Public key mismatch for object from {:?}", id);
                     return Err(BaseError::PublicKeyIdMismatch);
                 }
 
@@ -125,13 +126,15 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
 
                 // Stop processing on verification error
                 if !verified {
-                    info!("Invalid signature for self-signed object");
+                    info!("Invalid signature for self-signed object from {:?}", id);
                     return Err(BaseError::InvalidSignature);
                 }
             }
-            _ => {
-                warn!("No verification for object");
-            }
+            (false, None) => {
+                error!("No signature or key for object from {:?}", id);
+                return Err(BaseError::ValidateError.into())
+            },
+            _ => (),
         }
 
         let mut body_data = container.body().to_vec();
