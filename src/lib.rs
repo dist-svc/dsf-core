@@ -4,10 +4,10 @@
 extern crate base64;
 extern crate byteorder;
 extern crate bytes;
-extern crate futures;
 extern crate rand;
 extern crate sodiumoxide;
-
+extern crate time;
+extern crate slice_ext;
 extern crate async_trait;
 
 #[macro_use]
@@ -22,12 +22,12 @@ extern crate log;
 #[macro_use]
 extern crate bitflags;
 
+#[cfg(feature = "std")]
 extern crate chrono;
-
-extern crate strum;
 
 #[macro_use]
 extern crate strum_macros;
+
 
 pub mod types;
 

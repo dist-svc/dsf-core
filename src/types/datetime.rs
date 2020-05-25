@@ -1,6 +1,9 @@
-use std::fmt;
-use std::time::SystemTime;
+use core::fmt;
 
+#[cfg(not(feature="std"))]
+use chrono::NaiveDateTime;
+
+#[cfg(feature="std")]
 use chrono::{TimeZone, Utc};
 
 /// New DateTime type because rust doesn't have second or millisecond sized versions
@@ -9,14 +12,16 @@ use chrono::{TimeZone, Utc};
 pub struct DateTime(u64);
 
 impl DateTime {
+    #[cfg(feature="std")]
     pub fn now() -> Self {
-        SystemTime::now().into()
+        std::time::SystemTime::now().into()
     }
 
     pub fn from_secs(seconds: u64) -> Self {
         Self(seconds)
     }
 
+    #[cfg(feature="std")]
     pub fn as_secs(&self) -> u64 {
         let u = Utc.timestamp(self.0 as i64, 0);
         u.timestamp() as u64
@@ -37,16 +42,18 @@ impl fmt::Display for DateTime {
     }
 }
 
-impl Into<SystemTime> for DateTime {
-    fn into(self) -> SystemTime {
+#[cfg(feature="std")]
+impl Into<std::time::SystemTime> for DateTime {
+    fn into(self) -> std::time::SystemTime {
         let u = Utc.timestamp(self.0 as i64, 0);
         u.into()
     }
 }
 
-impl From<SystemTime> for DateTime {
-    fn from(s: SystemTime) -> Self {
-        let when = s.duration_since(SystemTime::UNIX_EPOCH).unwrap();
+#[cfg(feature="std")]
+impl From<std::time::SystemTime> for DateTime {
+    fn from(s: std::time::SystemTime) -> Self {
+        let when = s.duration_since(std::time::SystemTime::UNIX_EPOCH).unwrap();
         Self(when.as_secs())
     }
 }
@@ -60,7 +67,7 @@ mod tests {
     fn date_time_system_conversions() {
         let d = DateTime::now();
 
-        let s: SystemTime = d.clone().into();
+        let s: std::time::SystemTime = d.clone().into();
 
         let d2: DateTime = s.clone().into();
 

@@ -1,9 +1,10 @@
+use core::ops::Add;
+use core::str;
+
 use std::io::{Cursor, Error as IoError, Write};
-use std::ops::Add;
-use std::str;
 use std::time::{Duration, SystemTime};
 
-use byteorder::{NetworkEndian, ReadBytesExt, WriteBytesExt};
+use byteorder::{ByteOrder, NetworkEndian, ReadBytesExt, WriteBytesExt};
 
 use crate::base::{Encode, Parse};
 
@@ -12,12 +13,10 @@ impl Parse for String {
     type Error = IoError;
 
     fn parse<'a>(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
-        let mut c = Cursor::new(data);
-
-        let length = c.read_u16::<NetworkEndian>()? as usize;
+        let length = NetworkEndian::read_u16(&data[0..2]) as usize;
         let value = str::from_utf8(&data[2..2 + length]).unwrap().to_owned();
 
-        Ok((value, c.position() as usize))
+        Ok((value, length + 2))
     }
 }
 
@@ -25,13 +24,12 @@ impl Encode for String {
     type Error = IoError;
 
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
-        let mut w = Cursor::new(data);
-
         let value = self.as_bytes();
-        w.write_u16::<NetworkEndian>(value.len() as u16)?;
-        w.write_all(value)?;
 
-        Ok(w.position() as usize)
+        NetworkEndian::write_u16(&mut data[0..], value.len() as u16);
+        &mut data[2..value.len() + 2].copy_from_slice(value);
+
+        Ok(value.len() + 2)
     }
 }
 
@@ -40,12 +38,10 @@ impl Parse for Vec<u8> {
     type Error = IoError;
 
     fn parse<'a>(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
-        let mut c = Cursor::new(data);
-
-        let length = c.read_u16::<NetworkEndian>()? as usize;
+        let length = NetworkEndian::read_u16(&data) as usize;
         let value = Vec::from(&data[2..2 + length]);
 
-        Ok((value, c.position() as usize))
+        Ok((value, length + 2))
     }
 }
 
@@ -53,12 +49,11 @@ impl Encode for Vec<u8> {
     type Error = IoError;
 
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
-        let mut w = Cursor::new(data);
 
-        w.write_u16::<NetworkEndian>(8)?;
-        w.write_all(self)?;
+        NetworkEndian::write_u16(&mut data, self.len() as u16);
+        &mut data[2..self.len()+2].copy_from_slice(self);
 
-        Ok(w.position() as usize)
+        Ok(self.len() + 2)
     }
 }
 
@@ -69,11 +64,11 @@ impl Parse for SystemTime {
     fn parse<'a>(data: &'a [u8]) -> Result<(Self::Output, usize), Self::Error> {
         let mut r = Cursor::new(data);
 
-        let raw = r.read_u64::<NetworkEndian>()?;
+        let raw = NetworkEndian::read_u64(&data[0..]);
         let duration = Duration::from_secs(raw);
         let when = SystemTime::UNIX_EPOCH.add(duration);
 
-        Ok((when, r.position() as usize))
+        Ok((when, 10))
     }
 }
 
@@ -83,10 +78,10 @@ impl Encode for SystemTime {
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
         let mut w = Cursor::new(data);
 
-        w.write_u16::<NetworkEndian>(8)?;
+        NetworkEndian::write_u16(&mut data[..], 8);
         let time_ms = self.duration_since(SystemTime::UNIX_EPOCH).unwrap();
-        w.write_u64::<NetworkEndian>(time_ms.as_secs())?;
+        NetworkEndian::write_u64(&mut data[2..], time_ms.as_secs());
 
-        Ok(w.position() as usize)
+        Ok(10)
     }
 }

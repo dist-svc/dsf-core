@@ -184,6 +184,7 @@ impl From<OptionsError> for BaseError {
     }
 }
 
+#[cfg(feature = "std")]
 impl From<std::io::Error> for BaseError {
     fn from(e: std::io::Error) -> BaseError {
         error!("io error: {}", e);
