@@ -1,16 +1,17 @@
 use core::ops::Add;
 use core::str;
 
-use std::io::{Cursor, Error as IoError, Write};
 use std::time::{Duration, SystemTime};
 
-use byteorder::{ByteOrder, NetworkEndian, ReadBytesExt, WriteBytesExt};
+use byteorder::{ByteOrder, NetworkEndian};
 
 use crate::base::{Encode, Parse};
+use crate::types::DateTime;
+use super::OptionsError;
 
 impl Parse for String {
     type Output = String;
-    type Error = IoError;
+    type Error = OptionsError;
 
     fn parse<'a>(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
         let length = NetworkEndian::read_u16(&data[0..2]) as usize;
@@ -21,7 +22,7 @@ impl Parse for String {
 }
 
 impl Encode for String {
-    type Error = IoError;
+    type Error = OptionsError;
 
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
         let value = self.as_bytes();
@@ -35,7 +36,7 @@ impl Encode for String {
 
 impl Parse for Vec<u8> {
     type Output = Vec<u8>;
-    type Error = IoError;
+    type Error = OptionsError;
 
     fn parse<'a>(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
         let length = NetworkEndian::read_u16(&data) as usize;
@@ -46,41 +47,37 @@ impl Parse for Vec<u8> {
 }
 
 impl Encode for Vec<u8> {
-    type Error = IoError;
+    type Error = OptionsError;
 
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
 
-        NetworkEndian::write_u16(&mut data, self.len() as u16);
+        NetworkEndian::write_u16(&mut data[..], self.len() as u16);
         &mut data[2..self.len()+2].copy_from_slice(self);
 
         Ok(self.len() + 2)
     }
 }
 
-impl Parse for SystemTime {
-    type Output = SystemTime;
-    type Error = IoError;
+impl Parse for DateTime {
+    type Output = DateTime;
+    type Error = OptionsError;
 
     fn parse<'a>(data: &'a [u8]) -> Result<(Self::Output, usize), Self::Error> {
-        let mut r = Cursor::new(data);
-
         let raw = NetworkEndian::read_u64(&data[0..]);
-        let duration = Duration::from_secs(raw);
-        let when = SystemTime::UNIX_EPOCH.add(duration);
+        let when = DateTime::from_secs(raw);
 
         Ok((when, 10))
     }
 }
 
-impl Encode for SystemTime {
-    type Error = IoError;
+impl Encode for DateTime {
+    type Error = OptionsError;
 
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
-        let mut w = Cursor::new(data);
-
         NetworkEndian::write_u16(&mut data[..], 8);
-        let time_ms = self.duration_since(SystemTime::UNIX_EPOCH).unwrap();
-        NetworkEndian::write_u64(&mut data[2..], time_ms.as_secs());
+        let time_s = self.as_secs();
+
+        NetworkEndian::write_u64(&mut data[2..], time_s);
 
         Ok(10)
     }

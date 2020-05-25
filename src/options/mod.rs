@@ -1,7 +1,6 @@
 //! Options are used to support extension of protocol objects
 //! with DSF and application-specific optional fields.
 
-use std::io::{Cursor, Read, Write};
 use std::net::{SocketAddr, SocketAddrV4, SocketAddrV6};
 use std::str;
 
@@ -331,13 +330,12 @@ impl Encode for PubKey {
     type Error = OptionsError;
 
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
-        let mut w = Cursor::new(data);
+        NetworkEndian::write_u16(&mut data[0..2], option_kinds::PUBKEY);
+        NetworkEndian::write_u16(&mut data[2..4], PUBLIC_KEY_LEN as u16);
 
-        w.write_u16::<NetworkEndian>(option_kinds::PUBKEY)?;
-        w.write_u16::<NetworkEndian>(PUBLIC_KEY_LEN as u16)?;
-        w.write_all(&self.public_key)?;
+        &mut data[OPTION_HEADER_LEN..OPTION_HEADER_LEN+PUBLIC_KEY_LEN].copy_from_slice(&self.public_key);
 
-        Ok(w.position() as usize)
+        Ok(OPTION_HEADER_LEN + PUBLIC_KEY_LEN)
     }
 }
 
@@ -373,13 +371,12 @@ impl Encode for PeerId {
     type Error = OptionsError;
 
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
-        let mut w = Cursor::new(data);
+        NetworkEndian::write_u16(&mut data[0..2], option_kinds::PEER_ID);
+        NetworkEndian::write_u16(&mut data[2..4], ID_LEN as u16);
 
-        w.write_u16::<NetworkEndian>(option_kinds::PEER_ID)?;
-        w.write_u16::<NetworkEndian>(ID_LEN as u16)?;
-        w.write_all(&self.peer_id)?;
+        &mut data[OPTION_HEADER_LEN..OPTION_HEADER_LEN+ID_LEN].copy_from_slice(&self.peer_id);
 
-        Ok(w.position() as usize)
+        Ok(OPTION_HEADER_LEN+ID_LEN)
     }
 }
 
@@ -410,13 +407,12 @@ impl Encode for PrevSig {
     type Error = OptionsError;
 
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
-        let mut w = Cursor::new(data);
+        NetworkEndian::write_u16(&mut data[0..2], option_kinds::PREV_SIG);
+        NetworkEndian::write_u16(&mut data[2..4], SIGNATURE_LEN as u16);
 
-        w.write_u16::<NetworkEndian>(option_kinds::PREV_SIG)?;
-        w.write_u16::<NetworkEndian>(SIGNATURE_LEN as u16)?;
-        w.write_all(&self.sig)?;
+        &mut data[OPTION_HEADER_LEN..OPTION_HEADER_LEN+SIGNATURE_LEN].copy_from_slice(&self.sig);
 
-        Ok(w.position() as usize)
+        Ok(OPTION_HEADER_LEN+SIGNATURE_LEN)
     }
 }
 
@@ -449,13 +445,14 @@ impl Encode for Kind {
     type Error = OptionsError;
 
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
-        let mut w = Cursor::new(data);
+        let value = self.value.as_bytes();
 
-        w.write_u16::<NetworkEndian>(option_kinds::KIND)?;
-        w.write_u16::<NetworkEndian>(self.value.len() as u16)?;
-        w.write_all(self.value.as_bytes())?;
+        NetworkEndian::write_u16(&mut data[0..2], option_kinds::KIND);
+        NetworkEndian::write_u16(&mut data[2..4], value.len() as u16);
 
-        Ok(w.position() as usize)
+        &mut data[OPTION_HEADER_LEN..OPTION_HEADER_LEN+value.len()].copy_from_slice(&value);
+
+        Ok(OPTION_HEADER_LEN+value.len())
     }
 }
 
@@ -488,13 +485,13 @@ impl Encode for Name {
     type Error = OptionsError;
 
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
-        let mut w = Cursor::new(data);
 
-        w.write_u16::<NetworkEndian>(option_kinds::NAME)?;
-        w.write_u16::<NetworkEndian>(self.value.len() as u16)?;
-        w.write_all(self.value.as_bytes())?;
+        NetworkEndian::write_u16(&mut data[0..2], option_kinds::NAME);
+        NetworkEndian::write_u16(&mut data[2..4], self.value.len() as u16);
 
-        Ok(w.position() as usize)
+        &mut data[OPTION_HEADER_LEN..OPTION_HEADER_LEN+self.value.len()].copy_from_slice(&self.value.as_bytes());
+
+        Ok(OPTION_HEADER_LEN+self.value.len())
     }
 }
 
@@ -503,13 +500,12 @@ impl Parse for SocketAddrV4 {
     type Error = OptionsError;
 
     fn parse(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
-        let mut r = Cursor::new(data);
-
         let mut ip = [0u8; 4];
-        r.read_exact(&mut ip)?;
-        let port = r.read_u16::<NetworkEndian>()?;
 
-        Ok((SocketAddrV4::new(ip.into(), port), data.len()))
+        ip.copy_from_slice(&data[0..4]);
+        let port = NetworkEndian::read_u16(&data[4..6]);
+
+        Ok((SocketAddrV4::new(ip.into(), port), 6))
     }
 }
 
@@ -517,14 +513,14 @@ impl Encode for SocketAddrV4 {
     type Error = OptionsError;
 
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
-        let mut w = Cursor::new(data);
 
-        w.write_u16::<NetworkEndian>(option_kinds::ADDR_IPV4)?;
-        w.write_u16::<NetworkEndian>(6)?;
-        w.write_all(&self.ip().octets())?;
-        w.write_u16::<NetworkEndian>(self.port())?;
+        NetworkEndian::write_u16(&mut data[0..2], option_kinds::ADDR_IPV4);
+        NetworkEndian::write_u16(&mut data[2..4], 6);
 
-        Ok(w.position() as usize)
+        &mut data[OPTION_HEADER_LEN..OPTION_HEADER_LEN+4].copy_from_slice(&self.ip().octets());
+        NetworkEndian::write_u16(&mut data[OPTION_HEADER_LEN+4..], self.port());
+
+        Ok(6)
     }
 }
 
@@ -533,11 +529,10 @@ impl Parse for SocketAddrV6 {
     type Error = OptionsError;
 
     fn parse(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
-        let mut r = Cursor::new(data);
-
         let mut ip = [0u8; 16];
-        r.read_exact(&mut ip)?;
-        let port = r.read_u16::<NetworkEndian>()?;
+
+        ip.copy_from_slice(&data[0..4]);
+        let port = NetworkEndian::read_u16(&data[16..18]);
 
         Ok((SocketAddrV6::new(ip.into(), port, 0, 0), data.len()))
     }
@@ -547,14 +542,13 @@ impl Encode for SocketAddrV6 {
     type Error = OptionsError;
 
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
-        let mut w = Cursor::new(data);
+        NetworkEndian::write_u16(&mut data[0..2], option_kinds::ADDR_IPV6);
+        NetworkEndian::write_u16(&mut data[2..4], 18);
 
-        w.write_u16::<NetworkEndian>(option_kinds::ADDR_IPV6)?;
-        w.write_u16::<NetworkEndian>(18)?;
-        w.write_all(&self.ip().octets())?;
-        w.write_u16::<NetworkEndian>(self.port())?;
+        &mut data[OPTION_HEADER_LEN..OPTION_HEADER_LEN+16].copy_from_slice(&self.ip().octets());
+        NetworkEndian::write_u16(&mut data[OPTION_HEADER_LEN+16..], self.port());
 
-        Ok(w.position() as usize)
+        Ok(18)
     }
 }
 
@@ -599,15 +593,14 @@ impl Encode for Metadata {
     type Error = OptionsError;
 
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
-        let mut w = Cursor::new(data);
+        let meta = format!("{}|{}", self.key, self.value);
 
-        let data = format!("{}|{}", self.key, self.value);
+        NetworkEndian::write_u16(&mut data[0..2], option_kinds::META);
+        NetworkEndian::write_u16(&mut data[2..4], meta.len() as u16);
 
-        w.write_u16::<NetworkEndian>(option_kinds::META)?;
-        w.write_u16::<NetworkEndian>(data.len() as u16)?;
-        w.write_all(data.as_bytes())?;
+        &mut data[OPTION_HEADER_LEN..OPTION_HEADER_LEN+meta.len()].copy_from_slice(meta.as_bytes());
 
-        Ok(w.position() as usize)
+        Ok(OPTION_HEADER_LEN+meta.len())
     }
 }
 
@@ -636,26 +629,23 @@ impl Parse for Issued {
     type Output = Issued;
     type Error = OptionsError;
     fn parse<'a>(data: &'a [u8]) -> Result<(Self::Output, usize), Self::Error> {
-        let mut r = Cursor::new(data);
-
-        let raw = r.read_u64::<NetworkEndian>()?;
+        let raw = NetworkEndian::read_u64(&data[0..8]);
         let when = DateTime::from_secs(raw);
 
-        Ok((Issued { when }, r.position() as usize))
+        Ok((Issued { when }, 8))
     }
 }
 
 impl Encode for Issued {
     type Error = OptionsError;
+
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
-        let mut w = Cursor::new(data);
+        NetworkEndian::write_u16(&mut data[0..2], option_kinds::ISSUED);
+        NetworkEndian::write_u16(&mut data[2..4], 8);
 
-        w.write_u16::<NetworkEndian>(option_kinds::ISSUED)?;
-        w.write_u16::<NetworkEndian>(8)?;
+        NetworkEndian::write_u64(&mut data[4..12], self.when.as_secs());
 
-        w.write_u64::<NetworkEndian>(self.when.as_secs())?;
-
-        Ok(w.position() as usize)
+        Ok(OPTION_HEADER_LEN + 8)
     }
 }
 
@@ -678,26 +668,22 @@ impl Parse for Expiry {
     type Output = Expiry;
     type Error = OptionsError;
     fn parse<'a>(data: &'a [u8]) -> Result<(Self::Output, usize), Self::Error> {
-        let mut r = Cursor::new(data);
-
-        let raw = r.read_u64::<NetworkEndian>()?;
+        let raw = NetworkEndian::read_u64(&data[0..8]);
         let when = DateTime::from_secs(raw);
 
-        Ok((Expiry { when }, r.position() as usize))
+        Ok((Expiry { when }, 8))
     }
 }
 
 impl Encode for Expiry {
     type Error = OptionsError;
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
-        let mut w = Cursor::new(data);
+        NetworkEndian::write_u16(&mut data[0..2], option_kinds::EXPIRY);
+        NetworkEndian::write_u16(&mut data[2..4], 8);
 
-        w.write_u16::<NetworkEndian>(option_kinds::EXPIRY)?;
-        w.write_u16::<NetworkEndian>(8)?;
+        NetworkEndian::write_u64(&mut data[4..12], self.when.as_secs());
 
-        w.write_u64::<NetworkEndian>(self.when.as_secs())?;
-
-        Ok(w.position() as usize)
+        Ok(OPTION_HEADER_LEN + 8)
     }
 }
 
@@ -731,13 +717,11 @@ impl Encode for Limit {
     type Error = OptionsError;
 
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
-        let mut w = Cursor::new(data);
+        NetworkEndian::write_u16(&mut data[0..2], option_kinds::LIMIT);
+        NetworkEndian::write_u16(&mut data[2..4], 4);
+        NetworkEndian::write_u32(&mut data[4..8], self.n);
 
-        w.write_u16::<NetworkEndian>(option_kinds::LIMIT)?;
-        w.write_u16::<NetworkEndian>(4)?;
-        w.write_u32::<NetworkEndian>(self.n)?;
-
-        Ok(w.position() as usize)
+        Ok(8)
     }
 }
 

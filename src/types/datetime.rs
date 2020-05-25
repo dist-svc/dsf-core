@@ -6,7 +6,7 @@ use chrono::NaiveDateTime;
 #[cfg(feature="std")]
 use chrono::{TimeZone, Utc};
 
-/// New DateTime type because rust doesn't have second or millisecond sized versions
+/// Internal UTC DateTime with second resolution
 #[derive(PartialEq, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct DateTime(u64);
@@ -21,10 +21,8 @@ impl DateTime {
         Self(seconds)
     }
 
-    #[cfg(feature="std")]
     pub fn as_secs(&self) -> u64 {
-        let u = Utc.timestamp(self.0 as i64, 0);
-        u.timestamp() as u64
+        self.0
     }
 }
 
