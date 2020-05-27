@@ -1,70 +1,160 @@
 use crate::crypto;
 use crate::options::Options;
-use crate::types::PageKind;
+use crate::base::{Body, PrivateOptions};
+use crate::error::Error;
+use crate::types::*;
 
-pub use super::ServiceBuilder;
+use super::Service;
+
+/// Service builder to assist in the construction of service instances
+pub struct ServiceBuilder {
+    id: Option<Id>,
+    public_key: Option<PublicKey>,
+
+    kind: PageKind,
+    application_id: u16,
+    body: Body,
+
+    private_key: Option<PrivateKey>,
+    secret_key: Option<SecretKey>,
+    encrypted: bool,
+
+    public_options: Vec<Options>,
+    private_options: Vec<Options>,
+}
+
+
+impl Default for ServiceBuilder {
+    /// Create a default service builder instance
+    fn default() -> Self {
+        Self {
+            id: None,
+            public_key: None,
+
+            application_id: 0,
+            kind: PageKind::Generic,
+            body: Body::None,
+
+            private_key: None,
+            secret_key: None,
+            encrypted: false,
+
+            public_options: vec![],
+            private_options: vec![],
+        }
+    }
+}
 
 /// ServiceBuilder provides helpers for constructing service instances
 impl ServiceBuilder {
-    /// Validate service options prior to building
-    pub(crate) fn validate(&self) -> Result<(), String> {
-        // Ensure a secret key is available if private options are used
-        if let Some(_private_opts) = &self.private_options {
-            if self.secret_key.is_none() {
-                return Err("Private options cannot be used without specifying or creating an associated secret key".to_owned());
-            }
-        }
-
-        Ok(())
-    }
 
     /// Setup a peer service.
     /// This is equivalent to .kind(Kind::Peer)
-    pub fn peer(&mut self) -> &mut Self {
-        let mut new = self;
-        new.kind = Some(PageKind::Peer);
-        new
+    pub fn peer() -> Self {
+        Self {
+            kind: PageKind::Peer,
+            ..Default::default()
+        }
     }
 
     /// Setup a generic service.
     /// This is equivalent to .kind(Kind::Generic)
-    pub fn generic(&mut self) -> &mut Self {
-        let mut new = self;
-        new.kind = Some(PageKind::Generic);
-        new
+    pub fn generic() -> Self {
+        Self {
+            kind: PageKind::Generic,
+            ..Default::default()
+        }
     }
 
     /// Setup a private service.
     /// This is equivalent to .kind(Kind::Private)
-    pub fn private(&mut self) -> &mut Self {
-        let mut new = self;
-        new.kind = Some(PageKind::Private);
-        new
+    pub fn private() -> Self {
+        Self {
+            kind: PageKind::Private,
+            ..Default::default()
+        }
+    }
+    
+    /// Set the ID and public key for the service
+    pub fn id(&mut self, id: Id, public_key: PublicKey) -> &mut Self {
+        self.id = Some(id);
+        self.public_key = Some(public_key);
+        self
     }
 
-    /// Generate a new encrypted service
+    pub fn kind(&mut self, kind: PageKind) -> &mut Self {
+        self.kind = kind;
+        self
+    }
+
+    pub fn body(&mut self, body: Body) -> &mut Self {
+        self.body = body;
+        self
+    }
+
+    pub fn private_key(&mut self, private_key: PrivateKey) -> &mut Self {
+        self.private_key = Some(private_key);
+        self
+    }
+
+    pub fn secret_key(&mut self, secret_key: SecretKey) -> &mut Self {
+        self.secret_key = Some(secret_key);
+        self
+    }
+
+    pub fn application_id(&mut self, application_id: u16) -> &mut Self {
+        self.application_id = application_id;
+        self
+    }
+
+    /// Enable service encryption
     /// this is equivalent to .secret_key(crypto::new_sk().unwrap()).encrypted(true);
     pub fn encrypt(&mut self) -> &mut Self {
-        let mut new = self;
         let secret_key = crypto::new_sk().unwrap();
-        new.secret_key = Some(Some(secret_key));
-        new.encrypted = Some(true);
-        new
-    }
-
-    pub fn append_public_option(&mut self, o: Options) -> &mut Self {
-        match &mut self.public_options {
-            Some(opts) => opts.push(o),
-            None => self.public_options = Some(vec![o]),
-        }
+        self.secret_key = Some(secret_key);
+        self.encrypted = true;
         self
     }
 
-    pub fn append_private_option(&mut self, o: Options) -> &mut Self {
-        match &mut self.private_options {
-            Some(opts) => opts.append(o),
-            None => panic!("attempting to append private option to encrypted field"),
-        }
+    pub fn public_options(&mut self, o: Vec<Options>) -> &mut Self {
+        self.public_options = o;
         self
+    }
+
+    pub fn private_options(&mut self, o: Vec<Options>) -> &mut Self {
+        self.private_options = o;
+        self
+    }
+
+    pub fn build(self) -> Result<Service, Error> {
+        // TODO: perform any validation (no private options without secret key etc.)
+
+        // Generate new keys if required
+        let (id, public_key, private_key) = match (self.id, self.public_key, self.private_key) {
+            (Some(id), Some(public_key), private_key) => (id, public_key, private_key),
+            (None, None, None) => {
+                let (public_key, private_key) = crypto::new_pk().unwrap();
+                let id = crypto::hash(&public_key).unwrap();
+                (id, public_key, Some(private_key))
+            },
+            _ => panic!("Invalid service builder configuration"),
+        };
+
+        // Build service
+        Ok(Service {
+            id,
+            application_id: self.application_id,
+            kind: self.kind,
+            version: 0,
+            data_index: 0,
+            body: self.body,
+            public_options: self.public_options,
+            private_options: PrivateOptions::Cleartext(self.private_options),
+            public_key,
+            private_key,
+            encrypted: self.encrypted,
+            secret_key: self.secret_key,
+            last_sig: None,
+        })
     }
 }

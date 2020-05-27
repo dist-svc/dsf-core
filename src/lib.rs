@@ -16,9 +16,6 @@ extern crate slice_ext;
 extern crate async_trait;
 extern crate managed;
 
-#[macro_use]
-extern crate derive_builder;
-
 #[cfg(feature = "serde")]
 extern crate serde;
 
@@ -45,9 +42,9 @@ pub mod options;
 
 pub mod base;
 
-//pub mod service;
+pub mod service;
 
-//pub mod wire;
+pub mod wire;
 
 pub mod page;
 

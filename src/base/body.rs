@@ -1,9 +1,6 @@
 //! Base object is a common owned object that is used to represent pages / messages / data
 //! and can be encoded and decoded for wire communication.
 
-#[cfg(feature = "std")]
-use std::net::{SocketAddr};
-
 #[cfg(feature = "alloc")]
 use alloc::prelude::v1::*;
 

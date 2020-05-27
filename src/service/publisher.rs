@@ -1,9 +1,13 @@
 use core::ops::Add;
 
-use crate::base::{Base, Body, PrivateOptions};
+#[cfg(feature = "std")]
+use std::time::{SystemTime, Duration};
+
+use crate::base::{Base, Header, Body, PrivateOptions};
 use crate::options::Options;
 use crate::page::{Page, PageOptions, PageInfo};
 use crate::service::Service;
+use crate::error::Error;
 use crate::types::*;
 
 /// Publisher trait allows services to generate primary, data, and secondary pages
@@ -25,67 +29,87 @@ pub trait Publisher {
     /// Create a secondary page for publishing with the provided options and encodes it into the provided buffer
     fn publish_secondary<T: AsRef<[u8]> + AsMut<[u8]>>(
         &mut self,
+        id: &Id,
         options: SecondaryOptions,
         buff: T,
     ) -> Result<(usize, Page), Error>;
 }
 
-#[derive(Clone, Builder)]
+#[derive(Clone)]
 pub struct SecondaryOptions {
-    /// ID of primary service
-    id: Id,
-
     /// Application ID of primary service
-    #[builder(default = "0")]
-    application_id: u16,
+    pub application_id: u16,
 
     /// Page object kind
-    #[builder(default = "Kind(0)")]
-    page_kind: Kind,
+    pub page_kind: Kind,
 
     /// Page version
     /// This is monotonically increased for any successive publishing of the same page
-    #[builder(default = "0")]
-    version: u16,
+    pub version: u16,
 
     /// Page body
-    #[builder(default = "Body::None")]
-    body: Body,
+    pub body: Body,
+
+    /// Page publish time
+    pub issued: Option<DateTime>,
 
     /// Page expiry time
-    #[builder(default = "Some(SystemTime::now().add(Duration::from_secs(24 * 60 * 60)))")]
-    expiry: Option<DateTime>,
+    pub expiry: Option<DateTime>,
 
     /// Public options attached to the page
-    #[builder(default = "vec![]")]
-    public_options: Vec<Options>,
+    pub public_options: Vec<Options>,
 
     /// Private options attached to the page
-    #[builder(default = "PrivateOptions::None")]
-    private_options: PrivateOptions,
+    pub private_options: PrivateOptions,
 }
 
-#[derive(Clone, Builder)]
+impl Default for SecondaryOptions {
+    fn default() -> Self {
+        Self {
+            application_id: 0,
+            page_kind: Kind::Generic,
+            version: 0,
+            body: Body::None,
+            issued: None,
+            expiry: None,
+            public_options: vec![],
+            private_options: vec![],
+        }
+    }
+}
+
+#[derive(Clone)]
 pub struct DataOptions {
     /// Data object kind
-    #[builder(default = "DataKind::Generic.into()")]
-    data_kind: Kind,
+    pub data_kind: Kind,
 
     /// Data object body
-    #[builder(default = "Body::None")]
-    body: Body,
+    pub body: Body,
+
+    /// Data publish time
+    pub issued: Option<DateTime>,
 
     /// Data expiry time
-    #[builder(default = "None")]
-    expiry: Option<SystemTime>,
+    pub expiry: Option<DateTime>,
 
     /// Public options attached to the data object
-    #[builder(default = "vec![]")]
-    public_options: Vec<Options>,
+    pub public_options: Vec<Options>,
 
     /// Private options attached to the data object
-    #[builder(default = "PrivateOptions::None")]
-    private_options: PrivateOptions,
+    pub private_options: PrivateOptions,
+}
+
+impl Default for DataOptions {
+    fn default() -> Self {
+        Self {
+            data_kind: Kind::Generic,
+            body: Body::None,
+            issued: None,
+            expiry: None,
+            public_options: vec![],
+            private_options: vec![],
+        }
+    }
 }
 
 impl Publisher for Service {
@@ -99,25 +123,39 @@ impl Publisher for Service {
             flags |= Flags::ENCRYPTED;
         }
 
+        let header = Header{
+            application_id: self.application_id,
+            kind: self.kind.into(),
+            index: self.version,
+            flags,
+            ..Default::default()
+        };
+
+        let page_options = PageOptions{
+            // TODO: re-enable page issue / expiry for no-std
+            #[cfg(feature = "std")]
+            issued: Some(SystemTime::now().into()),
+            #[cfg(feature = "std")]
+            expiry: Some(SystemTime::now().add(Duration::from_secs(24 * 60 * 60)).into()),
+            ..Default::default()
+        };
+
         // Build page
         let mut p = Page::new(
             self.id.clone(),
-            self.application_id,
-            self.kind.into(),
-            flags,
-            self.version,
+            header,
             PageInfo::primary(self.public_key.clone()),
             self.body.clone(),
-            SystemTime::now(),
-            Some(SystemTime::now().add(Duration::from_secs(24 * 60 * 60))),
+            page_options
         );
 
         self.encode(&mut p, buff).map(|n| (n, p))
     }
 
-    /// Secondary generates a secondary page using this service to be attached to the provided service ID
+    /// Secondary generates a secondary page using this service to be attached to / stored at the provided service ID
     fn publish_secondary<T: AsRef<[u8]> + AsMut<[u8]>>(
         &mut self,
+        id: &Id,
         options: SecondaryOptions,
         buff: T,
     ) -> Result<(usize, Page), Error> {
@@ -128,12 +166,10 @@ impl Publisher for Service {
 
         assert!(options.page_kind.is_page());
 
-        //let mut p = Page::new(options.id.clone(), options.application_id, options.page_kind, flags, options.version, PageInfo::secondary(self.id.clone()), options.body, SystemTime::now(), options.expiry);
-
         let header = Header{
-            application_id: options.application_id,
+            application_id: self.application_id,
             kind: options.page_kind,
-            flags: options.flags,
+            flags,
             index: options.version,
             ..Default::default()
         };
@@ -141,14 +177,16 @@ impl Publisher for Service {
         let page_options = PageOptions{
             public_options: options.public_options,
             private_options: options.private_options,
+            // TODO: Re-enable issued time
+            #[cfg(feature = "std")]
             issued: Some(SystemTime::now().into()),
-            expiry: Some(options.expiry.map(|v| v.into())),
+            expiry: options.expiry,
             ..Default::default()
         };
 
-        let mut page = Page::new(options.id.clone(), header, PageInfo::primary(pub_key.clone()), options.body, page_options);
+        let mut page = Page::new(id.clone(), header, PageInfo::secondary(self.id.clone()), options.body, page_options);
 
-        self.encode(&mut p, buff).map(|n| (n, p))
+        self.encode(&mut page, buff).map(|n| (n, page))
     }
 
     fn publish_data<T: AsRef<[u8]> + AsMut<[u8]>>(
@@ -165,16 +203,28 @@ impl Publisher for Service {
 
         self.data_index += 1;
 
+        let header = Header{
+            application_id: self.application_id,
+            kind: options.data_kind,
+            flags,
+            index: self.data_index,
+            ..Default::default()
+        };
+
+        let page_options = PageOptions{
+            public_options: options.public_options,
+            private_options: options.private_options,
+            #[cfg(feature = "std")]
+            issued: Some(SystemTime::now().into()),
+            ..Default::default()
+        };
+
         let mut p = Page::new(
             self.id.clone(),
-            self.application_id,
-            options.data_kind,
-            flags,
-            self.data_index,
+            header,
             PageInfo::Data(()),
             options.body,
-            SystemTime::now(),
-            options.expiry,
+            page_options,
         );
 
         self.encode(&mut p, buff).map(|n| (n, p))

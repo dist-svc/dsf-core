@@ -1,6 +1,7 @@
-use crate::base::Base;
+use crate::base::{Base};
 use crate::net::{Message, Request, Response};
 use crate::service::Service;
+use crate::error::Error;
 use crate::types::*;
 
 pub struct PublishOptions {}

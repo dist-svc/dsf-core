@@ -3,6 +3,7 @@ use core::convert::TryInto;
 use crate::crypto;
 use crate::page::{Page, PageInfo};
 use crate::service::Service;
+use crate::error::Error;
 use crate::types::*;
 
 pub trait Subscriber {
@@ -19,7 +20,8 @@ pub trait Subscriber {
 impl Subscriber for Service {
     /// Create a service instance from a given page
     fn load(page: &Page) -> Result<Service, Error> {
-        let flags = page.flags();
+        let header = page.header();
+        let flags = header.flags();
 
         let public_key = match page.info() {
             PageInfo::Primary(primary) => primary.pub_key.clone(),
@@ -37,10 +39,10 @@ impl Subscriber for Service {
         Ok(Service {
             id: page.id().clone(),
 
-            application_id: page.application_id(),
-            kind: page.kind().try_into().unwrap(),
+            application_id: header.application_id(),
+            kind: header.kind().try_into().unwrap(),
 
-            version: page.version(),
+            version: header.index(),
             data_index: 0,
 
             body: body.clone(),
@@ -61,7 +63,9 @@ impl Subscriber for Service {
     /// Apply an upgrade to an existing service.
     /// This consumes a new page and updates the service instance
     fn apply_primary(&mut self, update: &Page) -> Result<bool, Error> {
-        let flags = update.flags();
+        let header = update.header();
+
+        let flags = header.flags();
         let body = update.body();
 
         let public_options = update.public_options();
@@ -69,14 +73,14 @@ impl Subscriber for Service {
 
         self.validate_primary(update)?;
 
-        if update.version() == self.version {
+        if header.index() == self.version {
             return Ok(false);
         }
-        if update.version() <= self.version {
+        if header.index() <= self.version {
             return Err(Error::InvalidServiceVersion);
         }
 
-        self.version = update.version();
+        self.version = header.index();
         self.encrypted = flags.contains(Flags::ENCRYPTED);
         self.body = body.clone();
         self.public_options = public_options.to_vec();
@@ -86,13 +90,15 @@ impl Subscriber for Service {
     }
 
     fn validate_page(&mut self, page: &Page) -> Result<(), Error> {
-        if page.kind().is_page() {
-            if !page.flags().contains(Flags::SECONDARY) {
+        let header = page.header();
+
+        if header.kind().is_page() {
+            if !header.flags().contains(Flags::SECONDARY) {
                 self.validate_primary(page)
             } else {
                 self.validate_secondary(page)
             }
-        } else if page.kind().is_data() {
+        } else if header.kind().is_data() {
             self.validate_data(page)
         } else {
             Err(Error::UnexpectedPageKind)
@@ -103,20 +109,22 @@ impl Subscriber for Service {
 impl Service {
     /// Validate a primary page
     pub(crate) fn validate_primary(&mut self, page: &Page) -> Result<(), Error> {
-        if !page.kind().is_page() {
+        let header = page.header();
+
+        if !header.kind().is_page() {
             return Err(Error::ExpectedPrimaryPage);
         }
-        if page.flags().contains(Flags::SECONDARY) {
+        if header.flags().contains(Flags::SECONDARY) {
             return Err(Error::ExpectedPrimaryPage);
         }
 
         if page.id() != &self.id {
             return Err(Error::UnexpectedServiceId);
         }
-        if page.application_id() != self.application_id {
+        if header.application_id() != self.application_id {
             return Err(Error::UnexpectedApplicationId);
         }
-        if page.kind() != self.kind.into() {
+        if header.kind() != self.kind.into() {
             return Err(Error::InvalidPageKind);
         }
 
@@ -144,10 +152,12 @@ impl Service {
 
     /// Validate a secondary page
     pub(crate) fn validate_secondary(&mut self, secondary: &Page) -> Result<(), Error> {
-        if !secondary.kind().is_page() {
+        let header = secondary.header();
+
+        if !header.kind().is_page() {
             return Err(Error::ExpectedPrimaryPage);
         }
-        if !secondary.flags().contains(Flags::SECONDARY) {
+        if !header.flags().contains(Flags::SECONDARY) {
             return Err(Error::ExpectedSecondaryPage);
         }
 
@@ -159,7 +169,7 @@ impl Service {
             return Err(Error::UnexpectedPeerId);
         }
 
-        if secondary.application_id() != self.application_id {
+        if header.application_id() != self.application_id {
             return Err(Error::UnexpectedApplicationId);
         }
 
@@ -168,14 +178,16 @@ impl Service {
 
     /// Validate a data objects
     pub(crate) fn validate_data(&mut self, data: &Page) -> Result<(), Error> {
-        if !data.kind().is_data() {
+        let header = data.header();
+
+        if !header.kind().is_data() {
             return Err(Error::ExpectedDataObject);
         }
 
         if data.id() != &self.id {
             return Err(Error::UnexpectedServiceId);
         }
-        if data.application_id() != self.application_id {
+        if header.application_id() != self.application_id {
             return Err(Error::UnexpectedApplicationId);
         }
 

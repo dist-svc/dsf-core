@@ -6,13 +6,14 @@
 use crate::base::{Body, PrivateOptions};
 use crate::crypto;
 use crate::options::Options;
+use crate::error::Error;
 use crate::types::*;
 
 pub mod kinds;
 
 // Service extensions
 pub mod publisher;
-pub use publisher::{DataOptionsBuilder, Publisher, SecondaryOptionsBuilder};
+pub use publisher::{Publisher, DataOptions, SecondaryOptions};
 
 pub mod subscriber;
 pub use subscriber::Subscriber;
@@ -20,14 +21,14 @@ pub use subscriber::Subscriber;
 pub mod net;
 pub use net::Net;
 
-mod builder;
+pub mod builder;
+pub use builder::ServiceBuilder;
 
 /// Generic Service Type.
 /// This provides the basis for all services in DSR.
 ///
 /// Services should be constructed using the ServiceBuilder type
-#[derive(PartialEq, Debug, Clone, Builder)]
-#[builder(default, build_fn(validate = "Self::validate"))]
+#[derive(PartialEq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "diesel", derive(diesel::Queryable))]
 pub struct Service {
@@ -149,7 +150,7 @@ mod test {
 
     use crate::base::Base;
     use crate::page::Page;
-    use crate::service::publisher::{DataOptionsBuilder, Publisher, SecondaryOptionsBuilder};
+    use crate::service::publisher::{Publisher, DataOptions, SecondaryOptions};
     use crate::service::subscriber::Subscriber;
 
     use super::*;
@@ -162,7 +163,7 @@ mod test {
         let mut service = ServiceBuilder::default()
             .kind(PageKind::Generic.into())
             .public_options(vec![Options::name("Test Service")])
-            .private_options(vec![Options::address(socket)].into())
+            .private_options(vec![Options::address_v4(socket)].into())
             .encrypt()
             .build()
             .unwrap();
@@ -223,12 +224,9 @@ mod test {
         assert_eq!(replica.version, 1);
 
         println!("Generating a secondary page");
-        let secondary_options = SecondaryOptionsBuilder::default()
-            .id(s.id())
-            .build()
-            .expect("Error building secondary options");
+        let secondary_options = SecondaryOptions::default();
         let (_n, secondary) = service
-            .publish_secondary(secondary_options, &mut buff)
+            .publish_secondary(s.id(), secondary_options, &mut buff)
             .expect("Error publishing secondary page");
 
         println!("Validating secondary page");
@@ -237,9 +235,7 @@ mod test {
             .expect("Error validating secondary page against publisher");
 
         println!("Generating a data object");
-        let data_options = DataOptionsBuilder::default()
-            .build()
-            .expect("Error building data options");
+        let data_options = DataOptions::default();
         let (_n, data) = service
             .publish_data(data_options, &mut buff)
             .expect("Error publishing data object");
