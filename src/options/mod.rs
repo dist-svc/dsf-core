@@ -1,14 +1,14 @@
 //! Options are used to support extension of protocol objects
 //! with DSF and application-specific optional fields.
 
-use std::net::{SocketAddr, SocketAddrV4, SocketAddrV6};
-use std::str;
+#[cfg(feature = "alloc")]
+use alloc::prelude::v1::*;
 
-use byteorder::{ByteOrder, NetworkEndian, ReadBytesExt, WriteBytesExt};
+use byteorder::{ByteOrder, NetworkEndian};
 
 use crate::base::{Encode, Parse};
 use crate::types::{
-    DateTime, Id, ImmutableData, PublicKey, Signature, ID_LEN, PUBLIC_KEY_LEN, SIGNATURE_LEN,
+    DateTime, Id, ImmutableData, PublicKey, Signature, Ip, Address, AddressV6, AddressV4, ID_LEN, PUBLIC_KEY_LEN, SIGNATURE_LEN,
 };
 
 mod helpers;
@@ -23,8 +23,10 @@ pub enum Options {
     PrevSig(PrevSig),
     Kind(Kind),
     Name(Name),
-    IPv4(SocketAddrV4),
-    IPv6(SocketAddrV6),
+
+    IPv4(AddressV4),
+    IPv6(AddressV6),
+
     Issued(Issued),
     Expiry(Expiry),
     Limit(Limit),
@@ -50,6 +52,7 @@ pub enum OptionsError {
     Unimplemented,
 }
 
+#[cfg(feature = "std")]
 impl From<std::io::Error> for OptionsError {
     fn from(e: std::io::Error) -> OptionsError {
         error!("io error: {}", e);
@@ -168,17 +171,11 @@ impl Options {
         Options::Metadata(Metadata::new(key, value))
     }
 
-    pub fn issued<T>(now: T) -> Options
-    where
-        T: Into<DateTime>,
-    {
+    pub fn issued<T: Into<DateTime>>(now: T) -> Options {
         Options::Issued(Issued::new(now))
     }
 
-    pub fn expiry<T>(when: T) -> Options
-    where
-        T: Into<DateTime>,
-    {
+    pub fn expiry<T: Into<DateTime>>(when: T) -> Options {
         Options::Expiry(Expiry::new(when))
     }
 
@@ -190,14 +187,21 @@ impl Options {
         Options::PubKey(PubKey::new(public_key))
     }
 
-    pub fn address<T>(address: T) -> Options
-    where
-        T: Into<SocketAddr>,
-    {
-        match address.into() {
-            SocketAddr::V4(v4) => Options::IPv4(v4),
-            SocketAddr::V6(v6) => Options::IPv6(v6),
+    pub fn address<T: Into<Address>>(address: T) -> Options {
+        let addr: Address = address.into();
+
+        match addr.ip {
+            Ip::V4(ip) => Options::IPv4(AddressV4::new(ip, addr.port)),
+            Ip::V6(ip) => Options::IPv6(AddressV6::new(ip, addr.port)),
         }
+    }
+
+    pub fn address_v4<T: Into<AddressV4>>(address: T) -> Options {
+        Options::IPv4(address.into())
+    }
+
+    pub fn address_v6<T: Into<AddressV6>>(address: T) -> Options {
+        Options::IPv6(address.into())
     }
 
     pub fn pub_key(public_key: PublicKey) -> Options {
@@ -242,11 +246,11 @@ impl Parse for Options {
                 Ok((Options::Name(opt), n + OPTION_HEADER_LEN))
             }
             option_kinds::ADDR_IPV4 => {
-                let (opt, n) = SocketAddrV4::parse(d)?;
+                let (opt, n) = AddressV4::parse(d)?;
                 Ok((Options::IPv4(opt), n + OPTION_HEADER_LEN))
             }
             option_kinds::ADDR_IPV6 => {
-                let (opt, n) = SocketAddrV6::parse(d)?;
+                let (opt, n) = AddressV6::parse(d)?;
                 Ok((Options::IPv6(opt), n + OPTION_HEADER_LEN))
             }
             option_kinds::META => {
@@ -290,7 +294,7 @@ impl Encode for Options {
             Options::Expiry(ref o) => Ok(o.encode(data)?),
             Options::Limit(ref o) => Ok(o.encode(data)?),
             _ => {
-                println!("Option encoding not implemented for object {:?}", *self);
+                warn!("Option encoding not implemented for object {:?}", *self);
                 unimplemented!();
             }
         }
@@ -435,7 +439,7 @@ impl Parse for Kind {
     type Error = OptionsError;
 
     fn parse(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
-        let value = str::from_utf8(&data).unwrap().to_owned();
+        let value = core::str::from_utf8(&data).unwrap().to_owned();
 
         Ok((Kind { value }, data.len()))
     }
@@ -475,7 +479,7 @@ impl Parse for Name {
     type Error = OptionsError;
 
     fn parse(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
-        let value = str::from_utf8(&data).unwrap().to_owned();
+        let value = core::str::from_utf8(&data).unwrap().to_owned();
 
         Ok((Name { value }, data.len()))
     }
@@ -495,8 +499,8 @@ impl Encode for Name {
     }
 }
 
-impl Parse for SocketAddrV4 {
-    type Output = SocketAddrV4;
+impl Parse for AddressV4 {
+    type Output = AddressV4;
     type Error = OptionsError;
 
     fn parse(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
@@ -505,11 +509,11 @@ impl Parse for SocketAddrV4 {
         ip.copy_from_slice(&data[0..4]);
         let port = NetworkEndian::read_u16(&data[4..6]);
 
-        Ok((SocketAddrV4::new(ip.into(), port), 6))
+        Ok((AddressV4::new(ip, port), 6))
     }
 }
 
-impl Encode for SocketAddrV4 {
+impl Encode for AddressV4 {
     type Error = OptionsError;
 
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
@@ -517,15 +521,15 @@ impl Encode for SocketAddrV4 {
         NetworkEndian::write_u16(&mut data[0..2], option_kinds::ADDR_IPV4);
         NetworkEndian::write_u16(&mut data[2..4], 6);
 
-        &mut data[OPTION_HEADER_LEN..OPTION_HEADER_LEN+4].copy_from_slice(&self.ip().octets());
-        NetworkEndian::write_u16(&mut data[OPTION_HEADER_LEN+4..], self.port());
+        &mut data[OPTION_HEADER_LEN..OPTION_HEADER_LEN+4].copy_from_slice(&self.ip);
+        NetworkEndian::write_u16(&mut data[OPTION_HEADER_LEN+4..], self.port);
 
         Ok(6)
     }
 }
 
-impl Parse for SocketAddrV6 {
-    type Output = SocketAddrV6;
+impl Parse for AddressV6 {
+    type Output = AddressV6;
     type Error = OptionsError;
 
     fn parse(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
@@ -534,19 +538,19 @@ impl Parse for SocketAddrV6 {
         ip.copy_from_slice(&data[0..4]);
         let port = NetworkEndian::read_u16(&data[16..18]);
 
-        Ok((SocketAddrV6::new(ip.into(), port, 0, 0), data.len()))
+        Ok((AddressV6::new(ip, port), data.len()))
     }
 }
 
-impl Encode for SocketAddrV6 {
+impl Encode for AddressV6 {
     type Error = OptionsError;
 
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
         NetworkEndian::write_u16(&mut data[0..2], option_kinds::ADDR_IPV6);
         NetworkEndian::write_u16(&mut data[2..4], 18);
 
-        &mut data[OPTION_HEADER_LEN..OPTION_HEADER_LEN+16].copy_from_slice(&self.ip().octets());
-        NetworkEndian::write_u16(&mut data[OPTION_HEADER_LEN+16..], self.port());
+        &mut data[OPTION_HEADER_LEN..OPTION_HEADER_LEN+16].copy_from_slice(&self.ip);
+        NetworkEndian::write_u16(&mut data[OPTION_HEADER_LEN+16..], self.port);
 
         Ok(18)
     }
@@ -573,7 +577,7 @@ impl Parse for Metadata {
     type Error = OptionsError;
 
     fn parse(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
-        let kv = str::from_utf8(&data).unwrap().to_owned();
+        let kv = core::str::from_utf8(&data).unwrap().to_owned();
         let split: Vec<_> = kv.split("|").collect();
         if split.len() != 2 {
             return Err(OptionsError::InvalidMetadata);
@@ -730,7 +734,7 @@ mod tests {
 
     use super::*;
 
-    use std::net::{Ipv4Addr, Ipv6Addr};
+    use std::net::{Ipv4Addr, Ipv6Addr, SocketAddrV4, SocketAddrV6};
     use std::time::SystemTime;
 
     #[test]
@@ -740,16 +744,16 @@ mod tests {
             Options::PeerId(PeerId::new([2u8; ID_LEN].into())),
             Options::Kind(Kind::new("test-kind")),
             Options::Name(Name::new("test-name")),
-            Options::IPv4(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8080)),
-            Options::IPv6(SocketAddrV6::new(
+            Options::address_v4(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8080)),
+            Options::address_v6(SocketAddrV6::new(
                 Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 1),
                 8080,
                 0,
                 0,
             )),
             Options::Metadata(Metadata::new("test-key", "test-value")),
-            Options::Issued(Issued::new(SystemTime::now())),
-            Options::Expiry(Expiry::new(SystemTime::now())),
+            Options::issued(SystemTime::now()),
+            Options::expiry(SystemTime::now()),
             Options::Limit(Limit::new(13)),
         ];
 
@@ -778,16 +782,16 @@ mod tests {
             Options::PrevSig(PrevSig::new([3u8; SIGNATURE_LEN].into())),
             Options::Kind(Kind::new("test-kind")),
             Options::Name(Name::new("test-name")),
-            Options::IPv4(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8080)),
-            Options::IPv6(SocketAddrV6::new(
+            Options::address_v4(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8080)),
+            Options::address_v6(SocketAddrV6::new(
                 Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 1),
                 8080,
                 0,
                 0,
             )),
             Options::Metadata(Metadata::new("test-key", "test-value")),
-            Options::Issued(Issued::new(SystemTime::now())),
-            Options::Expiry(Expiry::new(SystemTime::now())),
+            Options::issued(SystemTime::now()),
+            Options::expiry(SystemTime::now()),
         ];
 
         let mut data = vec![0u8; 1024];

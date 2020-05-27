@@ -1,15 +1,16 @@
 //! Pages are a high level representation of pages stored in the database
 //! These can be converted into and from a base object for encoding and decoding.
 
-use std::convert::TryFrom;
-use std::ops::Add;
-use std::time::{Duration, SystemTime};
+use core::convert::TryFrom;
 
-use crate::base::Base;
-use crate::base::{Body, PrivateOptions};
+#[cfg(feature = "alloc")]
+use alloc::prelude::v1::*;
+
+use crate::base::{Base, BaseOptions, Header, Body, PrivateOptions};
 use crate::crypto;
 use crate::options::Options;
 use crate::types::*;
+use crate::error::Error;
 
 mod info;
 pub use info::PageInfo;
@@ -18,70 +19,86 @@ pub use info::PageInfo;
 //pub type PageBuilder = BaseBuilder;
 
 /// High level description of a database page
-/// Check out `PageBuilder` for a helper for constructing `Page` objects
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-#[derive(Debug, Clone, Builder)]
+#[derive(Debug, Clone)]
 pub struct Page {
-    // Header
+    // Page ID
     pub id: Id,
 
-    #[builder(default = "0")]
-    pub application_id: u16,
-
-    #[builder(default = "Flags::default()")]
-    pub flags: Flags,
-
-    #[builder(default = "0")]
-    pub version: u16,
-
-    // Page kind / identifier
-    pub kind: Kind,
+    // Page header
+    pub header: Header,
 
     // Information associated with different object kinds
     pub info: PageInfo,
 
     // Page Body
-    #[builder(default = "Body::None")]
     pub body: Body,
 
     // Common options
-    #[builder(default = "SystemTime::now().into()")]
-    pub issued: DateTime,
-    #[builder(default = "None")]
+    pub issued: Option<DateTime>,
     pub expiry: Option<DateTime>,
 
-    #[builder(default = "vec![]")]
     pub public_options: Vec<Options>,
-    #[builder(default = "PrivateOptions::None")]
+
     pub private_options: PrivateOptions,
 
     // Previous page signature
-    #[builder(default = "None")]
     pub previous_sig: Option<Signature>,
 
     // Signature (if signed or decoded)
-    #[builder(default = "None")]
     pub signature: Option<Signature>,
 
     /// Verified flag
-    #[builder(default = "false")]
     pub verified: bool,
 
     // Raw (encoded) data
-    #[builder(default = "None")]
     pub raw: Option<Vec<u8>>,
 
-    #[builder(default = "()")]
     _extend: (),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct PageOptions {
+    // Page issued time
+    pub issued: Option<DateTime>,
+    // Page expiry time
+    pub expiry: Option<DateTime>,
+
+    // Public options
+    pub public_options: Vec<Options>,
+    // Private options
+    pub private_options: PrivateOptions,
+    
+    // Previous page signature
+    pub previous_sig: Option<Signature>,
+    // Signature (if signed or decoded)
+    pub signature: Option<Signature>,
+    // Raw (encoded) data
+    pub raw: Option<Vec<u8>>,
+
+    // Ensure this is not manually constructed
+    _extend: (),
+}
+
+impl Default for PageOptions {
+    fn default() -> Self {
+        Self {
+            issued: None,
+            expiry: None,
+            public_options: vec![],
+            private_options: PrivateOptions::None,
+            previous_sig: None,
+            signature: None,
+            raw: None,
+            _extend: (),
+        }
+    }
 }
 
 impl PartialEq for Page {
     fn eq(&self, o: &Self) -> bool {
         self.id == o.id
-            && self.application_id == o.application_id
-            && self.flags == o.flags
-            && self.version == o.version
-            && self.kind == o.kind
+            && self.header == o.header
             && self.info == o.info
             && self.body == o.body
             && self.issued == o.issued
@@ -97,34 +114,29 @@ impl Page {
     /// Create a new page
     pub fn new(
         id: Id,
-        application_id: u16,
-        kind: Kind,
-        flags: Flags,
-        version: u16,
+        header: Header,
         info: PageInfo,
         body: Body,
-        issued: SystemTime,
-        expiry: Option<SystemTime>,
+        options: PageOptions,
     ) -> Self {
         Page {
             id,
-            application_id,
-            kind,
-            flags,
-            version,
+            header,
             info,
             body,
-            issued: issued.into(),
-            expiry: expiry.map(|v| v.into()),
 
-            public_options: vec![],
-            private_options: PrivateOptions::None,
+            issued: options.issued,
+            expiry: options.expiry,
 
-            previous_sig: None,
+            public_options: options.public_options,
+            private_options: options.private_options,
 
-            signature: None,
+            previous_sig: options.previous_sig,
+
+            signature: options.signature,
+            raw: options.raw,
+
             verified: false,
-            raw: None,
 
             _extend: (),
         }
@@ -134,20 +146,8 @@ impl Page {
         &self.id
     }
 
-    pub fn application_id(&self) -> u16 {
-        self.application_id
-    }
-
-    pub fn kind(&self) -> Kind {
-        self.kind
-    }
-
-    pub fn flags(&self) -> Flags {
-        self.flags
-    }
-
-    pub fn version(&self) -> u16 {
-        self.version
+    pub fn header(&self) -> &Header {
+        &self.header
     }
 
     pub fn info(&self) -> &PageInfo {
@@ -158,12 +158,12 @@ impl Page {
         &self.body
     }
 
-    pub fn issued(&self) -> SystemTime {
-        self.issued.into()
+    pub fn issued(&self) -> Option<DateTime> {
+        self.issued
     }
 
-    pub fn expiry(&self) -> Option<SystemTime> {
-        self.expiry.map(|t| t.into())
+    pub fn expiry(&self) -> Option<DateTime> {
+        self.expiry
     }
 
     pub fn public_options(&self) -> &[Options] {
@@ -272,35 +272,16 @@ impl Page {
     }
 }
 
-impl PageBuilder {
-    pub fn append_public_option(&mut self, o: Options) -> &mut Self {
-        match &mut self.public_options {
-            Some(opts) => opts.push(o),
-            None => self.public_options = Some(vec![o]),
-        }
-        self
-    }
-
-    pub fn append_private_option(&mut self, o: Options) -> &mut Self {
-        if let Some(opts) = &mut self.private_options {
-            opts.append(o)
-        }
-        self
-    }
-
-    pub fn valid_for(&mut self, d: Duration) -> &mut Self {
-        self.expiry = Some(Some(SystemTime::now().add(d).into()));
-        self
-    }
-}
-
 impl From<&Page> for Base {
     fn from(page: &Page) -> Base {
-        let flags = page.flags.clone();
         let sig = page.signature().clone();
 
         // Insert default options
-        let mut default_options = vec![Options::issued(page.issued)];
+        let mut default_options = vec![];
+
+        if let Some(issued) = page.issued {
+            default_options.push(Options::issued(issued));
+        }
 
         if let Some(expiry) = page.expiry {
             default_options.push(Options::expiry(expiry));
@@ -329,13 +310,13 @@ impl From<&Page> for Base {
         // Generate base object
         let mut b = Base::new(
             page.id.clone(),
-            page.application_id,
-            page.kind,
-            flags,
-            page.version,
+            page.header,
             page.body.clone(),
-            public_options,
-            page.private_options.clone(),
+            BaseOptions{
+                public_options,
+                private_options: page.private_options.clone(),
+                ..Default::default()
+            }
         );
 
         if let Some(sig) = sig {
@@ -433,13 +414,10 @@ impl TryFrom<Base> for Page {
 
         Ok(Page {
             id: base.id().clone(),
-            application_id: header.application_id(),
-            kind: header.kind(),
-            flags: header.flags(),
-            version: header.index(),
+            header: header.clone(),
             info,
             body: base.body.clone(),
-            issued: issued.expect("missing issued option"),
+            issued,
             expiry,
 
             previous_sig,

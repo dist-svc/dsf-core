@@ -1,4 +1,6 @@
+#[cfg(feature = "std")]
 use std::io::Error as IoError;
+#[cfg(feature = "std")]
 use std::time::SystemTimeError;
 
 use crate::base::BaseError;
@@ -50,6 +52,7 @@ pub enum Error {
     Unknown,
 }
 
+#[cfg(feature = "std")]
 impl From<IoError> for Error {
     fn from(e: IoError) -> Error {
         error!("io error: {}", e);
@@ -57,6 +60,7 @@ impl From<IoError> for Error {
     }
 }
 
+#[cfg(feature = "std")]
 impl From<SystemTimeError> for Error {
     fn from(_e: SystemTimeError) -> Error {
         Error::Time
@@ -68,6 +72,7 @@ impl From<BaseError> for Error {
         Error::Base(e)
     }
 }
+
 impl From<OptionsError> for Error {
     fn from(e: OptionsError) -> Error {
         Error::Options(e)

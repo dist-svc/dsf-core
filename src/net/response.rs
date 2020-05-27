@@ -4,10 +4,12 @@ use core::ops::Deref;
 use byteorder::{ByteOrder, NetworkEndian};
 use slice_ext::SplitBefore;
 
-use crate::base::{Base, BaseBuilder, Body};
+use crate::base::{Base, BaseOptions, Header, Body};
 use crate::options::Options;
 use crate::page::Page;
 use crate::types::*;
+use crate::error::Error;
+
 
 use super::Common;
 use super::BUFF_SIZE;
@@ -245,7 +247,7 @@ impl Into<Base> for Response {
 
         let mut buff = vec![0; BUFF_SIZE];
 
-        let mut builder = BaseBuilder::default();
+        let mut base_options = BaseOptions::default();
 
         match &self.data {
             ResponseKind::Status(code) => {
@@ -293,22 +295,21 @@ impl Into<Base> for Response {
             }
         }
 
-        let builder = builder
-            .base(
-                self.common.from.clone(),
-                0,
-                kind.into(),
-                self.common.id.clone(),
-                self.common.flags,
-            )
-            .body(Body::from(body));
+        // Create header
+        let header = Header{
+            kind: kind.into(),
+            index: self.common.id.clone(),
+            flags: self.common.flags,
+            ..Default::default()
+        };
 
-        builder.public_key(self.common.public_key.clone());
-
+        // Write public key and address if provided
+        base_options.public_key = self.common.public_key.clone();
         if let Some(a) = self.remote_address {
-            builder.append_public_option(Options::address(a));
+            base_options.append_public_option(Options::address(a));
         }
 
-        builder.build().unwrap()
+        // Build base object
+        Base::new(self.common.from.clone(), header, Body::from(body), base_options)
     }
 }

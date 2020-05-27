@@ -1,14 +1,20 @@
 //#![feature(try_from)]
 //#![feature(test)]
+#![cfg_attr(not(feature = "std"), no_std)]
+#![cfg_attr(feature = "alloc", feature(alloc_prelude))]
+
+#[cfg(feature = "alloc")]
+#[macro_use]
+extern crate alloc;
 
 extern crate base64;
 extern crate byteorder;
 extern crate bytes;
 extern crate rand;
 extern crate sodiumoxide;
-extern crate time;
 extern crate slice_ext;
 extern crate async_trait;
+extern crate managed;
 
 #[macro_use]
 extern crate derive_builder;
@@ -31,17 +37,25 @@ extern crate strum_macros;
 
 pub mod types;
 
+pub mod error;
+
 pub mod crypto;
 
-pub mod base;
 pub mod options;
 
-pub mod net;
+pub mod base;
+
+//pub mod service;
+
+//pub mod wire;
+
 pub mod page;
 
-pub mod wire;
+#[cfg(feature = "std")]
+pub mod net;
 
+#[cfg(feature = "std")]
 pub mod api;
-pub mod service;
 
+#[cfg(feature = "std")]
 pub mod prelude;

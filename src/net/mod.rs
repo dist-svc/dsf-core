@@ -4,6 +4,7 @@
 
 use crate::base::Base;
 use crate::types::*;
+use crate::error::Error;
 
 pub mod request;
 pub use request::{Request, RequestKind};
@@ -135,7 +136,8 @@ mod tests {
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
     use super::*;
-    use crate::page::{PageBuilder, PageInfo};
+    use crate::base::{Header, Body};
+    use crate::page::{Page, PageOptions, PageInfo};
     use crate::types::PageKind;
 
     use crate::crypto;
@@ -151,12 +153,8 @@ mod tests {
         let request_id = 120;
 
         // Create and sign page
-        let mut page = PageBuilder::default()
-            .id(id.clone())
-            .kind(PageKind::Generic.into())
-            .info(PageInfo::primary(pub_key.clone()))
-            .build()
-            .expect("Error building page");
+        let header = Header{kind: PageKind::Generic.into(), ..Default::default()};
+        let mut page = Page::new(id.clone(), header, PageInfo::primary(pub_key.clone()), Body::None, PageOptions::default());
 
         let mut b = Base::from(&page);
         let n = b
@@ -209,7 +207,7 @@ mod tests {
                     fake_id.clone(),
                     vec![(
                         fake_id.clone(),
-                        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080),
+                        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080).into(),
                         pub_key.clone(),
                     )],
                 ),

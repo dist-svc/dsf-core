@@ -21,31 +21,34 @@ pub mod offsets {
 
 /// Header encodes information for a given page in the database.
 /// Wire encoding and decoding exists in `wire::header`
-#[derive(Clone, PartialEq, Debug, Builder)]
+#[derive(Clone, PartialEq, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct Header {
-    #[builder(default = "0")]
-    protocol_version: u16,
+    /// Protocol version
+    pub protocol_version: u16,
 
-    #[builder(default = "0")]
-    application_id: u16,
+    // Application ID
+    pub application_id: u16,
 
     /// Object kind
-    kind: Kind,
+    pub kind: Kind,
 
-    #[builder(default = "Flags::default()")]
-    flags: Flags,
+    /// Object flags
+    pub flags: Flags,
 
-    #[builder(default = "0")]
     /// Index is the Page Version for Pages, or the Request ID for messages
-    index: u16,
+    pub index: u16,
 }
 
-impl HeaderBuilder {
-    pub fn address_request(&mut self) -> &mut Self {
-        let mut flags = self.flags.or(Some(Flags::default())).unwrap();
-        flags |= Flags::ADDRESS_REQUEST;
-        self.flags = Some(flags);
-        self
+impl Default for Header {
+    fn default() -> Self {
+        Self {
+            protocol_version: 0,
+            application_id: 0,
+            kind: Kind(0),
+            flags: Flags::default(),
+            index: 0,
+        }
     }
 }
 

@@ -1,10 +1,12 @@
 use core::convert::TryFrom;
 use core::ops::Deref;
 
-use crate::base::{Base, BaseBuilder, Body};
+use crate::base::{Base, BaseOptions, Body, Header};
 use crate::options::Options;
 use crate::page::Page;
 use crate::types::*;
+use crate::error::Error;
+
 
 use super::Common;
 use super::BUFF_SIZE;
@@ -171,7 +173,7 @@ impl Into<Base> for Request {
         let kind: MessageKind;
         let body;
 
-        let mut builder = BaseBuilder::default();
+        let mut options = BaseOptions::default();
 
         match &self.data {
             RequestKind::Hello => {
@@ -220,16 +222,17 @@ impl Into<Base> for Request {
             }
         }
 
-        let builder = builder
-            .base(self.from.clone(), 0, kind.into(), self.id, self.flags)
-            .body(Body::from(body));
+        // Create object header
+        let header = Header{kind: kind.into(), flags: self.flags, index: self.id, ..Default::default()};
 
-        builder.public_key(self.public_key.clone());
+        // Attach public key and address options if supplied
+        options.public_key = self.public_key.clone();
         if let Some(a) = self.remote_address {
-            builder.append_public_option(Options::address(a));
+            options.append_public_option(Options::address(a));
         }
 
-        builder.build().unwrap()
+        // Build base object
+        Base::new(self.from.clone(), header, Body::from(body), options)
     }
 }
 

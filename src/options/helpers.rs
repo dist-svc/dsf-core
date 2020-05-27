@@ -1,7 +1,7 @@
-use core::ops::Add;
 use core::str;
 
-use std::time::{Duration, SystemTime};
+#[cfg(feature = "alloc")]
+use alloc::prelude::v1::*;
 
 use byteorder::{ByteOrder, NetworkEndian};
 

@@ -1,9 +1,8 @@
-use std::ops::Add;
-use std::time::{Duration, SystemTime};
+use core::ops::Add;
 
 use crate::base::{Base, Body, PrivateOptions};
 use crate::options::Options;
-use crate::page::{Page, PageBuilder, PageInfo};
+use crate::page::{Page, PageOptions, PageInfo};
 use crate::service::Service;
 use crate::types::*;
 
@@ -55,7 +54,7 @@ pub struct SecondaryOptions {
 
     /// Page expiry time
     #[builder(default = "Some(SystemTime::now().add(Duration::from_secs(24 * 60 * 60)))")]
-    expiry: Option<SystemTime>,
+    expiry: Option<DateTime>,
 
     /// Public options attached to the page
     #[builder(default = "vec![]")]
@@ -131,20 +130,23 @@ impl Publisher for Service {
 
         //let mut p = Page::new(options.id.clone(), options.application_id, options.page_kind, flags, options.version, PageInfo::secondary(self.id.clone()), options.body, SystemTime::now(), options.expiry);
 
-        let mut b = PageBuilder::default();
-        b.id(options.id.clone())
-            .application_id(options.application_id)
-            .kind(options.page_kind)
-            .flags(flags)
-            .version(options.version)
-            .info(PageInfo::secondary(self.id.clone()))
-            .body(options.body)
-            .public_options(options.public_options)
-            .private_options(options.private_options)
-            .issued(SystemTime::now().into())
-            .expiry(options.expiry.map(|v| v.into()));
+        let header = Header{
+            application_id: options.application_id,
+            kind: options.page_kind,
+            flags: options.flags,
+            index: options.version,
+            ..Default::default()
+        };
 
-        let mut p = b.build().unwrap();
+        let page_options = PageOptions{
+            public_options: options.public_options,
+            private_options: options.private_options,
+            issued: Some(SystemTime::now().into()),
+            expiry: Some(options.expiry.map(|v| v.into())),
+            ..Default::default()
+        };
+
+        let mut page = Page::new(options.id.clone(), header, PageInfo::primary(pub_key.clone()), options.body, page_options);
 
         self.encode(&mut p, buff).map(|n| (n, p))
     }

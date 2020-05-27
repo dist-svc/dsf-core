@@ -49,7 +49,7 @@ pub enum KindError {
     Unrecognized(u16),
 }
 
-#[derive(PartialEq, Debug, Clone, Copy, Display)]
+#[derive(PartialEq, Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "std", derive(EnumString))]
 pub enum PageKind {
@@ -90,7 +90,7 @@ impl Into<Kind> for PageKind {
     }
 }
 
-#[derive(PartialEq, Debug, Clone, Copy, Display)]
+#[derive(PartialEq, Debug, Clone, Copy)]
 #[cfg_attr(feature = "std", derive(EnumString))]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub enum MessageKind {
@@ -201,7 +201,7 @@ impl Into<Kind> for DataKind {
 }
 
 impl FromStr for DataKind {
-    type Err = std::num::ParseIntError;
+    type Err = core::num::ParseIntError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s.to_ascii_lowercase() == "generic" {
             Ok(DataKind::Generic)

@@ -1,14 +1,19 @@
 //! Base object is a common owned object that is used to represent pages / messages / data
 //! and can be encoded and decoded for wire communication.
 
-use std::net::SocketAddr;
+#[cfg(feature = "std")]
+use std::net::{SocketAddr};
+
+#[cfg(feature = "alloc")]
+use alloc::prelude::v1::*;
 
 use crate::base::Header;
 use crate::options::{Options, OptionsError};
 use crate::types::*;
+use crate::error::Error;
 use crate::wire::Container;
 
-#[derive(Clone, Builder, Debug)]
+#[derive(Clone, Debug)]
 pub struct Base {
     /// Page or Object Identifier
     pub(crate) id: Id,
@@ -17,47 +22,85 @@ pub struct Base {
     pub(crate) header: Header,
 
     /// Body contains arbitrary service data for Pages, Blocks, and Messages
-    #[builder(default = "Body::None")]
     pub(crate) body: Body,
 
     /// Private options supports the addition of options that are only visible
     /// to authorized service consumers
-    #[builder(default = "PrivateOptions::None")]
     pub(crate) private_options: PrivateOptions,
 
     /// Public options provide a simple mechanism for extension of objects
-    #[builder(default = "vec![]")]
     pub(crate) public_options: Vec<Options>,
 
     /// Page parent / previous page link
     /// Used for constructing a hash-chain of published objects and included as a public option
     /// This is automatically included / extracted to simplify higher level parsing
-    #[builder(default = "None")]
     pub(crate) parent: Option<Signature>,
 
     /// Service public key
     /// Used to support self-signed objects and included as a public option
     /// This is automatically included / extracted to simplify higher level parsing
-    #[builder(default = "None")]
     pub(crate) public_key: Option<PublicKey>,
 
     /// Object PeerID
     /// Used to support secondary objects and included as a public option
     /// This is automatically included / extracted to simplify higher level parsing
-    #[builder(default = "None")]
     pub(crate) peer_id: Option<Id>,
 
     /// Object signature
-    #[builder(default = "None")]
     pub(crate) signature: Option<Signature>,
 
     /// Verified flag indicates object signature verification status
-    #[builder(default = "false")]
     pub(crate) verified: bool,
 
     /// Raw object container, used to avoid re-encoding objects
-    #[builder(default = "None")]
     pub(crate) raw: Option<Vec<u8>>,
+}
+
+/// Options for constructing base objects
+pub struct BaseOptions {
+    /// Private / encrypted options
+    pub private_options: PrivateOptions,
+    /// Public / plaintext options
+    pub public_options: Vec<Options>,
+    /// Parent object signature
+    pub parent: Option<Signature>,
+    /// Parent service public key
+    pub public_key: Option<PublicKey>,
+    /// Peer ID for secondary object mapping
+    pub peer_id: Option<Id>,
+    /// Object signature
+    pub signature: Option<Signature>,
+    /// Raw / pre-encoded object data
+    pub raw: Option<Vec<u8>>,
+}
+
+impl Default for BaseOptions {
+    fn default() -> Self {
+        Self {
+            private_options: PrivateOptions::None,
+            public_options: vec![],
+            parent: None,
+            public_key: None,
+            peer_id: None,
+            signature: None,
+            raw: None,
+        }
+    }
+}
+
+impl BaseOptions {
+    pub fn append_public_option(&mut self, o: Options) -> &mut Self {
+        self.public_options.push(o);
+        self
+    }
+
+    pub fn append_private_option(&mut self, o: Options) -> &mut Self {
+        match &mut self.private_options {
+            PrivateOptions::Cleartext(opts) => opts.push(o),
+            _ => self.private_options = PrivateOptions::Cleartext(vec![o]),
+        }
+        self
+    }
 }
 
 impl PartialEq for Base {
@@ -83,6 +126,7 @@ pub enum NewBody<T: ImmutableData> {
 }
 
 impl Body {
+    /// Decrypt an object body with the provided secret key
     pub fn decrypt(&mut self, secret_key: Option<&SecretKey>) -> Result<(), Error> {
         let body = match (&self, &secret_key) {
             (NewBody::Cleartext(b), _) => b.to_vec(),
@@ -192,63 +236,21 @@ impl From<std::io::Error> for BaseError {
     }
 }
 
-impl BaseBuilder {
-    pub fn base(
-        &mut self,
-        id: Id,
-        application_id: u16,
-        kind: Kind,
-        index: u16,
-        flags: Flags,
-    ) -> &mut Self {
-        let header = Header::new(application_id, kind, index, flags);
-        self.id = Some(id);
-        self.header = Some(header);
-        self
-    }
-
-    pub fn append_public_option(&mut self, o: Options) -> &mut Self {
-        match &mut self.public_options {
-            Some(opts) => opts.push(o),
-            None => self.public_options = Some(vec![o]),
-        }
-        self
-    }
-
-    pub fn append_private_option(&mut self, o: Options) -> &mut Self {
-        match &mut self.private_options {
-            Some(PrivateOptions::Cleartext(opts)) => opts.push(o),
-            _ => self.private_options = Some(PrivateOptions::Cleartext(vec![o])),
-        }
-        self
-    }
-}
-
 impl Base {
-    pub fn new(
-        id: Id,
-        application_id: u16,
-        kind: Kind,
-        flags: Flags,
-        version: u16,
-        body: Body,
-        public_options: Vec<Options>,
-        private_options: PrivateOptions,
-    ) -> Base {
-        let header = Header::new(application_id, kind, version, flags);
-
-        Base {
+    /// Create a new base object the provided options
+    pub fn new(id: Id, header: Header, body: Body, options: BaseOptions) -> Self {
+        Self {
             id,
             header,
             body,
-            public_options,
-            private_options,
-            parent: None,
-            peer_id: None,
-            public_key: None,
-            signature: None,
+            private_options: options.private_options,
+            public_options: options.public_options,
+            parent: options.parent,
+            public_key: options.public_key,
+            peer_id: options.peer_id,
+            signature: options.signature,
             verified: false,
-            raw: None,
+            raw: options.raw
         }
     }
 
@@ -338,8 +340,8 @@ impl Base {
 
     pub fn address_option(options: &[Options]) -> Option<Address> {
         options.iter().find_map(|o| match o {
-            Options::IPv4(addr) => Some(SocketAddr::V4(*addr)),
-            Options::IPv6(addr) => Some(SocketAddr::V6(*addr)),
+            Options::IPv4(addr) => Some(addr.clone().into()),
+            Options::IPv6(addr) => Some(addr.clone().into()),
             _ => None,
         })
     }
@@ -369,8 +371,6 @@ impl Base {
     }
 }
 
-use std::io::Write;
-
 impl Base {
     pub fn encode<'a, T: AsRef<[u8]> + AsMut<[u8]>>(
         &mut self,
@@ -382,7 +382,7 @@ impl Base {
         if let Some(raw) = &self.raw {
             let mut d = buff.as_mut();
 
-            d.write_all(&raw)?;
+            &mut d[0..raw.len()].copy_from_slice(&raw);
 
             return Ok(raw.len());
         }
@@ -425,18 +425,10 @@ mod tests {
     fn encode_decode_primary_page() {
         let (id, pub_key, pri_key, _sec_key) = setup();
 
-        let header = HeaderBuilder::default()
-            .kind(PageKind::Generic.into())
-            .build()
-            .expect("Error building page header");
+        let header = Header{kind: PageKind::Generic.into(), ..Default::default() };
         let data = vec![1, 2, 3, 4, 5, 6, 7];
 
-        let mut page = BaseBuilder::default()
-            .id(id)
-            .header(header)
-            .body(Body::Cleartext(data))
-            .build()
-            .expect("Error building page");
+        let mut page = Base::new(id, header, Body::Cleartext(data), BaseOptions::default());
 
         let mut buff = vec![0u8; 1024];
         let n = page
@@ -457,21 +449,14 @@ mod tests {
         let (id, pub_key, pri_key, _sec_key) = setup();
         let fake_id = crypto::hash(&[0x00, 0x11, 0x22]).unwrap();
 
-        let header = HeaderBuilder::default()
-            .flags(Flags::SECONDARY)
-            .kind(PageKind::Replica.into())
-            .build()
-            .expect("Error building page header");
+        let header = Header{kind: PageKind::Replica.into(), flags: Flags::SECONDARY, ..Default::default() };
         let data = vec![1, 2, 3, 4, 5, 6, 7];
 
-        let mut page = BaseBuilder::default()
-            .id(fake_id)
-            .header(header)
-            .body(Body::Cleartext(data))
-            .peer_id(Some(id.clone()))
-            .public_key(Some(pub_key.clone()))
-            .build()
-            .expect("Error building page");
+        let mut page = Base::new(id, header, Body::Cleartext(data), BaseOptions{
+            peer_id: Some(id.clone()),
+            public_key: Some(pub_key.clone()),
+            ..Default::default()
+        });
 
         let mut buff = vec![0u8; 1024];
         let n = page
@@ -498,19 +483,10 @@ mod tests {
     fn encode_decode_encrypted_page() {
         let (id, pub_key, pri_key, sec_key) = setup();
 
-        let header = HeaderBuilder::default()
-            .flags(Flags::ENCRYPTED)
-            .kind(PageKind::Generic.into())
-            .build()
-            .expect("Error building page header");
+        let header = Header{kind: PageKind::Generic.into(), flags: Flags::ENCRYPTED, ..Default::default()};
         let data = vec![1, 2, 3, 4, 5, 6, 7];
 
-        let mut page = BaseBuilder::default()
-            .id(id)
-            .header(header)
-            .body(Body::Cleartext(data))
-            .build()
-            .expect("Error building page");
+        let mut page = Base::new(id, header, Body::Cleartext(data), BaseOptions::default());
 
         let mut buff = vec![0u8; 1024];
         let n = page

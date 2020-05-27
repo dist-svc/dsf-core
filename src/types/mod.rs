@@ -2,17 +2,19 @@
 //!
 //!
 
-use std::cmp::{Ord, Ordering, PartialOrd};
-use std::fmt;
-use std::hash::{Hash, Hasher};
-use std::net::SocketAddr;
-use std::ops::{Deref, DerefMut};
-use std::str::FromStr;
+use core::cmp::{Ord, Ordering, PartialOrd};
+use core::fmt;
+use core::hash::{Hash, Hasher};
+use core::ops::{Deref, DerefMut};
+use core::str::FromStr;
+
 
 #[cfg(feature = "serde")]
 use serde::de::{self, Visitor};
 #[cfg(feature = "serde")]
 use serde::{Deserializer, Serializer};
+
+pub use chrono::Duration;
 
 /// ImmutableData trait wraps AsRef<[u8]>
 pub trait ImmutableData: AsRef<[u8]> {}
@@ -64,11 +66,10 @@ pub type CryptoHash = Array32;
 pub const ENCRYPTED_META_LEN: usize = 64;
 pub type EncryptedMeta = Array64;
 
-pub type Address = SocketAddr;
-
 //#[derive(Clone, PartialEq, Debug)]
-use crate::page::Page;
-pub type Data = Page;
+//TODO: remove
+//use crate::page::Page;
+//pub type Data = Page;
 
 pub mod kinds;
 pub use self::kinds::*;
@@ -76,11 +77,11 @@ pub use self::kinds::*;
 pub mod flags;
 pub use self::flags::*;
 
-pub mod errors;
-pub use self::errors::*;
-
 pub mod datetime;
 pub use self::datetime::DateTime;
+
+pub mod address;
+pub use self::address::{Address, AddressV4, AddressV6, Ip};
 
 macro_rules! arr {
     ($name:ident, $len:expr) => {

@@ -144,7 +144,7 @@ impl Service {
 #[cfg(test)]
 mod test {
 
-    use std::convert::TryInto;
+    use core::convert::TryInto;
     use std::net::{Ipv4Addr, SocketAddrV4};
 
     use crate::base::Base;

@@ -1,10 +1,6 @@
 use core::fmt;
 
-#[cfg(not(feature="std"))]
-use chrono::NaiveDateTime;
-
-#[cfg(feature="std")]
-use chrono::{TimeZone, Utc};
+use chrono::{NaiveDateTime, Utc, TimeZone};
 
 /// Internal UTC DateTime with second resolution
 #[derive(PartialEq, Clone, Copy)]
@@ -29,14 +25,14 @@ impl DateTime {
 impl fmt::Debug for DateTime {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let u = Utc.timestamp(self.0 as i64, 0);
-        write!(f, "{}", u.to_string())
+        write!(f, "{:?}", u)
     }
 }
 
 impl fmt::Display for DateTime {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let u = Utc.timestamp(self.0 as i64, 0);
-        write!(f, "{}", u.to_string())
+        write!(f, "{:?}", u)
     }
 }
 
@@ -53,6 +49,12 @@ impl From<std::time::SystemTime> for DateTime {
     fn from(s: std::time::SystemTime) -> Self {
         let when = s.duration_since(std::time::SystemTime::UNIX_EPOCH).unwrap();
         Self(when.as_secs())
+    }
+}
+
+impl From<NaiveDateTime> for DateTime {
+    fn from(s: NaiveDateTime) -> Self {
+        Self(s.timestamp_millis() as u64 / 1000)
     }
 }
 
