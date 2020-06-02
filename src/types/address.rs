@@ -37,6 +37,15 @@ impl From<SocketAddr> for Address {
     }
 }
 
+impl From<Address> for SocketAddr {
+    fn from(a: Address) -> Self {
+        match &a.ip {
+            Ip::V4(ip) => SocketAddr::V4(SocketAddrV4::new((*ip).into(), a.port)),
+            Ip::V6(ip) => SocketAddr::V6(SocketAddrV6::new((*ip).into(), a.port, 0, 0)),
+        }
+    }
+}
+
 impl From<AddressV4> for Address {
     fn from(a: AddressV4) -> Self {
         Self::new(Ip::V4(a.ip), a.port)
