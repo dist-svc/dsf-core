@@ -1,6 +1,7 @@
 use core::convert::TryFrom;
 use core::str::FromStr;
 
+/// Kind identifies the type of the of the obvject
 #[derive(PartialEq, Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct Kind(pub u16);
@@ -49,6 +50,8 @@ pub enum KindError {
     Unrecognized(u16),
 }
 
+
+/// PageKind describes DSF-specific page kinds
 #[derive(PartialEq, Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "std", derive(EnumString))]

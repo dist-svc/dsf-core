@@ -76,52 +76,52 @@ impl ServiceBuilder {
     }
     
     /// Set the ID and public key for the service
-    pub fn id(&mut self, id: Id, public_key: PublicKey) -> &mut Self {
+    pub fn id(mut self, id: Id, public_key: PublicKey) -> Self {
         self.id = Some(id);
         self.public_key = Some(public_key);
         self
     }
 
-    pub fn kind(&mut self, kind: PageKind) -> &mut Self {
+    pub fn kind(mut self, kind: PageKind) -> Self {
         self.kind = kind;
         self
     }
 
-    pub fn body(&mut self, body: Body) -> &mut Self {
+    pub fn body(mut self, body: Body) -> Self {
         self.body = body;
         self
     }
 
-    pub fn private_key(&mut self, private_key: PrivateKey) -> &mut Self {
+    pub fn private_key(mut self, private_key: PrivateKey) -> Self {
         self.private_key = Some(private_key);
         self
     }
 
-    pub fn secret_key(&mut self, secret_key: SecretKey) -> &mut Self {
+    pub fn secret_key(mut self, secret_key: SecretKey) -> Self {
         self.secret_key = Some(secret_key);
         self
     }
 
-    pub fn application_id(&mut self, application_id: u16) -> &mut Self {
+    pub fn application_id(mut self, application_id: u16) -> Self {
         self.application_id = application_id;
         self
     }
 
     /// Enable service encryption
     /// this is equivalent to .secret_key(crypto::new_sk().unwrap()).encrypted(true);
-    pub fn encrypt(&mut self) -> &mut Self {
+    pub fn encrypt(mut self) -> Self {
         let secret_key = crypto::new_sk().unwrap();
         self.secret_key = Some(secret_key);
         self.encrypted = true;
         self
     }
 
-    pub fn public_options(&mut self, o: Vec<Options>) -> &mut Self {
+    pub fn public_options(mut self, o: Vec<Options>) -> Self {
         self.public_options = o;
         self
     }
 
-    pub fn private_options(&mut self, o: Vec<Options>) -> &mut Self {
+    pub fn private_options(mut self, o: Vec<Options>) -> Self {
         self.private_options = o;
         self
     }

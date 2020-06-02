@@ -60,14 +60,14 @@ pub struct SecondaryOptions {
     pub public_options: Vec<Options>,
 
     /// Private options attached to the page
-    pub private_options: PrivateOptions,
+    pub private_options: Vec<Options>,
 }
 
 impl Default for SecondaryOptions {
     fn default() -> Self {
         Self {
             application_id: 0,
-            page_kind: Kind::Generic,
+            page_kind: PageKind::Generic.into(),
             version: 0,
             body: Body::None,
             issued: None,
@@ -96,13 +96,13 @@ pub struct DataOptions {
     pub public_options: Vec<Options>,
 
     /// Private options attached to the data object
-    pub private_options: PrivateOptions,
+    pub private_options: Vec<Options>,
 }
 
 impl Default for DataOptions {
     fn default() -> Self {
         Self {
-            data_kind: Kind::Generic,
+            data_kind: PageKind::Generic.into(),
             body: Body::None,
             issued: None,
             expiry: None,
@@ -176,7 +176,7 @@ impl Publisher for Service {
 
         let page_options = PageOptions{
             public_options: options.public_options,
-            private_options: options.private_options,
+            private_options: PrivateOptions::Cleartext(options.private_options),
             // TODO: Re-enable issued time
             #[cfg(feature = "std")]
             issued: Some(SystemTime::now().into()),
@@ -213,7 +213,7 @@ impl Publisher for Service {
 
         let page_options = PageOptions{
             public_options: options.public_options,
-            private_options: options.private_options,
+            private_options: PrivateOptions::Cleartext(options.private_options),
             #[cfg(feature = "std")]
             issued: Some(SystemTime::now().into()),
             ..Default::default()

@@ -377,7 +377,7 @@ impl Base {
     ) -> Result<usize, BaseError> {
         // Short circuit if raw object is available
         if let Some(raw) = &self.raw {
-            let mut d = buff.as_mut();
+            let d = buff.as_mut();
 
             &mut d[0..raw.len()].copy_from_slice(&raw);
 
@@ -449,7 +449,7 @@ mod tests {
         let header = Header{kind: PageKind::Replica.into(), flags: Flags::SECONDARY, ..Default::default() };
         let data = vec![1, 2, 3, 4, 5, 6, 7];
 
-        let mut page = Base::new(id, header, Body::Cleartext(data), BaseOptions{
+        let mut page = Base::new(id.clone(), header, Body::Cleartext(data), BaseOptions{
             peer_id: Some(id.clone()),
             public_key: Some(pub_key.clone()),
             ..Default::default()

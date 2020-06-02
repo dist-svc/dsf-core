@@ -75,9 +75,6 @@ pub struct PageOptions {
     pub signature: Option<Signature>,
     // Raw (encoded) data
     pub raw: Option<Vec<u8>>,
-
-    // Ensure this is not manually constructed
-    _extend: (),
 }
 
 impl Default for PageOptions {
@@ -90,7 +87,6 @@ impl Default for PageOptions {
             previous_sig: None,
             signature: None,
             raw: None,
-            _extend: (),
         }
     }
 }
@@ -310,7 +306,7 @@ impl From<&Page> for Base {
         // Generate base object
         let mut b = Base::new(
             page.id.clone(),
-            page.header,
+            page.header.clone(),
             page.body.clone(),
             BaseOptions{
                 public_options,

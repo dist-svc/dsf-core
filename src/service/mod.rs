@@ -160,13 +160,12 @@ mod test {
         let socket = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8080);
 
         println!("Creating new service");
-        let mut service = ServiceBuilder::default()
+        let mut service_builder = ServiceBuilder::default()
             .kind(PageKind::Generic.into())
             .public_options(vec![Options::name("Test Service")])
             .private_options(vec![Options::address_v4(socket)].into())
-            .encrypt()
-            .build()
-            .unwrap();
+            .encrypt();
+        let mut service = service_builder.build().unwrap();
 
         println!("Generating and encoding service page");
         let mut buff = vec![0u8; 1024];
@@ -226,7 +225,7 @@ mod test {
         println!("Generating a secondary page");
         let secondary_options = SecondaryOptions::default();
         let (_n, secondary) = service
-            .publish_secondary(s.id(), secondary_options, &mut buff)
+            .publish_secondary(&s.id(), secondary_options, &mut buff)
             .expect("Error publishing secondary page");
 
         println!("Validating secondary page");
