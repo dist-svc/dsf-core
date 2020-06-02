@@ -1,5 +1,8 @@
 use core::convert::TryInto;
 
+#[cfg(feature = "alloc")]
+use alloc::prelude::v1::*;
+
 use crate::crypto;
 use crate::page::{Page, PageInfo};
 use crate::service::Service;

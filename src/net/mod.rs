@@ -101,7 +101,7 @@ impl Message {
 
         // Check for DSF messages
         if app_id != 0 {
-            println!(
+            error!(
                 "Error converting application-specific base object {:?} to message",
                 kind
             );
@@ -114,7 +114,7 @@ impl Message {
         } else if kind.is_response() {
             Ok(Message::Response(Response::convert(base, key_source)?))
         } else {
-            println!("Error converting base object of kind {:?} to message", kind);
+            error!("Error converting base object of kind {:?} to message", kind);
             Err(Error::InvalidMessageType)
         }
     }
@@ -166,30 +166,35 @@ mod tests {
         page.raw = Some(buff[0..n].to_vec());
 
         let messages: Vec<Message> = vec![
-            Message::Request(Request::new(id.clone(), RequestKind::Hello, flags.clone())),
-            Message::Request(Request::new(id.clone(), RequestKind::Ping, flags.clone())),
+            Message::Request(Request::new(id.clone(), 0, RequestKind::Hello, flags.clone())),
+            Message::Request(Request::new(id.clone(), 1, RequestKind::Ping, flags.clone())),
             Message::Request(Request::new(
                 id.clone(),
+                request_id,
                 RequestKind::FindNode(fake_id.clone()),
                 flags.clone(),
             )),
             Message::Request(Request::new(
                 id.clone(),
+                request_id,
                 RequestKind::Store(id.clone(), vec![page.clone()]),
                 flags.clone(),
             )),
             Message::Request(Request::new(
                 id.clone(),
+                request_id,
                 RequestKind::Subscribe(fake_id.clone()),
                 flags.clone(),
             )),
             Message::Request(Request::new(
                 id.clone(),
+                request_id,
                 RequestKind::Query(fake_id.clone()),
                 flags.clone(),
             )),
             Message::Request(Request::new(
                 id.clone(),
+                request_id,
                 RequestKind::PushData(id.clone(), vec![page.clone()]),
                 flags.clone(),
             )),

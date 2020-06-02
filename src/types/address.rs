@@ -27,6 +27,7 @@ impl Address {
     }
 }
 
+#[cfg(feature = "std")]
 impl From<SocketAddr> for Address {
     fn from(s: SocketAddr) -> Self {
         match s {
@@ -63,12 +64,14 @@ impl AddressV4 {
 }
 
 
+#[cfg(feature = "std")]
 impl From<SocketAddrV4> for AddressV4 {
     fn from(a: SocketAddrV4) -> Self {
         Self::new(a.ip().octets(), a.port())
     }
 }
 
+#[cfg(feature = "std")]
 impl Into<SocketAddrV4> for AddressV4 {
     fn into(self) -> SocketAddrV4 {
         SocketAddrV4::new(Ipv4Addr::from(self.ip), self.port)
@@ -91,12 +94,14 @@ impl AddressV6 {
 }
 
 
+#[cfg(feature = "std")]
 impl From<SocketAddrV6> for AddressV6 {
     fn from(a: SocketAddrV6) -> Self {
         Self::new(a.ip().octets(), a.port())
     }
 }
 
+#[cfg(feature = "std")]
 impl Into<SocketAddrV6> for AddressV6 {
     fn into(self) -> SocketAddrV6 {
         SocketAddrV6::new(Ipv6Addr::from(self.ip), self.port, 0, 0)

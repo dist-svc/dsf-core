@@ -9,6 +9,9 @@ use crate::options::Options;
 use crate::error::Error;
 use crate::types::*;
 
+#[cfg(feature = "alloc")]
+use alloc::prelude::v1::*;
+
 pub mod kinds;
 
 // Service extensions

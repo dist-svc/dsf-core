@@ -1,6 +1,9 @@
 use core::convert::TryFrom;
 use core::ops::Deref;
 
+#[cfg(feature = "alloc")]
+use alloc::prelude::v1::*;
+
 use crate::base::{Base, BaseOptions, Body, Header};
 use crate::options::Options;
 use crate::page::Page;
@@ -38,10 +41,10 @@ pub enum RequestKind {
 }
 
 impl Request {
-    pub fn new(from: Id, data: RequestKind, flags: Flags) -> Request {
+    pub fn new(from: Id, request_id: u16, data: RequestKind, flags: Flags) -> Request {
         let common = Common {
             from,
-            id: rand::random(),
+            id: request_id,
             flags,
             public_key: None,
             remote_address: None,
@@ -59,11 +62,6 @@ impl Request {
 
     pub fn with_public_key(mut self, pk: PublicKey) -> Self {
         self.common.public_key = Some(pk);
-        self
-    }
-
-    pub fn with_request_id(mut self, req_id: RequestId) -> Self {
-        self.common.id = req_id;
         self
     }
 }
@@ -143,7 +141,7 @@ impl Request {
                 RequestKind::PushData(id, pages)
             }
             _ => {
-                println!(
+                error!(
                     "Error converting base object of kind {:?} to request message",
                     header.kind()
                 );

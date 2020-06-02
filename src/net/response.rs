@@ -1,6 +1,9 @@
 use core::convert::TryFrom;
 use core::ops::Deref;
 
+#[cfg(feature = "alloc")]
+use alloc::prelude::v1::*;
+
 use byteorder::{ByteOrder, NetworkEndian};
 use slice_ext::SplitBefore;
 

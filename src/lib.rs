@@ -48,7 +48,6 @@ pub mod wire;
 
 pub mod page;
 
-#[cfg(feature = "std")]
 pub mod net;
 
 #[cfg(feature = "std")]

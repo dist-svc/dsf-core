@@ -3,6 +3,9 @@ use core::ops::Add;
 #[cfg(feature = "std")]
 use std::time::{SystemTime, Duration};
 
+#[cfg(feature = "alloc")]
+use alloc::prelude::v1::*;
+
 use crate::base::{Base, Header, Body, PrivateOptions};
 use crate::options::Options;
 use crate::page::{Page, PageOptions, PageInfo};

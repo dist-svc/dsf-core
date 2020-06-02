@@ -1,6 +1,9 @@
 //! Wire provides a container type to map byte data to fixed fields (and vice versa)
 //! to support wire encoding and decoding.
 
+#[cfg(feature = "alloc")]
+use alloc::prelude::v1::*;
+
 use crate::base::{BaseError, Body, Header, PrivateOptions};
 use crate::crypto;
 use crate::options::{Options, OptionsList};
