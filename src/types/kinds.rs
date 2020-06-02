@@ -30,6 +30,22 @@ impl Kind {
     pub fn is_data(&self) -> bool {
         self.0 & kind_flags::KIND_MASK == kind_flags::DATA_FLAGS
     }
+
+    pub fn page(value: u16) -> Self {
+        Kind(value | kind_flags::PAGE_FLAGS)
+    }
+
+    pub fn request(value: u16) -> Self {
+        Kind(value | kind_flags::REQUEST_FLAGS)
+    }
+
+    pub fn response(value: u16) -> Self {
+        Kind(value | kind_flags::RESPONSE_FLAGS)
+    }
+
+    pub fn data(value: u16) -> Self {
+        Kind(value | kind_flags::DATA_FLAGS)
+    }
 }
 
 impl From<u16> for Kind {

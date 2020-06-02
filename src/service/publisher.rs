@@ -102,7 +102,7 @@ pub struct DataOptions {
 impl Default for DataOptions {
     fn default() -> Self {
         Self {
-            data_kind: PageKind::Generic.into(),
+            data_kind: DataKind::Generic.into(),
             body: Body::None,
             issued: None,
             expiry: None,
@@ -163,6 +163,8 @@ impl Publisher for Service {
         if self.encrypted {
             flags |= Flags::ENCRYPTED;
         }
+
+        flags |= Flags::SECONDARY;
 
         assert!(options.page_kind.is_page());
 

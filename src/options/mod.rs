@@ -524,7 +524,7 @@ impl Encode for AddressV4 {
         &mut data[OPTION_HEADER_LEN..OPTION_HEADER_LEN+4].copy_from_slice(&self.ip);
         NetworkEndian::write_u16(&mut data[OPTION_HEADER_LEN+4..], self.port);
 
-        Ok(6)
+        Ok(OPTION_HEADER_LEN + 6)
     }
 }
 
@@ -535,10 +535,10 @@ impl Parse for AddressV6 {
     fn parse(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
         let mut ip = [0u8; 16];
 
-        ip.copy_from_slice(&data[0..4]);
+        ip.copy_from_slice(&data[0..16]);
         let port = NetworkEndian::read_u16(&data[16..18]);
 
-        Ok((AddressV6::new(ip, port), data.len()))
+        Ok((AddressV6::new(ip, port), 18))
     }
 }
 
@@ -552,7 +552,7 @@ impl Encode for AddressV6 {
         &mut data[OPTION_HEADER_LEN..OPTION_HEADER_LEN+16].copy_from_slice(&self.ip);
         NetworkEndian::write_u16(&mut data[OPTION_HEADER_LEN+16..], self.port);
 
-        Ok(18)
+        Ok(OPTION_HEADER_LEN + 18)
     }
 }
 
@@ -758,6 +758,8 @@ mod tests {
         ];
 
         for o in tests.iter() {
+            println!("Encode/Decode: {:?}", o);
+
             let mut data = vec![0u8; 1024];
             let n1 = o
                 .encode(&mut data)
