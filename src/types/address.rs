@@ -37,6 +37,7 @@ impl From<SocketAddr> for Address {
     }
 }
 
+#[cfg(feature = "std")]
 impl From<Address> for SocketAddr {
     fn from(a: Address) -> Self {
         match &a.ip {
