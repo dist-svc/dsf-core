@@ -68,8 +68,8 @@ pub type EncryptedMeta = Array64;
 
 //#[derive(Clone, PartialEq, Debug)]
 //TODO: remove
-//use crate::page::Page;
-//pub type Data = Page;
+use crate::page::Page;
+pub type Data = Page;
 
 pub mod kinds;
 pub use self::kinds::*;
