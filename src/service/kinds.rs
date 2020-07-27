@@ -9,8 +9,7 @@ pub enum ServiceKind {
     Generic,
     Peer,
     Replica,
-    Unknown,
-    Private,
+    Unknown(i16),
 }
 
 #[derive(PartialEq, Debug, Clone)]

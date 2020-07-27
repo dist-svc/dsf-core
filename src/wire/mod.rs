@@ -135,8 +135,8 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
             }
             (false, None) => {
                 error!("No signature or key for object from {:?}", id);
-                return Err(BaseError::ValidateError.into())
-            },
+                return Err(BaseError::ValidateError.into());
+            }
             _ => (),
         }
 

@@ -8,7 +8,8 @@ use byteorder::{ByteOrder, NetworkEndian};
 
 use crate::base::{Encode, Parse};
 use crate::types::{
-    DateTime, Id, ImmutableData, PublicKey, Signature, Ip, Address, AddressV6, AddressV4, ID_LEN, PUBLIC_KEY_LEN, SIGNATURE_LEN,
+    Address, AddressV4, AddressV6, DateTime, Id, ImmutableData, Ip, PublicKey, Signature, ID_LEN,
+    PUBLIC_KEY_LEN, SIGNATURE_LEN,
 };
 
 mod helpers;
@@ -337,7 +338,8 @@ impl Encode for PubKey {
         NetworkEndian::write_u16(&mut data[0..2], option_kinds::PUBKEY);
         NetworkEndian::write_u16(&mut data[2..4], PUBLIC_KEY_LEN as u16);
 
-        &mut data[OPTION_HEADER_LEN..OPTION_HEADER_LEN+PUBLIC_KEY_LEN].copy_from_slice(&self.public_key);
+        &mut data[OPTION_HEADER_LEN..OPTION_HEADER_LEN + PUBLIC_KEY_LEN]
+            .copy_from_slice(&self.public_key);
 
         Ok(OPTION_HEADER_LEN + PUBLIC_KEY_LEN)
     }
@@ -378,9 +380,9 @@ impl Encode for PeerId {
         NetworkEndian::write_u16(&mut data[0..2], option_kinds::PEER_ID);
         NetworkEndian::write_u16(&mut data[2..4], ID_LEN as u16);
 
-        &mut data[OPTION_HEADER_LEN..OPTION_HEADER_LEN+ID_LEN].copy_from_slice(&self.peer_id);
+        &mut data[OPTION_HEADER_LEN..OPTION_HEADER_LEN + ID_LEN].copy_from_slice(&self.peer_id);
 
-        Ok(OPTION_HEADER_LEN+ID_LEN)
+        Ok(OPTION_HEADER_LEN + ID_LEN)
     }
 }
 
@@ -414,9 +416,9 @@ impl Encode for PrevSig {
         NetworkEndian::write_u16(&mut data[0..2], option_kinds::PREV_SIG);
         NetworkEndian::write_u16(&mut data[2..4], SIGNATURE_LEN as u16);
 
-        &mut data[OPTION_HEADER_LEN..OPTION_HEADER_LEN+SIGNATURE_LEN].copy_from_slice(&self.sig);
+        &mut data[OPTION_HEADER_LEN..OPTION_HEADER_LEN + SIGNATURE_LEN].copy_from_slice(&self.sig);
 
-        Ok(OPTION_HEADER_LEN+SIGNATURE_LEN)
+        Ok(OPTION_HEADER_LEN + SIGNATURE_LEN)
     }
 }
 
@@ -454,9 +456,9 @@ impl Encode for Kind {
         NetworkEndian::write_u16(&mut data[0..2], option_kinds::KIND);
         NetworkEndian::write_u16(&mut data[2..4], value.len() as u16);
 
-        &mut data[OPTION_HEADER_LEN..OPTION_HEADER_LEN+value.len()].copy_from_slice(&value);
+        &mut data[OPTION_HEADER_LEN..OPTION_HEADER_LEN + value.len()].copy_from_slice(&value);
 
-        Ok(OPTION_HEADER_LEN+value.len())
+        Ok(OPTION_HEADER_LEN + value.len())
     }
 }
 
@@ -489,13 +491,13 @@ impl Encode for Name {
     type Error = OptionsError;
 
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
-
         NetworkEndian::write_u16(&mut data[0..2], option_kinds::NAME);
         NetworkEndian::write_u16(&mut data[2..4], self.value.len() as u16);
 
-        &mut data[OPTION_HEADER_LEN..OPTION_HEADER_LEN+self.value.len()].copy_from_slice(&self.value.as_bytes());
+        &mut data[OPTION_HEADER_LEN..OPTION_HEADER_LEN + self.value.len()]
+            .copy_from_slice(&self.value.as_bytes());
 
-        Ok(OPTION_HEADER_LEN+self.value.len())
+        Ok(OPTION_HEADER_LEN + self.value.len())
     }
 }
 
@@ -517,12 +519,11 @@ impl Encode for AddressV4 {
     type Error = OptionsError;
 
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
-
         NetworkEndian::write_u16(&mut data[0..2], option_kinds::ADDR_IPV4);
         NetworkEndian::write_u16(&mut data[2..4], 6);
 
-        &mut data[OPTION_HEADER_LEN..OPTION_HEADER_LEN+4].copy_from_slice(&self.ip);
-        NetworkEndian::write_u16(&mut data[OPTION_HEADER_LEN+4..], self.port);
+        &mut data[OPTION_HEADER_LEN..OPTION_HEADER_LEN + 4].copy_from_slice(&self.ip);
+        NetworkEndian::write_u16(&mut data[OPTION_HEADER_LEN + 4..], self.port);
 
         Ok(OPTION_HEADER_LEN + 6)
     }
@@ -549,8 +550,8 @@ impl Encode for AddressV6 {
         NetworkEndian::write_u16(&mut data[0..2], option_kinds::ADDR_IPV6);
         NetworkEndian::write_u16(&mut data[2..4], 18);
 
-        &mut data[OPTION_HEADER_LEN..OPTION_HEADER_LEN+16].copy_from_slice(&self.ip);
-        NetworkEndian::write_u16(&mut data[OPTION_HEADER_LEN+16..], self.port);
+        &mut data[OPTION_HEADER_LEN..OPTION_HEADER_LEN + 16].copy_from_slice(&self.ip);
+        NetworkEndian::write_u16(&mut data[OPTION_HEADER_LEN + 16..], self.port);
 
         Ok(OPTION_HEADER_LEN + 18)
     }
@@ -602,9 +603,10 @@ impl Encode for Metadata {
         NetworkEndian::write_u16(&mut data[0..2], option_kinds::META);
         NetworkEndian::write_u16(&mut data[2..4], meta.len() as u16);
 
-        &mut data[OPTION_HEADER_LEN..OPTION_HEADER_LEN+meta.len()].copy_from_slice(meta.as_bytes());
+        &mut data[OPTION_HEADER_LEN..OPTION_HEADER_LEN + meta.len()]
+            .copy_from_slice(meta.as_bytes());
 
-        Ok(OPTION_HEADER_LEN+meta.len())
+        Ok(OPTION_HEADER_LEN + meta.len())
     }
 }
 

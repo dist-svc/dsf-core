@@ -5,8 +5,8 @@
 
 use crate::base::{Body, PrivateOptions};
 use crate::crypto;
-use crate::options::Options;
 use crate::error::Error;
+use crate::options::Options;
 use crate::types::*;
 
 #[cfg(feature = "alloc")]
@@ -16,7 +16,7 @@ pub mod kinds;
 
 // Service extensions
 pub mod publisher;
-pub use publisher::{Publisher, DataOptions, SecondaryOptions};
+pub use publisher::{DataOptions, Publisher, SecondaryOptions};
 
 pub mod subscriber;
 pub use subscriber::Subscriber;
@@ -153,7 +153,7 @@ mod test {
 
     use crate::base::Base;
     use crate::page::Page;
-    use crate::service::publisher::{Publisher, DataOptions, SecondaryOptions};
+    use crate::service::publisher::{DataOptions, Publisher, SecondaryOptions};
     use crate::service::subscriber::Subscriber;
 
     use super::*;

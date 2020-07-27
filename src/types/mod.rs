@@ -8,7 +8,6 @@ use core::hash::{Hash, Hasher};
 use core::ops::{Deref, DerefMut};
 use core::str::FromStr;
 
-
 #[cfg(feature = "serde")]
 use serde::de::{self, Visitor};
 #[cfg(feature = "serde")]

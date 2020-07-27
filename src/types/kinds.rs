@@ -66,7 +66,6 @@ pub enum KindError {
     Unrecognized(u16),
 }
 
-
 /// PageKind describes DSF-specific page kinds
 #[derive(PartialEq, Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]

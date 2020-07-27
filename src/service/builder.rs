@@ -1,11 +1,10 @@
-
 #[cfg(feature = "alloc")]
 use alloc::prelude::v1::*;
 
-use crate::crypto;
-use crate::options::Options;
 use crate::base::{Body, PrivateOptions};
+use crate::crypto;
 use crate::error::Error;
+use crate::options::Options;
 use crate::types::*;
 
 use super::Service;
@@ -26,7 +25,6 @@ pub struct ServiceBuilder {
     public_options: Vec<Options>,
     private_options: Vec<Options>,
 }
-
 
 impl Default for ServiceBuilder {
     /// Create a default service builder instance
@@ -51,7 +49,6 @@ impl Default for ServiceBuilder {
 
 /// ServiceBuilder provides helpers for constructing service instances
 impl ServiceBuilder {
-
     /// Setup a peer service.
     /// This is equivalent to .kind(Kind::Peer)
     pub fn peer() -> Self {
@@ -78,7 +75,7 @@ impl ServiceBuilder {
             ..Default::default()
         }
     }
-    
+
     /// Set the ID and public key for the service
     pub fn id(mut self, id: Id, public_key: PublicKey) -> Self {
         self.id = Some(id);
@@ -140,7 +137,7 @@ impl ServiceBuilder {
                 let (public_key, private_key) = crypto::new_pk().unwrap();
                 let id = crypto::hash(&public_key).unwrap();
                 (id, public_key, Some(private_key))
-            },
+            }
             _ => panic!("Invalid service builder configuration"),
         };
 

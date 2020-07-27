@@ -1,16 +1,16 @@
 use core::ops::Add;
 
 #[cfg(feature = "std")]
-use std::time::{SystemTime, Duration};
+use std::time::{Duration, SystemTime};
 
 #[cfg(feature = "alloc")]
 use alloc::prelude::v1::*;
 
-use crate::base::{Base, Header, Body, PrivateOptions};
-use crate::options::Options;
-use crate::page::{Page, PageOptions, PageInfo};
-use crate::service::Service;
+use crate::base::{Base, Body, Header, PrivateOptions};
 use crate::error::Error;
+use crate::options::Options;
+use crate::page::{Page, PageInfo, PageOptions};
+use crate::service::Service;
 use crate::types::*;
 
 /// Publisher trait allows services to generate primary, data, and secondary pages
@@ -126,7 +126,7 @@ impl Publisher for Service {
             flags |= Flags::ENCRYPTED;
         }
 
-        let header = Header{
+        let header = Header {
             application_id: self.application_id,
             kind: self.kind.into(),
             index: self.version,
@@ -134,12 +134,16 @@ impl Publisher for Service {
             ..Default::default()
         };
 
-        let page_options = PageOptions{
+        let page_options = PageOptions {
             // TODO: re-enable page issue / expiry for no-std
             #[cfg(feature = "std")]
             issued: Some(SystemTime::now().into()),
             #[cfg(feature = "std")]
-            expiry: Some(SystemTime::now().add(Duration::from_secs(24 * 60 * 60)).into()),
+            expiry: Some(
+                SystemTime::now()
+                    .add(Duration::from_secs(24 * 60 * 60))
+                    .into(),
+            ),
             ..Default::default()
         };
 
@@ -149,7 +153,7 @@ impl Publisher for Service {
             header,
             PageInfo::primary(self.public_key.clone()),
             self.body.clone(),
-            page_options
+            page_options,
         );
 
         self.encode(&mut p, buff).map(|n| (n, p))
@@ -171,7 +175,7 @@ impl Publisher for Service {
 
         assert!(options.page_kind.is_page());
 
-        let header = Header{
+        let header = Header {
             application_id: self.application_id,
             kind: options.page_kind,
             flags,
@@ -179,7 +183,7 @@ impl Publisher for Service {
             ..Default::default()
         };
 
-        let page_options = PageOptions{
+        let page_options = PageOptions {
             public_options: options.public_options,
             private_options: PrivateOptions::Cleartext(options.private_options),
             // TODO: Re-enable issued time
@@ -189,7 +193,13 @@ impl Publisher for Service {
             ..Default::default()
         };
 
-        let mut page = Page::new(id.clone(), header, PageInfo::secondary(self.id.clone()), options.body, page_options);
+        let mut page = Page::new(
+            id.clone(),
+            header,
+            PageInfo::secondary(self.id.clone()),
+            options.body,
+            page_options,
+        );
 
         self.encode(&mut page, buff).map(|n| (n, page))
     }
@@ -208,7 +218,7 @@ impl Publisher for Service {
 
         self.data_index += 1;
 
-        let header = Header{
+        let header = Header {
             application_id: self.application_id,
             kind: options.data_kind,
             flags,
@@ -216,7 +226,7 @@ impl Publisher for Service {
             ..Default::default()
         };
 
-        let page_options = PageOptions{
+        let page_options = PageOptions {
             public_options: options.public_options,
             private_options: PrivateOptions::Cleartext(options.private_options),
             #[cfg(feature = "std")]

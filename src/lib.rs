@@ -13,14 +13,14 @@ extern crate libc;
 #[cfg(feature = "cty")]
 extern crate cty as libc;
 
+extern crate async_trait;
 extern crate base64;
 extern crate byteorder;
 extern crate bytes;
-extern crate rand_core;
-extern crate sodiumoxide;
-extern crate slice_ext;
-extern crate async_trait;
 extern crate managed;
+extern crate rand_core;
+extern crate slice_ext;
+extern crate sodiumoxide;
 
 #[cfg(feature = "serde")]
 extern crate serde;

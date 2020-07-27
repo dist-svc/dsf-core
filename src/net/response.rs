@@ -7,12 +7,11 @@ use alloc::prelude::v1::*;
 use byteorder::{ByteOrder, NetworkEndian};
 use slice_ext::SplitBefore;
 
-use crate::base::{Base, BaseOptions, Header, Body};
+use crate::base::{Base, BaseOptions, Body, Header};
+use crate::error::Error;
 use crate::options::Options;
 use crate::page::Page;
 use crate::types::*;
-use crate::error::Error;
-
 
 use super::Common;
 use super::BUFF_SIZE;
@@ -299,7 +298,7 @@ impl Into<Base> for Response {
         }
 
         // Create header
-        let header = Header{
+        let header = Header {
             kind: kind.into(),
             index: self.common.id.clone(),
             flags: self.common.flags,
@@ -313,6 +312,11 @@ impl Into<Base> for Response {
         }
 
         // Build base object
-        Base::new(self.common.from.clone(), header, Body::from(body), base_options)
+        Base::new(
+            self.common.from.clone(),
+            header,
+            Body::from(body),
+            base_options,
+        )
     }
 }

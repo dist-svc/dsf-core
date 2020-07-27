@@ -6,11 +6,11 @@ use core::convert::TryFrom;
 #[cfg(feature = "alloc")]
 use alloc::prelude::v1::*;
 
-use crate::base::{Base, BaseOptions, Header, Body, PrivateOptions};
+use crate::base::{Base, BaseOptions, Body, Header, PrivateOptions};
 use crate::crypto;
+use crate::error::Error;
 use crate::options::Options;
 use crate::types::*;
-use crate::error::Error;
 
 mod info;
 pub use info::PageInfo;
@@ -68,7 +68,7 @@ pub struct PageOptions {
     pub public_options: Vec<Options>,
     // Private options
     pub private_options: PrivateOptions,
-    
+
     // Previous page signature
     pub previous_sig: Option<Signature>,
     // Signature (if signed or decoded)
@@ -108,13 +108,7 @@ impl PartialEq for Page {
 
 impl Page {
     /// Create a new page
-    pub fn new(
-        id: Id,
-        header: Header,
-        info: PageInfo,
-        body: Body,
-        options: PageOptions,
-    ) -> Self {
+    pub fn new(id: Id, header: Header, info: PageInfo, body: Body, options: PageOptions) -> Self {
         Page {
             id,
             header,
@@ -308,11 +302,11 @@ impl From<&Page> for Base {
             page.id.clone(),
             page.header.clone(),
             page.body.clone(),
-            BaseOptions{
+            BaseOptions {
                 public_options,
                 private_options: page.private_options.clone(),
                 ..Default::default()
-            }
+            },
         );
 
         if let Some(sig) = sig {

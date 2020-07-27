@@ -5,11 +5,10 @@ use core::ops::Deref;
 use alloc::prelude::v1::*;
 
 use crate::base::{Base, BaseOptions, Body, Header};
+use crate::error::Error;
 use crate::options::Options;
 use crate::page::Page;
 use crate::types::*;
-use crate::error::Error;
-
 
 use super::Common;
 use super::BUFF_SIZE;
@@ -221,7 +220,12 @@ impl Into<Base> for Request {
         }
 
         // Create object header
-        let header = Header{kind: kind.into(), flags: self.flags, index: self.id, ..Default::default()};
+        let header = Header {
+            kind: kind.into(),
+            flags: self.flags,
+            index: self.id,
+            ..Default::default()
+        };
 
         // Attach public key and address options if supplied
         options.public_key = self.public_key.clone();

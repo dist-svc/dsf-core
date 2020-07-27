@@ -5,9 +5,9 @@ use alloc::prelude::v1::*;
 
 use byteorder::{ByteOrder, NetworkEndian};
 
+use super::OptionsError;
 use crate::base::{Encode, Parse};
 use crate::types::DateTime;
-use super::OptionsError;
 
 impl Parse for String {
     type Output = String;
@@ -50,9 +50,8 @@ impl Encode for Vec<u8> {
     type Error = OptionsError;
 
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
-
         NetworkEndian::write_u16(&mut data[..], self.len() as u16);
-        &mut data[2..self.len()+2].copy_from_slice(self);
+        &mut data[2..self.len() + 2].copy_from_slice(self);
 
         Ok(self.len() + 2)
     }

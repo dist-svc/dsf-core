@@ -1,7 +1,5 @@
-
 #[cfg(feature = "std")]
-use std::net::{SocketAddr, Ipv4Addr, Ipv6Addr, SocketAddrV4, SocketAddrV6};
-
+use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
 
 pub type Ipv4 = [u8; 4];
 pub type Ipv6 = [u8; 16];
@@ -16,14 +14,14 @@ pub enum Ip {
 /// no_std compatible socket IPv4/6 address (IP and Port)
 #[derive(Debug, Copy, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-pub struct Address{
+pub struct Address {
     pub ip: Ip,
     pub port: u16,
 }
 
 impl Address {
     pub fn new(ip: Ip, port: u16) -> Self {
-        Self{ ip, port }
+        Self { ip, port }
     }
 }
 
@@ -62,17 +60,16 @@ impl From<AddressV6> for Address {
 /// no_std compatible socket IPv4 address (IP and Port)
 #[derive(Debug, Copy, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-pub struct AddressV4{
+pub struct AddressV4 {
     pub ip: Ipv4,
     pub port: u16,
 }
 
 impl AddressV4 {
     pub fn new(ip: Ipv4, port: u16) -> Self {
-        Self{ ip, port }
+        Self { ip, port }
     }
 }
-
 
 #[cfg(feature = "std")]
 impl From<SocketAddrV4> for AddressV4 {
@@ -88,21 +85,19 @@ impl Into<SocketAddrV4> for AddressV4 {
     }
 }
 
-
 /// no_std compatible socket IPv6 address (IP and Port)
 #[derive(Debug, Copy, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-pub struct AddressV6{
+pub struct AddressV6 {
     pub ip: Ipv6,
     pub port: u16,
 }
 
 impl AddressV6 {
     pub fn new(ip: Ipv6, port: u16) -> Self {
-        Self{ ip, port }
+        Self { ip, port }
     }
 }
-
 
 #[cfg(feature = "std")]
 impl From<SocketAddrV6> for AddressV6 {

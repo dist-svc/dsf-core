@@ -3,8 +3,8 @@
 //! These can be converted to and from base objects for encoding/decoding.
 
 use crate::base::Base;
-use crate::types::*;
 use crate::error::Error;
+use crate::types::*;
 
 pub mod request;
 pub use request::{Request, RequestKind};
@@ -136,8 +136,8 @@ mod tests {
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
     use super::*;
-    use crate::base::{Header, Body};
-    use crate::page::{Page, PageOptions, PageInfo};
+    use crate::base::{Body, Header};
+    use crate::page::{Page, PageInfo, PageOptions};
     use crate::types::PageKind;
 
     use crate::crypto;
@@ -153,8 +153,17 @@ mod tests {
         let request_id = 120;
 
         // Create and sign page
-        let header = Header{kind: PageKind::Generic.into(), ..Default::default()};
-        let mut page = Page::new(id.clone(), header, PageInfo::primary(pub_key.clone()), Body::None, PageOptions::default());
+        let header = Header {
+            kind: PageKind::Generic.into(),
+            ..Default::default()
+        };
+        let mut page = Page::new(
+            id.clone(),
+            header,
+            PageInfo::primary(pub_key.clone()),
+            Body::None,
+            PageOptions::default(),
+        );
 
         let mut b = Base::from(&page);
         let n = b
@@ -166,8 +175,18 @@ mod tests {
         page.raw = Some(buff[0..n].to_vec());
 
         let messages: Vec<Message> = vec![
-            Message::Request(Request::new(id.clone(), 0, RequestKind::Hello, flags.clone())),
-            Message::Request(Request::new(id.clone(), 1, RequestKind::Ping, flags.clone())),
+            Message::Request(Request::new(
+                id.clone(),
+                0,
+                RequestKind::Hello,
+                flags.clone(),
+            )),
+            Message::Request(Request::new(
+                id.clone(),
+                1,
+                RequestKind::Ping,
+                flags.clone(),
+            )),
             Message::Request(Request::new(
                 id.clone(),
                 request_id,

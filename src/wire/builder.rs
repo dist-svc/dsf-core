@@ -3,8 +3,8 @@ use core::marker::PhantomData;
 use crate::base::header::{offsets, Header, HEADER_LEN};
 use crate::base::{Encode, NewBody};
 use crate::crypto;
-use crate::options::{Options, OptionsList};
 use crate::error::Error;
+use crate::options::{Options, OptionsList};
 use crate::types::*;
 
 use super::container::Container;

@@ -5,9 +5,9 @@
 use alloc::prelude::v1::*;
 
 use crate::base::Header;
+use crate::error::Error;
 use crate::options::{Options, OptionsError};
 use crate::types::*;
-use crate::error::Error;
 use crate::wire::Container;
 
 #[derive(Clone, Debug)]
@@ -247,7 +247,7 @@ impl Base {
             peer_id: options.peer_id,
             signature: options.signature,
             verified: false,
-            raw: options.raw
+            raw: options.raw,
         }
     }
 
@@ -422,7 +422,10 @@ mod tests {
     fn encode_decode_primary_page() {
         let (id, pub_key, pri_key, _sec_key) = setup();
 
-        let header = Header{kind: PageKind::Generic.into(), ..Default::default() };
+        let header = Header {
+            kind: PageKind::Generic.into(),
+            ..Default::default()
+        };
         let data = vec![1, 2, 3, 4, 5, 6, 7];
 
         let mut page = Base::new(id, header, Body::Cleartext(data), BaseOptions::default());
@@ -446,14 +449,23 @@ mod tests {
         let (id, pub_key, pri_key, _sec_key) = setup();
         let fake_id = crypto::hash(&[0x00, 0x11, 0x22]).unwrap();
 
-        let header = Header{kind: PageKind::Replica.into(), flags: Flags::SECONDARY, ..Default::default() };
+        let header = Header {
+            kind: PageKind::Replica.into(),
+            flags: Flags::SECONDARY,
+            ..Default::default()
+        };
         let data = vec![1, 2, 3, 4, 5, 6, 7];
 
-        let mut page = Base::new(id.clone(), header, Body::Cleartext(data), BaseOptions{
-            peer_id: Some(id.clone()),
-            public_key: Some(pub_key.clone()),
-            ..Default::default()
-        });
+        let mut page = Base::new(
+            id.clone(),
+            header,
+            Body::Cleartext(data),
+            BaseOptions {
+                peer_id: Some(id.clone()),
+                public_key: Some(pub_key.clone()),
+                ..Default::default()
+            },
+        );
 
         let mut buff = vec![0u8; 1024];
         let n = page
@@ -480,7 +492,11 @@ mod tests {
     fn encode_decode_encrypted_page() {
         let (id, pub_key, pri_key, sec_key) = setup();
 
-        let header = Header{kind: PageKind::Generic.into(), flags: Flags::ENCRYPTED, ..Default::default()};
+        let header = Header {
+            kind: PageKind::Generic.into(),
+            flags: Flags::ENCRYPTED,
+            ..Default::default()
+        };
         let data = vec![1, 2, 3, 4, 5, 6, 7];
 
         let mut page = Base::new(id, header, Body::Cleartext(data), BaseOptions::default());

@@ -4,9 +4,9 @@ use core::convert::TryInto;
 use alloc::prelude::v1::*;
 
 use crate::crypto;
+use crate::error::Error;
 use crate::page::{Page, PageInfo};
 use crate::service::Service;
-use crate::error::Error;
 use crate::types::*;
 
 pub trait Subscriber {
