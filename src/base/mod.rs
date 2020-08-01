@@ -19,7 +19,7 @@ pub trait Parse {
 
     /// Parse iter consumes a slice and returns an iterator over decoded objects
     fn parse_iter<'a>(buff: &'a [u8]) -> ParseIter<'a, Self::Output, Self::Error> {
-        ParseIter{
+        ParseIter {
             buff,
             index: 0,
             _t: PhantomData,
@@ -36,9 +36,9 @@ pub struct ParseIter<'a, T, E> {
     _e: PhantomData<E>,
 }
 
-impl <'a, T, E> Iterator for ParseIter<'a, T, E>
+impl<'a, T, E> Iterator for ParseIter<'a, T, E>
 where
-    T: Parse<Output=T, Error=E> 
+    T: Parse<Output = T, Error = E>,
 {
     type Item = Result<T, E>;
 
@@ -58,7 +58,6 @@ where
     }
 }
 
-
 /// Encode trait for building encodable objects
 pub trait Encode {
     /// Error type returned on parse error
@@ -68,7 +67,13 @@ pub trait Encode {
     fn encode(&self, buff: &mut [u8]) -> Result<usize, Self::Error>;
 
     /// Encode a iterator of encodable objects
-    fn encode_iter<'a, V: Iterator<Item = &'a Self>>(vals: V, buff: &mut [u8]) -> Result<usize, Self::Error> where Self: 'static {
+    fn encode_iter<'a, V: Iterator<Item = &'a Self>>(
+        vals: V,
+        buff: &mut [u8],
+    ) -> Result<usize, Self::Error>
+    where
+        Self: 'static,
+    {
         let mut index = 0;
 
         for i in vals {
