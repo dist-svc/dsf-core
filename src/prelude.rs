@@ -4,7 +4,7 @@ pub use crate::service::net::Net as _;
 pub use crate::service::publisher::{DataOptions, Publisher as _, SecondaryOptions};
 pub use crate::service::subscriber::Subscriber as _;
 
-pub use crate::types::{Address, DataKind, Flags, Id, Kind, MessageKind, PageKind, RequestId};
+pub use crate::types::{Address, DataKind, Data, Flags, Id, Kind, MessageKind, PageKind, RequestId};
 
 pub use crate::error::Error as DsfError;
 
