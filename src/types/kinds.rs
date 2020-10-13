@@ -121,6 +121,8 @@ pub enum MessageKind {
     Unsubscribe,
     Query,
     PushData,
+    Register,
+    Unregister,
 
     Status,
     NodesFound,
@@ -146,6 +148,8 @@ impl TryFrom<Kind> for MessageKind {
                 kind_flags::UNSUBSCRIBE => MessageKind::Unsubscribe,
                 kind_flags::QUERY => MessageKind::Query,
                 kind_flags::PUSH_DATA => MessageKind::PushData,
+                kind_flags::REGISTER => MessageKind::Register,
+                kind_flags::UNREGISTER => MessageKind::Unregister,
                 _ => return Err(KindError::Unrecognized(v.0)),
             },
             kind_flags::RESPONSE_FLAGS => match v.0 {
@@ -175,6 +179,8 @@ impl Into<Kind> for MessageKind {
             MessageKind::Unsubscribe => kind_flags::UNSUBSCRIBE,
             MessageKind::Query => kind_flags::QUERY,
             MessageKind::PushData => kind_flags::PUSH_DATA,
+            MessageKind::Register => kind_flags::REGISTER,
+            MessageKind::Unregister => kind_flags::UNREGISTER,
 
             MessageKind::Status => kind_flags::STATUS,
             MessageKind::NodesFound => kind_flags::NODES_FOUND,
@@ -261,6 +267,8 @@ pub mod kind_flags {
     pub const QUERY: u16 = 0x0006 | REQUEST_FLAGS;
     pub const PUSH_DATA: u16 = 0x0007 | REQUEST_FLAGS;
     pub const UNSUBSCRIBE: u16 = 0x0008 | REQUEST_FLAGS;
+    pub const REGISTER: u16 = 0x0009 | REQUEST_FLAGS;
+    pub const UNREGISTER: u16 = 0x000a | REQUEST_FLAGS;
 
     pub const RESPONSE_FLAGS: u16 = 0b0100_0000_0000_0000;
     pub const STATUS: u16 = 0x0000 | RESPONSE_FLAGS;

@@ -38,6 +38,9 @@ pub enum RequestKind {
     Unsubscribe(Id),
     Query(Id),
     PushData(Id, Vec<Page>),
+    
+    Register(Id, Vec<Page>),
+    Unregister(Id),
 }
 
 impl Request {
@@ -134,11 +137,23 @@ impl Request {
                 let mut id = Id::default();
                 id.copy_from_slice(&body[0..ID_LEN]);
 
-                // Perhaps i should not fetch pages until later..?
-                // And also sign them earlier..?
                 let pages = Page::decode_pages(&body[ID_LEN..], key_source).unwrap();
 
                 RequestKind::PushData(id, pages)
+            }
+            MessageKind::Register => {
+                let mut id = Id::default();
+                id.copy_from_slice(&body[0..ID_LEN]);
+
+                let pages = Page::decode_pages(&body[ID_LEN..], key_source).unwrap();
+
+                RequestKind::Register(id, pages)
+            }
+            MessageKind::Unregister => {
+                let mut id = Id::default();
+                id.copy_from_slice(&body[0..ID_LEN]);
+
+                RequestKind::Unregister(id)
             }
             _ => {
                 error!(
@@ -221,6 +236,20 @@ impl Into<Base> for Request {
                 let i = Page::encode_pages(pages, &mut buff[ID_LEN..]).unwrap();
 
                 body = buff[..ID_LEN + i].to_vec();
+            }
+            RequestKind::Register(id, pages) => {
+                kind = MessageKind::Register;
+
+                let mut buff = vec![0u8; BUFF_SIZE];
+                (&mut buff[..ID_LEN]).copy_from_slice(id);
+
+                let i = Page::encode_pages(pages, &mut buff[ID_LEN..]).unwrap();
+
+                body = buff[..ID_LEN + i].to_vec();
+            }
+            RequestKind::Unregister(id) => {
+                kind = MessageKind::Unregister;
+                body = id.to_vec();
             }
         }
 
