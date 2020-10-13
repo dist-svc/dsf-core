@@ -1,6 +1,6 @@
 use crate::base::Base;
 use crate::error::Error;
-use crate::net::{Message, Request, Response};
+use crate::net::{Message, Request, RequestKind, Response};
 use crate::service::Service;
 use crate::types::*;
 
@@ -8,7 +8,7 @@ pub struct PublishOptions {}
 
 pub trait Net {
     /// Generate a protocol request object from a request message
-    fn build_request(&self, req: &Request) -> Base;
+    fn build_request(&self, request_id: u16, kind: RequestKind, flags: Flags) -> Base;
 
     /// Generate a protocol response object from a response message (and it's associated request)
     fn build_response(&self, req: &Request, from: Address, resp: &Response) -> Base;
@@ -23,10 +23,14 @@ pub trait Net {
 
 impl Net for Service {
     /// Generate a protocol request object from a request message
-    fn build_request(&self, req: &Request) -> Base {
-        let mut req = req.clone();
+    fn build_request(&self, request_id: u16, kind: RequestKind, flags: Flags) -> Base {
 
-        req.common.from = self.id.clone();
+        let req = Request::new(
+            self.id.clone(),
+            request_id,
+            kind,
+            flags,
+        );
 
         req.into()
     }

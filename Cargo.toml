@@ -17,7 +17,7 @@ default = [ "std", "serde" ]
 
 [dependencies]
 bitflags = "1.2.1"
-derive_builder = "0.7.0"
+#derive_builder = "0.7.0"
 log = "0.4.6"
 #ls = "0.0.0"
 #newtype_array = "0.1.6"

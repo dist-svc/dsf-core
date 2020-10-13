@@ -118,6 +118,7 @@ pub enum MessageKind {
     FindValues,
     Store,
     Subscribe,
+    Unsubscribe,
     Query,
     PushData,
 
@@ -142,6 +143,7 @@ impl TryFrom<Kind> for MessageKind {
                 kind_flags::FIND_VALUES => MessageKind::FindValues,
                 kind_flags::STORE => MessageKind::Store,
                 kind_flags::SUBSCRIBE => MessageKind::Subscribe,
+                kind_flags::UNSUBSCRIBE => MessageKind::Unsubscribe,
                 kind_flags::QUERY => MessageKind::Query,
                 kind_flags::PUSH_DATA => MessageKind::PushData,
                 _ => return Err(KindError::Unrecognized(v.0)),
@@ -170,6 +172,7 @@ impl Into<Kind> for MessageKind {
             MessageKind::FindValues => kind_flags::FIND_VALUES,
             MessageKind::Store => kind_flags::STORE,
             MessageKind::Subscribe => kind_flags::SUBSCRIBE,
+            MessageKind::Unsubscribe => kind_flags::UNSUBSCRIBE,
             MessageKind::Query => kind_flags::QUERY,
             MessageKind::PushData => kind_flags::PUSH_DATA,
 
@@ -187,6 +190,7 @@ impl Into<Kind> for MessageKind {
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub enum DataKind {
     Generic,
+    Iot,
     Unknown(u16),
 }
 
@@ -200,6 +204,7 @@ impl TryFrom<Kind> for DataKind {
 
         let base = match v.0 {
             kind_flags::DATA_GENERIC => DataKind::Generic,
+            kind_flags::DATA_IOT => DataKind::Iot,
             _ => return Err(KindError::Unrecognized(v.0)),
         };
 
@@ -211,6 +216,7 @@ impl Into<Kind> for DataKind {
     fn into(self) -> Kind {
         let base = match self {
             DataKind::Generic => kind_flags::DATA_GENERIC,
+            DataKind::Iot => kind_flags::DATA_IOT,
             DataKind::Unknown(v) => kind_flags::DATA_FLAGS | v,
         };
 
@@ -254,6 +260,7 @@ pub mod kind_flags {
     pub const SUBSCRIBE: u16 = 0x0005 | REQUEST_FLAGS;
     pub const QUERY: u16 = 0x0006 | REQUEST_FLAGS;
     pub const PUSH_DATA: u16 = 0x0007 | REQUEST_FLAGS;
+    pub const UNSUBSCRIBE: u16 = 0x0008 | REQUEST_FLAGS;
 
     pub const RESPONSE_FLAGS: u16 = 0b0100_0000_0000_0000;
     pub const STATUS: u16 = 0x0000 | RESPONSE_FLAGS;
@@ -264,6 +271,7 @@ pub mod kind_flags {
 
     pub const DATA_FLAGS: u16 = 0b0110_0000_0000_0000;
     pub const DATA_GENERIC: u16 = 0x0000 | DATA_FLAGS;
+    pub const DATA_IOT: u16 = 0x0001 | DATA_FLAGS;
 }
 
 #[cfg(test)]

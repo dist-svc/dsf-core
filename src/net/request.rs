@@ -35,6 +35,7 @@ pub enum RequestKind {
     FindValue(Id),
     Store(Id, Vec<Page>),
     Subscribe(Id),
+    Unsubscribe(Id),
     Query(Id),
     PushData(Id, Vec<Page>),
 }
@@ -201,6 +202,10 @@ impl Into<Base> for Request {
             }
             RequestKind::Subscribe(id) => {
                 kind = MessageKind::Subscribe;
+                body = id.to_vec();
+            }
+            RequestKind::Unsubscribe(id) => {
+                kind = MessageKind::Unsubscribe;
                 body = id.to_vec();
             }
             RequestKind::Query(id) => {
