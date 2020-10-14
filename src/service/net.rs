@@ -1,6 +1,6 @@
 use crate::base::Base;
 use crate::error::Error;
-use crate::net::{Message, Request, RequestKind, Response};
+use crate::net::{Message, Request, RequestKind, Response, ResponseKind};
 use crate::service::Service;
 use crate::types::*;
 
@@ -11,7 +11,7 @@ pub trait Net {
     fn build_request(&self, request_id: u16, kind: RequestKind, flags: Flags) -> Base;
 
     /// Generate a protocol response object from a response message (and it's associated request)
-    fn build_response(&self, req: &Request, from: Address, resp: &Response) -> Base;
+    fn build_response(&self, request_id: u16, resp: ResponseKind, flags: Flags) -> Base;
 
     /// Encode and sign a message
     fn encode_message<T: AsRef<[u8]> + AsMut<[u8]>>(
@@ -36,11 +36,14 @@ impl Net for Service {
     }
 
     /// Generate a protocol response object from a response message (and it's associated request)
-    fn build_response(&self, req: &Request, _from: Address, resp: &Response) -> Base {
-        let mut resp = resp.clone();
+    fn build_response(&self, request_id: u16, kind: ResponseKind, flags: Flags) -> Base {
 
-        resp.common.from = self.id.clone();
-        resp.common.id = req.id;
+        let resp = Response::new(
+            self.id.clone(),
+            request_id,
+            kind,
+            flags,
+        );
 
         resp.into()
     }
