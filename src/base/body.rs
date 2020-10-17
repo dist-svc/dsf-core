@@ -447,7 +447,6 @@ mod tests {
     #[test]
     fn encode_decode_secondary_page() {
         let (id, pub_key, pri_key, _sec_key) = setup();
-        let fake_id = crypto::hash(&[0x00, 0x11, 0x22]).unwrap();
 
         let header = Header {
             kind: PageKind::Replica.into(),

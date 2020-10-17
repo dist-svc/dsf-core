@@ -163,7 +163,7 @@ mod test {
         let socket = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8080);
 
         println!("Creating new service");
-        let mut service_builder = ServiceBuilder::default()
+        let service_builder = ServiceBuilder::default()
             .kind(PageKind::Generic.into())
             .public_options(vec![Options::name("Test Service")])
             .private_options(vec![Options::address_v4(socket)].into())
