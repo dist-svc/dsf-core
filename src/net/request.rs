@@ -38,7 +38,7 @@ pub enum RequestKind {
     Unsubscribe(Id),
     Query(Id),
     PushData(Id, Vec<Page>),
-    
+
     Register(Id, Vec<Page>),
     Unregister(Id),
 }

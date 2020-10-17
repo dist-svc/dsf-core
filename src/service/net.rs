@@ -24,26 +24,14 @@ pub trait Net {
 impl Net for Service {
     /// Generate a protocol request object from a request message
     fn build_request(&self, request_id: u16, kind: RequestKind, flags: Flags) -> Base {
-
-        let req = Request::new(
-            self.id.clone(),
-            request_id,
-            kind,
-            flags,
-        );
+        let req = Request::new(self.id.clone(), request_id, kind, flags);
 
         req.into()
     }
 
     /// Generate a protocol response object from a response message (and it's associated request)
     fn build_response(&self, request_id: u16, kind: ResponseKind, flags: Flags) -> Base {
-
-        let resp = Response::new(
-            self.id.clone(),
-            request_id,
-            kind,
-            flags,
-        );
+        let resp = Response::new(self.id.clone(), request_id, kind, flags);
 
         resp.into()
     }
