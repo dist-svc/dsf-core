@@ -69,11 +69,3 @@ optional = true
 features = ["derive"]
 optional = true
 version = "1.0"
-
-[patch.crates-io]
-#sodiumoxide = { path = "../../sodiumoxide" }
-
-#sodiumoxide = { git = "https://github.com/ryankurte/sodiumoxide", branch = "fix/arm-none-eabi" }
-#sodiumoxide = { git = "https://github.com/sodiumoxide/sodiumoxide.git", branch = "cc_build_libsodium" }
-
-#libsodium-sys = { git = "https://github.com/ryankurte/libsodium", branch="feature/cargo-compat" }
