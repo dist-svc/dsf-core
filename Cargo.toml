@@ -25,7 +25,7 @@ slice-ext = "0.1.0"
 async-trait = "0.1.19"
 strum_macros = "0.17.1"
 no-std-net = { version = "0.3.0", optional = true }
-rand_core = { version = "*", default_features = false }
+rand_core = { version = "0.5.1", default_features = false }
 
 [dependencies.managed]
 version = "0.7.1"
