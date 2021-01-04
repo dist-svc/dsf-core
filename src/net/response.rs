@@ -25,6 +25,7 @@ pub struct Response {
 
 /// Response message kinds
 #[derive(Clone, PartialEq, Debug)]
+#[cfg_attr(feature = "strum", derive(strum_macros::Display))]
 pub enum ResponseKind {
     Status(Status),
     NodesFound(Id, Vec<(Id, Address, PublicKey)>),

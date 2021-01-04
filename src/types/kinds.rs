@@ -69,7 +69,7 @@ pub enum KindError {
 /// PageKind describes DSF-specific page kinds
 #[derive(PartialEq, Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-#[cfg_attr(feature = "std", derive(EnumString))]
+#[cfg_attr(feature = "strum", derive(strum_macros::EnumString))]
 pub enum PageKind {
     Generic,
     Peer,
@@ -109,7 +109,7 @@ impl Into<Kind> for PageKind {
 }
 
 #[derive(PartialEq, Debug, Clone, Copy)]
-#[cfg_attr(feature = "std", derive(EnumString))]
+#[cfg_attr(feature = "strum_macros", derive(strum_macros::EnumString))]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub enum MessageKind {
     Hello,

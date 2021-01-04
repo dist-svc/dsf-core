@@ -5,14 +5,14 @@ pub type Ipv4 = [u8; 4];
 pub type Ipv6 = [u8; 16];
 
 /// no_std compatible IPv4/6 address storage
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub enum Ip {
     V4(Ipv4),
     V6(Ipv6),
 }
 /// no_std compatible socket IPv4/6 address (IP and Port)
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct Address {
     pub ip: Ip,

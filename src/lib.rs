@@ -34,9 +34,6 @@ extern crate bitflags;
 #[cfg(feature = "std")]
 extern crate chrono;
 
-#[macro_use]
-extern crate strum_macros;
-
 pub mod types;
 
 pub mod error;

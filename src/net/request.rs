@@ -28,12 +28,14 @@ impl Deref for Request {
 }
 
 #[derive(Clone, PartialEq, Debug)]
+#[cfg_attr(feature = "strum", derive(strum_macros::Display))]
 pub enum RequestKind {
     Hello,
     Ping,
     FindNode(Id),
     FindValue(Id),
     Store(Id, Vec<Page>),
+    
     Subscribe(Id),
     Unsubscribe(Id),
     Query(Id),
