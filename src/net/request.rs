@@ -35,7 +35,7 @@ pub enum RequestKind {
     FindNode(Id),
     FindValue(Id),
     Store(Id, Vec<Page>),
-    
+
     Subscribe(Id),
     Unsubscribe(Id),
     Query(Id),

@@ -156,7 +156,7 @@ impl Page {
         self.expiry
     }
 
-    #[cfg(feature="std")]
+    #[cfg(feature = "std")]
     pub fn valid(&self) -> bool {
         use std::ops::Add;
 
@@ -171,7 +171,9 @@ impl Page {
             // For fixed expiry, use this
             (_, Some(expiry)) => std::time::SystemTime::now() > expiry,
             // For no expiry, use 1h
-            (Some(issued), None) => std::time::SystemTime::now() < issued.add(std::time::Duration::from_secs(3600)),
+            (Some(issued), None) => {
+                std::time::SystemTime::now() < issued.add(std::time::Duration::from_secs(3600))
+            }
             // Otherwise default to true
             // TODO: should we allow services _without_ valid time records?
             _ => true,
