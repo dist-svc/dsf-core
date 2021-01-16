@@ -3,11 +3,11 @@ use std::io::Error as IoError;
 #[cfg(feature = "std")]
 use std::time::SystemTimeError;
 
-use crate::base::BaseError;
-use crate::options::OptionsError;
+use strum_macros::{Display};
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Debug, Clone, Display)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "std", derive(thiserror::Error))]
 pub enum Error {
     IO,
     Time,
@@ -46,8 +46,6 @@ pub enum Error {
     UnknownPeer,
     NoSecretKey,
     SecretKeyMismatch,
-    Base(BaseError),
-    Options(OptionsError),
     Timeout,
     Unknown,
 }
@@ -64,17 +62,5 @@ impl From<IoError> for Error {
 impl From<SystemTimeError> for Error {
     fn from(_e: SystemTimeError) -> Error {
         Error::Time
-    }
-}
-
-impl From<BaseError> for Error {
-    fn from(e: BaseError) -> Error {
-        Error::Base(e)
-    }
-}
-
-impl From<OptionsError> for Error {
-    fn from(e: OptionsError) -> Error {
-        Error::Options(e)
     }
 }

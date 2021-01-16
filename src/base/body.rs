@@ -6,9 +6,11 @@ use alloc::prelude::v1::*;
 
 use crate::base::Header;
 use crate::error::Error;
-use crate::options::{Options, OptionsError};
+use crate::options::{Options};
 use crate::types::*;
 use crate::wire::Container;
+use crate::net;
+use crate::page;
 
 #[derive(Clone, Debug)]
 pub struct Base {
@@ -194,43 +196,13 @@ impl PrivateOptions {
     }
 }
 
-#[derive(PartialEq, Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-pub enum BaseError {
-    Io,
-    Options(OptionsError),
-    InvalidSignature,
-    NoPublicKey,
-    NoPrivateKey,
-    NoPeerId,
-    ValidateError,
-    DecryptError,
-    NoDecryptionKey,
-    PublicKeyIdMismatch,
-}
 
-use crate::net;
-use crate::page;
 
 pub enum Parent<'a, 'b, 'c> {
     None,
     Page(&'a page::Page),
     Request(&'b net::Request),
     Response(&'c net::Response),
-}
-
-impl From<OptionsError> for BaseError {
-    fn from(o: OptionsError) -> BaseError {
-        BaseError::Options(o)
-    }
-}
-
-#[cfg(feature = "std")]
-impl From<std::io::Error> for BaseError {
-    fn from(e: std::io::Error) -> BaseError {
-        error!("io error: {}", e);
-        BaseError::Io
-    }
 }
 
 impl Base {
@@ -359,7 +331,7 @@ impl Base {
         data: T,
         pub_key_s: P,
         sec_key_s: S,
-    ) -> Result<(Base, usize), BaseError>
+    ) -> Result<(Base, usize), Error>
     where
         P: FnMut(&Id) -> Option<PublicKey>,
         S: FnMut(&Id) -> Option<SecretKey>,
@@ -374,7 +346,7 @@ impl Base {
         signing_key: Option<&PrivateKey>,
         encryption_key: Option<&SecretKey>,
         mut buff: T,
-    ) -> Result<usize, BaseError> {
+    ) -> Result<usize, Error> {
         // Short circuit if raw object is available
         if let Some(raw) = &self.raw {
             let d = buff.as_mut();
@@ -386,7 +358,7 @@ impl Base {
 
         let signing_key = match signing_key {
             Some(k) => k,
-            None => return Err(BaseError::NoPrivateKey),
+            None => return Err(Error::NoPrivateKey),
         };
 
         // Build container and encode / encrypt / sign page

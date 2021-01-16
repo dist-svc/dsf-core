@@ -11,6 +11,7 @@ use crate::types::{
     Address, AddressV4, AddressV6, DateTime, Id, ImmutableData, Ip, PublicKey, Signature, ID_LEN,
     PUBLIC_KEY_LEN, SIGNATURE_LEN,
 };
+use crate::error::Error;
 
 mod helpers;
 
@@ -43,23 +44,6 @@ pub enum OptionsList<C: AsRef<[Options]>, E: ImmutableData> {
     None,
 }
 
-#[derive(PartialEq, Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-pub enum OptionsError {
-    IO,
-    InvalidMetadata,
-    InvalidOptionLength,
-    InvalidOptionKind,
-    Unimplemented,
-}
-
-#[cfg(feature = "std")]
-impl From<std::io::Error> for OptionsError {
-    fn from(e: std::io::Error) -> OptionsError {
-        error!("io error: {}", e);
-        OptionsError::IO
-    }
-}
 
 pub struct OptionsIter<T> {
     index: usize,
@@ -126,7 +110,7 @@ const OPTION_HEADER_LEN: usize = 4;
 
 impl Options {
     /// Parse a bounded list of options into a vector
-    pub fn parse_vec(data: &[u8]) -> Result<(Vec<Options>, usize), OptionsError> {
+    pub fn parse_vec(data: &[u8]) -> Result<(Vec<Options>, usize), Error> {
         let mut options = Vec::new();
         let mut rem = &data[..];
         let mut i = 0;
@@ -143,7 +127,7 @@ impl Options {
     }
 
     /// Encode a vector of options
-    pub fn encode_vec(options: &[Options], data: &mut [u8]) -> Result<usize, OptionsError> {
+    pub fn encode_vec(options: &[Options], data: &mut [u8]) -> Result<usize, Error> {
         let mut i = 0;
 
         for o in options.iter() {
@@ -213,11 +197,11 @@ impl Options {
 /// Parse parses a control option from the given scope
 impl Parse for Options {
     type Output = Options;
-    type Error = OptionsError;
+    type Error = Error;
 
     fn parse<'a>(data: &'a [u8]) -> Result<(Self::Output, usize), Self::Error> {
         if data.len() < OPTION_HEADER_LEN {
-            return Err(OptionsError::InvalidOptionLength);
+            return Err(Error::InvalidOptionLength);
         }
 
         let option_kind = NetworkEndian::read_u16(&data[0..2]);
@@ -279,7 +263,7 @@ impl Parse for Options {
 }
 
 impl Encode for Options {
-    type Error = OptionsError;
+    type Error = Error;
 
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
         match *self {
@@ -316,7 +300,7 @@ impl PubKey {
 
 impl Parse for PubKey {
     type Output = PubKey;
-    type Error = OptionsError;
+    type Error = Error;
 
     fn parse(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
         let mut public_key = [0u8; PUBLIC_KEY_LEN];
@@ -332,7 +316,7 @@ impl Parse for PubKey {
 }
 
 impl Encode for PubKey {
-    type Error = OptionsError;
+    type Error = Error;
 
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
         NetworkEndian::write_u16(&mut data[0..2], option_kinds::PUBKEY);
@@ -359,7 +343,7 @@ impl PeerId {
 
 impl Parse for PeerId {
     type Output = PeerId;
-    type Error = OptionsError;
+    type Error = Error;
 
     fn parse(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
         let mut peer_id = [0u8; ID_LEN];
@@ -374,7 +358,7 @@ impl Parse for PeerId {
 }
 
 impl Encode for PeerId {
-    type Error = OptionsError;
+    type Error = Error;
 
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
         NetworkEndian::write_u16(&mut data[0..2], option_kinds::PEER_ID);
@@ -400,7 +384,7 @@ impl PrevSig {
 
 impl Parse for PrevSig {
     type Output = Self;
-    type Error = OptionsError;
+    type Error = Error;
 
     fn parse(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
         let mut sig = [0u8; SIGNATURE_LEN];
@@ -410,7 +394,7 @@ impl Parse for PrevSig {
 }
 
 impl Encode for PrevSig {
-    type Error = OptionsError;
+    type Error = Error;
 
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
         NetworkEndian::write_u16(&mut data[0..2], option_kinds::PREV_SIG);
@@ -438,7 +422,7 @@ impl Kind {
 
 impl Parse for Kind {
     type Output = Kind;
-    type Error = OptionsError;
+    type Error = Error;
 
     fn parse(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
         let value = core::str::from_utf8(&data).unwrap().to_owned();
@@ -448,7 +432,7 @@ impl Parse for Kind {
 }
 
 impl Encode for Kind {
-    type Error = OptionsError;
+    type Error = Error;
 
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
         let value = self.value.as_bytes();
@@ -478,7 +462,7 @@ impl Name {
 
 impl Parse for Name {
     type Output = Name;
-    type Error = OptionsError;
+    type Error = Error;
 
     fn parse(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
         let value = core::str::from_utf8(&data).unwrap().to_owned();
@@ -488,7 +472,7 @@ impl Parse for Name {
 }
 
 impl Encode for Name {
-    type Error = OptionsError;
+    type Error = Error;
 
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
         NetworkEndian::write_u16(&mut data[0..2], option_kinds::NAME);
@@ -503,7 +487,7 @@ impl Encode for Name {
 
 impl Parse for AddressV4 {
     type Output = AddressV4;
-    type Error = OptionsError;
+    type Error = Error;
 
     fn parse(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
         let mut ip = [0u8; 4];
@@ -516,7 +500,7 @@ impl Parse for AddressV4 {
 }
 
 impl Encode for AddressV4 {
-    type Error = OptionsError;
+    type Error = Error;
 
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
         NetworkEndian::write_u16(&mut data[0..2], option_kinds::ADDR_IPV4);
@@ -531,7 +515,7 @@ impl Encode for AddressV4 {
 
 impl Parse for AddressV6 {
     type Output = AddressV6;
-    type Error = OptionsError;
+    type Error = Error;
 
     fn parse(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
         let mut ip = [0u8; 16];
@@ -544,7 +528,7 @@ impl Parse for AddressV6 {
 }
 
 impl Encode for AddressV6 {
-    type Error = OptionsError;
+    type Error = Error;
 
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
         NetworkEndian::write_u16(&mut data[0..2], option_kinds::ADDR_IPV6);
@@ -575,13 +559,13 @@ impl Metadata {
 
 impl Parse for Metadata {
     type Output = Metadata;
-    type Error = OptionsError;
+    type Error = Error;
 
     fn parse(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
         let kv = core::str::from_utf8(&data).unwrap().to_owned();
         let split: Vec<_> = kv.split("|").collect();
         if split.len() != 2 {
-            return Err(OptionsError::InvalidMetadata);
+            return Err(Error::InvalidOption);
         }
 
         Ok((
@@ -595,7 +579,7 @@ impl Parse for Metadata {
 }
 
 impl Encode for Metadata {
-    type Error = OptionsError;
+    type Error = Error;
 
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
         let meta = format!("{}|{}", self.key, self.value);
@@ -633,7 +617,7 @@ impl Issued {
 
 impl Parse for Issued {
     type Output = Issued;
-    type Error = OptionsError;
+    type Error = Error;
     fn parse<'a>(data: &'a [u8]) -> Result<(Self::Output, usize), Self::Error> {
         let raw = NetworkEndian::read_u64(&data[0..8]);
         let when = DateTime::from_secs(raw);
@@ -643,7 +627,7 @@ impl Parse for Issued {
 }
 
 impl Encode for Issued {
-    type Error = OptionsError;
+    type Error = Error;
 
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
         NetworkEndian::write_u16(&mut data[0..2], option_kinds::ISSUED);
@@ -672,7 +656,7 @@ impl Expiry {
 
 impl Parse for Expiry {
     type Output = Expiry;
-    type Error = OptionsError;
+    type Error = Error;
     fn parse<'a>(data: &'a [u8]) -> Result<(Self::Output, usize), Self::Error> {
         let raw = NetworkEndian::read_u64(&data[0..8]);
         let when = DateTime::from_secs(raw);
@@ -682,7 +666,7 @@ impl Parse for Expiry {
 }
 
 impl Encode for Expiry {
-    type Error = OptionsError;
+    type Error = Error;
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
         NetworkEndian::write_u16(&mut data[0..2], option_kinds::EXPIRY);
         NetworkEndian::write_u16(&mut data[2..4], 8);
@@ -707,7 +691,7 @@ impl Limit {
 
 impl Parse for Limit {
     type Output = Self;
-    type Error = OptionsError;
+    type Error = Error;
 
     fn parse(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
         Ok((
@@ -720,7 +704,7 @@ impl Parse for Limit {
 }
 
 impl Encode for Limit {
-    type Error = OptionsError;
+    type Error = Error;
 
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
         NetworkEndian::write_u16(&mut data[0..2], option_kinds::LIMIT);

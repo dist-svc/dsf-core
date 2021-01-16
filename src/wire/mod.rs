@@ -4,12 +4,11 @@
 #[cfg(feature = "alloc")]
 use alloc::prelude::v1::*;
 
-use crate::base::{BaseError, Body, Header, PrivateOptions};
-use crate::crypto;
-use crate::options::{Options, OptionsList};
 use crate::types::*;
-
-use crate::base::Base;
+use crate::error::Error;
+use crate::base::{Base, Body, Header, PrivateOptions};
+use crate::options::{Options, OptionsList};
+use crate::crypto;
 
 /// Header provides a low-cost header abstraction for encoding/decoding
 pub mod header;
@@ -29,7 +28,7 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
         data: T,
         mut pub_key_s: P,
         mut sec_key_s: S,
-    ) -> Result<(Base, usize), BaseError>
+    ) -> Result<(Base, usize), Error>
     where
         P: FnMut(&Id) -> Option<PublicKey>,
         S: FnMut(&Id) -> Option<SecretKey>,
@@ -55,17 +54,17 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
             if let Some(key) = (pub_key_s)(&id) {
                 // Check ID matches key
                 if id != crypto::hash(&key).unwrap() {
-                    return Err(BaseError::PublicKeyIdMismatch);
+                    return Err(Error::KeyIdMismatch);
                 }
 
                 // Validate message body against key
                 verified = crypto::pk_validate(&key, &signature, container.signed())
-                    .map_err(|_e| BaseError::ValidateError)?;
+                    .map_err(|_e| Error::CryptoError)?;
 
                 // Stop processing if signature is invalid
                 if !verified {
                     info!("Invalid signature with known pubkey");
-                    return Err(BaseError::InvalidSignature);
+                    return Err(Error::InvalidSignature);
                 }
             }
         }
@@ -98,7 +97,7 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
         let signing_id: Id = match (flags.contains(Flags::SECONDARY), &peer_id) {
             (false, _) => Ok(container.id().into()),
             (true, Some(id)) => Ok(id.clone()),
-            _ => Err(BaseError::NoPeerId),
+            _ => Err(Error::NoPeerId),
         }?;
 
         // Fetch public key
@@ -120,22 +119,22 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
                 // Check ID matches key
                 if signing_id != crypto::hash(&public_key).unwrap() {
                     error!("Public key mismatch for object from {:?}", id);
-                    return Err(BaseError::PublicKeyIdMismatch);
+                    return Err(Error::KeyIdMismatch);
                 }
 
                 // Verify body
                 verified = crypto::pk_validate(&public_key, &signature, container.signed())
-                    .map_err(|_e| BaseError::ValidateError)?;
+                    .map_err(|_e| Error::CryptoError)?;
 
                 // Stop processing on verification error
                 if !verified {
                     info!("Invalid signature for self-signed object from {:?}", id);
-                    return Err(BaseError::InvalidSignature);
+                    return Err(Error::InvalidSignature);
                 }
             }
             (false, None) => {
                 error!("No signature or key for object from {:?}", id);
-                return Err(BaseError::ValidateError.into());
+                return Err(Error::NoSignature);
             }
             _ => (),
         }
@@ -148,7 +147,7 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
             (true, Some(sk)) if body_data.len() > 0 => {
                 // Decrypt body
                 let n = crypto::sk_decrypt2(&sk, &mut body_data)
-                    .map_err(|_e| BaseError::InvalidSignature)?;
+                    .map_err(|_e| Error::InvalidSignature)?;
                 body_data = (&body_data[..n]).to_vec();
 
                 Body::Cleartext(body_data)
@@ -167,7 +166,7 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
             (true, Some(sk)) if private_options_data.len() > 0 => {
                 // Decrypt private options
                 let n = crypto::sk_decrypt2(&sk, &mut private_options_data)
-                    .map_err(|_e| BaseError::InvalidSignature)?;
+                    .map_err(|_e| Error::InvalidSignature)?;
                 private_options_data = (&private_options_data[..n]).to_vec();
 
                 // Decode private options

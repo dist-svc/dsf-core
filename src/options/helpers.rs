@@ -5,13 +5,14 @@ use alloc::prelude::v1::*;
 
 use byteorder::{ByteOrder, NetworkEndian};
 
-use super::OptionsError;
 use crate::base::{Encode, Parse};
 use crate::types::DateTime;
+use crate::error::Error;
+
 
 impl Parse for String {
     type Output = String;
-    type Error = OptionsError;
+    type Error = Error;
 
     fn parse<'a>(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
         let length = NetworkEndian::read_u16(&data[0..2]) as usize;
@@ -22,7 +23,7 @@ impl Parse for String {
 }
 
 impl Encode for String {
-    type Error = OptionsError;
+    type Error = Error;
 
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
         let value = self.as_bytes();
@@ -36,7 +37,7 @@ impl Encode for String {
 
 impl Parse for Vec<u8> {
     type Output = Vec<u8>;
-    type Error = OptionsError;
+    type Error = Error;
 
     fn parse<'a>(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
         let length = NetworkEndian::read_u16(&data) as usize;
@@ -47,7 +48,7 @@ impl Parse for Vec<u8> {
 }
 
 impl Encode for Vec<u8> {
-    type Error = OptionsError;
+    type Error = Error;
 
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
         NetworkEndian::write_u16(&mut data[..], self.len() as u16);
@@ -59,7 +60,7 @@ impl Encode for Vec<u8> {
 
 impl Parse for DateTime {
     type Output = DateTime;
-    type Error = OptionsError;
+    type Error = Error;
 
     fn parse<'a>(data: &'a [u8]) -> Result<(Self::Output, usize), Self::Error> {
         let raw = NetworkEndian::read_u64(&data[0..]);
@@ -70,7 +71,7 @@ impl Parse for DateTime {
 }
 
 impl Encode for DateTime {
-    type Error = OptionsError;
+    type Error = Error;
 
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
         NetworkEndian::write_u16(&mut data[..], 8);
