@@ -7,11 +7,11 @@ use alloc::prelude::v1::*;
 use byteorder::{ByteOrder, NetworkEndian};
 
 use crate::base::{Encode, Parse};
+use crate::error::Error;
 use crate::types::{
     Address, AddressV4, AddressV6, DateTime, Id, ImmutableData, Ip, PublicKey, Signature, ID_LEN,
     PUBLIC_KEY_LEN, SIGNATURE_LEN,
 };
-use crate::error::Error;
 
 mod helpers;
 
@@ -43,7 +43,6 @@ pub enum OptionsList<C: AsRef<[Options]>, E: ImmutableData> {
     Encrypted(E),
     None,
 }
-
 
 pub struct OptionsIter<T> {
     index: usize,

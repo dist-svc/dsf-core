@@ -3,7 +3,7 @@ use std::io::Error as IoError;
 #[cfg(feature = "std")]
 use std::time::SystemTimeError;
 
-use strum_macros::{Display};
+use strum_macros::Display;
 
 #[derive(PartialEq, Debug, Clone, Display)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]

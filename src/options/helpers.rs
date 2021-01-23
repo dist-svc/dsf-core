@@ -6,9 +6,8 @@ use alloc::prelude::v1::*;
 use byteorder::{ByteOrder, NetworkEndian};
 
 use crate::base::{Encode, Parse};
-use crate::types::DateTime;
 use crate::error::Error;
-
+use crate::types::DateTime;
 
 impl Parse for String {
     type Output = String;

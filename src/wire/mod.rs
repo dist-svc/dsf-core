@@ -4,11 +4,11 @@
 #[cfg(feature = "alloc")]
 use alloc::prelude::v1::*;
 
-use crate::types::*;
-use crate::error::Error;
 use crate::base::{Base, Body, Header, PrivateOptions};
-use crate::options::{Options, OptionsList};
 use crate::crypto;
+use crate::error::Error;
+use crate::options::{Options, OptionsList};
+use crate::types::*;
 
 /// Header provides a low-cost header abstraction for encoding/decoding
 pub mod header;
@@ -24,11 +24,7 @@ pub use container::Container;
 impl<'a, T: AsRef<[u8]>> Container<T> {
     /// Parses a data array into a base object using the pub_key and sec_key functions to locate
     /// keys for validation and decyption
-    pub fn parse<P, S>(
-        data: T,
-        mut pub_key_s: P,
-        mut sec_key_s: S,
-    ) -> Result<(Base, usize), Error>
+    pub fn parse<P, S>(data: T, mut pub_key_s: P, mut sec_key_s: S) -> Result<(Base, usize), Error>
     where
         P: FnMut(&Id) -> Option<PublicKey>,
         S: FnMut(&Id) -> Option<SecretKey>,

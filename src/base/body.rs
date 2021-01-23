@@ -6,11 +6,11 @@ use alloc::prelude::v1::*;
 
 use crate::base::Header;
 use crate::error::Error;
-use crate::options::{Options};
+use crate::net;
+use crate::options::Options;
+use crate::page;
 use crate::types::*;
 use crate::wire::Container;
-use crate::net;
-use crate::page;
 
 #[derive(Clone, Debug)]
 pub struct Base {
@@ -195,8 +195,6 @@ impl PrivateOptions {
         }
     }
 }
-
-
 
 pub enum Parent<'a, 'b, 'c> {
     None,
