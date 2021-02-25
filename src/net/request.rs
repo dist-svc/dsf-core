@@ -120,6 +120,11 @@ impl Request {
                 id.copy_from_slice(&body[0..ID_LEN]);
                 RequestKind::Subscribe(id)
             }
+            MessageKind::Unsubscribe => {
+                let mut id = Id::default();
+                id.copy_from_slice(&body[0..ID_LEN]);
+                RequestKind::Unsubscribe(id)
+            }
             MessageKind::Query => {
                 let mut id = Id::default();
                 id.copy_from_slice(&body[0..ID_LEN]);
@@ -159,10 +164,10 @@ impl Request {
             }
             _ => {
                 error!(
-                    "Error converting base object of kind {:?} to request message",
+                    "No handler for converting base object of kind {:?} to request message",
                     header.kind()
                 );
-                return Err(Error::InvalidMessageKind);
+                return Err(Error::Unimplemented);
             }
         };
 
