@@ -46,6 +46,7 @@ pub enum Error {
     UnknownPeer,
     NoSecretKey,
     SecretKeyMismatch,
+    NoSymmetricKeys,
     Timeout,
     Unknown,
 }

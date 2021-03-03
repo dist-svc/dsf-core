@@ -27,6 +27,8 @@ pub use net::Net;
 pub mod builder;
 pub use builder::ServiceBuilder;
 
+use crate::Keys;
+
 /// Generic Service Type.
 /// This provides the basis for all services in DSR.
 ///
@@ -143,6 +145,15 @@ impl Service {
     pub fn set_secret_key(&mut self, key: Option<SecretKey>) {
         self.secret_key = key;
     }
+
+    pub fn keys(&self) -> Keys {
+        Keys{
+            pub_key: self.public_key.clone(),
+            pri_key: self.private_key.as_ref().map(|v| v.clone() ),
+            sec_key: self.secret_key.as_ref().map(|v| v.clone() ),
+            sym_keys: None,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -169,6 +180,7 @@ mod test {
             .private_options(vec![Options::address_v4(socket)].into())
             .encrypt();
         let mut service = service_builder.build().unwrap();
+        let keys = service.keys();
 
         println!("Generating and encoding service page");
         let mut buff = vec![0u8; 1024];
@@ -187,13 +199,10 @@ mod test {
 
         println!("Decoding service page");
         let s = service.clone();
-        let pub_key = s.public_key();
-        let sec_key = s.secret_key();
 
         let (base2, m) = Base::parse(
             &buff[..n],
-            |_id| Some(pub_key.clone()),
-            |_id| sec_key.clone(),
+            &keys,
         )
         .expect("Error parsing service page");
         assert_eq!(n, m);

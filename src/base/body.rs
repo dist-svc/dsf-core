@@ -328,7 +328,7 @@ impl Base {
     /// a key for validation
     pub fn parse<'a, K, T: AsRef<[u8]>>(
         data: T,
-        key_source: K,
+        key_source: &K,
     ) -> Result<(Base, usize), Error>
     where
         K: KeySource,
@@ -353,7 +353,7 @@ impl Base {
         }
 
         let keys = match keys {
-            Some(k) if k.pri_key.is_some() => k,
+            Some(k)  => k,
             _ => return Err(Error::NoPrivateKey),
         };
 
@@ -371,24 +371,26 @@ impl Base {
 mod tests {
 
     use super::*;
+    use crate::Keys;
     use crate::base::*;
     use crate::types::PageKind;
 
     use crate::crypto;
 
-    fn setup() -> (Id, PublicKey, PrivateKey, SecretKey) {
+    fn setup() -> (Id, Keys) {
         let (pub_key, pri_key) =
             crypto::new_pk().expect("Error generating new public/private key pair");
         let id = crypto::hash(&pub_key)
             .expect("Error generating new ID")
             .into();
         let sec_key = crypto::new_sk().expect("Error generating new secret key");
-        (id, pub_key, pri_key, sec_key)
+        (id, Keys{pub_key, pri_key: Some(pri_key), sec_key: Some(sec_key), sym_keys: None})
     }
 
     #[test]
     fn encode_decode_primary_page() {
-        let (id, pub_key, pri_key, _sec_key) = setup();
+        let (id, mut keys) = setup();
+        keys.sec_key = None;
 
         let header = Header {
             kind: PageKind::Generic.into(),
@@ -400,10 +402,10 @@ mod tests {
 
         let mut buff = vec![0u8; 1024];
         let n = page
-            .encode(Some(&pri_key), None, &mut buff)
+            .encode(Some(&keys), &mut buff)
             .expect("Error encoding page");
 
-        let (mut decoded, m) = Base::parse(&buff[..n], |_id| Some(pub_key.clone()), |_id| None)
+        let (mut decoded, m) = Base::parse(&buff[..n], &keys)
             .expect("Error decoding page");
 
         decoded.clean();
@@ -414,7 +416,8 @@ mod tests {
 
     #[test]
     fn encode_decode_secondary_page() {
-        let (id, pub_key, pri_key, _sec_key) = setup();
+        let (id, mut keys) = setup();
+        keys.sec_key = None;
 
         let header = Header {
             kind: PageKind::Replica.into(),
@@ -429,25 +432,25 @@ mod tests {
             Body::Cleartext(data),
             BaseOptions {
                 peer_id: Some(id.clone()),
-                public_key: Some(pub_key.clone()),
+                public_key: Some(keys.pub_key.clone()),
                 ..Default::default()
             },
         );
 
         let mut buff = vec![0u8; 1024];
         let n = page
-            .encode(Some(&pri_key), None, &mut buff)
+            .encode(Some(&keys), &mut buff)
             .expect("Error encoding page");
         page.raw = Some(buff[..n].to_vec());
 
-        let (mut decoded, m) = Base::parse(&buff[..n], |_id| Some(pub_key.clone()), |_id| None)
+        let (mut decoded, m) = Base::parse(&buff[..n], &keys)
             .expect("Error decoding page with known public key");
 
         decoded.clean();
         assert_eq!(page, decoded);
         assert_eq!(n, m);
 
-        let (mut decoded, m) = Base::parse(&buff[..n], |_id| None, |_id| None)
+        let (mut decoded, m) = Base::parse(&buff[..n], &None)
             .expect("Error decoding page with unknown public key");
 
         decoded.clean();
@@ -457,7 +460,7 @@ mod tests {
 
     #[test]
     fn encode_decode_encrypted_page() {
-        let (id, pub_key, pri_key, sec_key) = setup();
+        let (id, keys) = setup();
 
         let header = Header {
             kind: PageKind::Generic.into(),
@@ -470,13 +473,12 @@ mod tests {
 
         let mut buff = vec![0u8; 1024];
         let n = page
-            .encode(Some(&pri_key), Some(&sec_key), &mut buff)
+            .encode(Some(&keys), &mut buff)
             .expect("Error encoding page");
 
         let (mut decoded, m) = Base::parse(
             &buff[..n],
-            |_id| Some(pub_key.clone()),
-            |_id| Some(sec_key.clone()),
+            &keys,
         )
         .expect("Error decoding page");
 

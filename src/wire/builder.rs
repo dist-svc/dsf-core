@@ -163,11 +163,29 @@ impl<T: MutableData> Builder<SetPublicOptions, T> {
     }
 
     // Sign the builder object, returning a new base object
-    pub fn sign(mut self, signing_key: &PrivateKey) -> Result<Container<T>, Error> {
+    pub fn sign_pk(mut self, signing_key: &PrivateKey) -> Result<Container<T>, Error> {
         let b = self.buf.as_mut();
 
         // Generate signature
         let sig = crypto::pk_sign(signing_key, &b[..self.n]).unwrap();
+
+        // Write to object
+        &b[self.n..self.n + SIGNATURE_LEN].copy_from_slice(&sig);
+        self.n += SIGNATURE_LEN;
+
+        // Return base object
+        Ok(Container {
+            buff: self.buf,
+            len: self.n,
+        })
+    }
+
+    // Sign the builder object, returning a new base object
+    pub fn sign_sk(mut self, signing_key: &SecretKey) -> Result<Container<T>, Error> {
+        let b = self.buf.as_mut();
+
+        // Generate signature
+        let sig = crypto::sk_sign(signing_key, &b[..self.n]).unwrap();
 
         // Write to object
         &b[self.n..self.n + SIGNATURE_LEN].copy_from_slice(&sig);

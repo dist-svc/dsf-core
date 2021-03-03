@@ -77,7 +77,8 @@ impl Deref for Response {
 }
 
 impl Response {
-    pub fn new(from: Id, id: RequestId, data: ResponseKind, flags: Flags) -> Response {
+    pub fn new(from: Id, id: RequestId, data: ResponseKind, mut flags: Flags) -> Response {
+        flags.remove(Flags::SYMMETRIC_DIR);
         let common = Common {
             from,
             id,
@@ -145,7 +146,7 @@ impl PartialEq for Response {
 }
 
 impl Response {
-    pub fn convert<K>(base: Base, key_source: K) -> Result<Response, Error>
+    pub fn convert<K>(base: Base, key_source: &K) -> Result<Response, Error>
     where
         K: KeySource
     {

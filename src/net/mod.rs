@@ -78,9 +78,8 @@ impl Into<Base> for Message {
 }
 
 impl Message {
-    /// Parses an array containing a page into a page object
-    /// fn v(id, data, sig)
-    pub fn parse<'a, K, T: AsRef<[u8]>>(data: T, key_source: K) -> Result<(Message, usize), Error>
+    /// Parses an array containing a page into a page object using the provided key source
+    pub fn parse<'a, K, T: AsRef<[u8]>>(data: T, key_source: &K) -> Result<(Message, usize), Error>
     where
         K: KeySource,
     {
@@ -90,10 +89,20 @@ impl Message {
 
         Ok((m, n))
     }
+
+    pub fn encode(&self, keys: &Keys, buff: &mut [u8]) -> Result<usize, Error> {
+        // Cast to base
+        let mut b: Base = self.clone().into();
+
+        // Encode base
+        let n = b.encode(Some(keys), buff)?;
+
+        Ok(n)
+    }
 }
 
 impl Message {
-    pub fn convert<K>(base: Base, key_source: K) -> Result<Message, Error>
+    pub fn convert<K>(base: Base, key_source: &K) -> Result<Message, Error>
     where
         K: KeySource,
     {
@@ -142,9 +151,10 @@ mod tests {
     use crate::page::{Page, PageInfo, PageOptions};
     use crate::types::PageKind;
 
-    use crate::crypto;
+    use crate::{Keys, crypto};
+
     #[test]
-    fn encode_decode_messages() {
+    fn encode_decode_messages_pk() {
         let mut buff = vec![0u8; BUFF_SIZE];
 
         let (pub_key, pri_key) =
@@ -153,6 +163,13 @@ mod tests {
         let fake_id = crypto::hash(&[0, 1, 2, 3, 4]).expect("Error generating fake target ID");
         let flags = Flags::ADDRESS_REQUEST;
         let request_id = 120;
+
+        let keys = Keys{
+            pub_key: pub_key.clone(),
+            pri_key: Some(pri_key),
+            sec_key: None,
+            sym_keys: None,
+        };
 
         // Create and sign page
         let header = Header {
@@ -169,7 +186,7 @@ mod tests {
 
         let mut b = Base::from(&page);
         let n = b
-            .encode(Some(&pri_key), None, &mut buff)
+            .encode(Some(&keys), &mut buff)
             .expect("Error signing page");
         let sig = b.signature().clone().unwrap();
 
@@ -264,10 +281,10 @@ mod tests {
             let mut b: Base = message.clone().into();
             // Encode base
             let n = b
-                .encode(Some(&pri_key), None, &mut buff)
+                .encode(Some(&keys), &mut buff)
                 .expect("error encoding message");
             // Parse base and check instances match
-            let (mut d, m) = Base::parse(&buff[..n], |_id| Some(pub_key.clone()), |_id| None)
+            let (mut d, m) = Base::parse(&buff[..n], &keys)
                 .expect("error parsing message");
 
             assert_eq!(n, m);
@@ -278,12 +295,38 @@ mod tests {
             assert_eq!(b, d);
 
             // Cast to message and check instances match
-            let message2 = Message::convert(d, |_id| Some(pub_key.clone()))
+            let message2 = Message::convert(d, &keys)
                 .expect("error converting base object to message");
 
             assert_eq!(message, message2);
 
             assert_eq!(message.request_id(), message2.request_id());
         }
+    }
+
+    #[test]
+    fn encode_decode_messages_sk() {
+        let mut buff = vec![0u8; BUFF_SIZE];
+
+        let (pub_key_a, pri_key_a) = crypto::new_pk().unwrap();
+        let id_a = crypto::hash(&pub_key_a).unwrap();
+        let (pub_key_b, pri_key_b) = crypto::new_pk().unwrap();
+        let id_b = crypto::hash(&pub_key_b).unwrap();
+
+        let keys_a = Keys::new(pub_key_a.clone()).with_pri_key(pri_key_a);
+        let keys_b = Keys::new(pub_key_b.clone()).with_pri_key(pri_key_b);
+
+        let req = Message::Request(Request::new(
+            id_a.clone(),
+            0,
+            RequestKind::Hello,
+            Flags::SYMMETRIC_MODE,
+        ));
+
+        let keys_enc = keys_a.derive_peer(pub_key_b).unwrap();
+        let n = req.encode(&keys_enc, &mut buff).expect("Error encoding message w/ symmetric keys");
+
+        let keys_dec = keys_b.derive_peer(pub_key_a).unwrap();
+        let req_a = Message::parse(&buff[..n], &keys_dec).expect("Error decoding message w/ symmetric keys");
     }
 }

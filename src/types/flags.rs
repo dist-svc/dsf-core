@@ -9,6 +9,7 @@ bitflags! {
 
         const ADDRESS_REQUEST = (1 << 2);
         const PUB_KEY_REQUEST = (1 << 3);
+        
         const SYMMETRIC_MODE = (1 << 4);
         const SYMMETRIC_DIR = (1 << 5);
     }

@@ -26,7 +26,7 @@ use crate::{Keys, KeySource};
 impl<'a, T: AsRef<[u8]>> Container<T> {
     /// Parses a data array into a base object using the pub_key and sec_key functions to locate
     /// keys for validation and decyption
-    pub fn parse<K>(data: T, mut key_source: K) -> Result<(Base, usize), Error>
+    pub fn parse<K>(data: T, key_source: &K) -> Result<(Base, usize), Error>
     where
         K: KeySource,
     {
@@ -54,9 +54,24 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
                     return Err(Error::KeyIdMismatch);
                 }
 
-                // Validate message body against key
-                verified = crypto::pk_validate(&keys.pub_key, &signature, container.signed())
-                    .map_err(|_e| Error::CryptoError)?;
+                let verified = if flags.contains(Flags::SYMMETRIC_MODE) {
+                    // Attempt to use secret key mode if available
+                    // TODO: block this for non-message objects
+                    let sk = match &keys.sym_keys {
+                        Some(s) if flags.contains(Flags::SYMMETRIC_DIR) => &s.0,
+                        Some(s) => &s.1,
+                        None => {
+                            return Err(Error::NoSymmetricKeys);
+                        }
+                    };
+
+                    crypto::sk_validate(&sk, &signature, container.signed())
+                        .map_err(|_e| Error::CryptoError)?
+                } else {
+                    // Otherwise use public key
+                    crypto::pk_validate(&keys.pub_key, &signature, container.signed())
+                        .map_err(|_e| Error::CryptoError)?
+                };
 
                 // Stop processing if signature is invalid
                 if !verified {
@@ -98,9 +113,9 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
         }?;
 
         // Fetch public key
-        let public_key: Option<PublicKey> = match (key_source.keys(&signing_id), &pub_key) {
-            (Some(keys), _) => Some(keys.pub_key),
-            (None, Some(key)) => Some(key.clone()),
+        let keys: Option<Keys> = match (key_source.keys(&signing_id), &pub_key) {
+            (Some(keys), _) => Some(keys),
+            (None, Some(key)) => Some(Keys::new(key.clone())),
             _ => {
                 warn!(
                     "Missing public key for message: {:?} signing id: {:?}",
@@ -111,17 +126,32 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
         };
 
         // Late validation for self-signed objects from unknown sources
-        match (verified, public_key) {
-            (false, Some(public_key)) => {
-                // Check ID matches key
-                if signing_id != crypto::hash(&public_key).unwrap() {
-                    error!("Public key mismatch for object from {:?}", id);
-                    return Err(Error::KeyIdMismatch);
-                }
+        match (verified, keys) {
+            (false, Some(keys)) => {
 
-                // Verify body
-                verified = crypto::pk_validate(&public_key, &signature, container.signed())
-                    .map_err(|_e| Error::CryptoError)?;
+                let verified = if !flags.contains(Flags::SYMMETRIC_MODE) {
+                    // Check ID matches key
+                    if signing_id != crypto::hash(&keys.pub_key).unwrap() {
+                        error!("Public key mismatch for object from {:?}", id);
+                        return Err(Error::KeyIdMismatch);
+                    }
+    
+                    crypto::pk_validate(&keys.pub_key, &signature, container.signed())
+                        .map_err(|_e| Error::CryptoError)?
+                } else {
+                    // Attempt to use secret key mode if available
+                    // TODO: block this for non-message objects
+                    let sk = match &keys.sym_keys {
+                        Some(s) if flags.contains(Flags::SYMMETRIC_DIR) => &s.0,
+                        Some(s) => &s.1,
+                        None => {
+                            return Err(Error::NoSymmetricKeys);
+                        }
+                    };
+
+                    crypto::sk_validate(&sk, &signature, container.signed())
+                        .map_err(|_e| Error::CryptoError)?
+                };
 
                 // Stop processing on verification error
                 if !verified {
@@ -141,7 +171,7 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
 
         // Handle body decryption or parsing
         let keys = key_source.keys(&id);
-        let body = match (flags.contains(Flags::ENCRYPTED), keys.map(|k| k.sec_key).flatten()) {
+        let body = match (flags.contains(Flags::ENCRYPTED), keys.as_ref().map(|k| k.sec_key.clone() ).flatten()) {
             (true, Some(sk)) if body_data.len() > 0 => {
                 // Decrypt body
                 let n = crypto::sk_decrypt2(&sk, &mut body_data)
@@ -217,15 +247,16 @@ impl<'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
     ) -> (Self, usize) {
         // Setup base builder with header and ID
         let bb = Builder::new(buff).id(base.id()).header(base.header());
+        let flags = base.flags();
 
         // Check private key exists
-        let private_key = match keys.pri_key {
+        let private_key = match &keys.pri_key {
             Some(k) => k,
             None => panic!("Attempted to sign object with no private key"),
         };
 
         // Check encryption key exists if required
-        let encryption_key = match (base.flags().contains(Flags::ENCRYPTED), keys.sec_key.as_ref()) {
+        let encryption_key = match (flags.contains(Flags::ENCRYPTED), keys.sec_key.as_ref()) {
             (true, Some(k)) => Some(k),
             (true, None) => panic!("Attempted to encrypt object with no secret key"),
             _ => None,
@@ -257,9 +288,25 @@ impl<'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
         let bb = bb.public_options(&opts).unwrap();
 
         // Sign object
-        let c = bb.sign(&private_key).unwrap();
-        let len = c.len;
+        let c = if !flags.contains(Flags::SYMMETRIC_MODE) {
+            bb.sign_pk(&private_key).unwrap()
 
+        } else {
+            // TODO: ensure this can only be used for req/resp messages
+            
+            let sec_key = match &keys.sym_keys {
+                Some(k) if flags.contains(Flags::SYMMETRIC_DIR) => &k.1,
+                Some(k) => &k.0,
+                _ => panic!("Attempted to sign object with no secret key"),
+            };
+
+            bb.sign_sk(&sec_key).unwrap()
+        };
+
+        // Update length
+        let len = c.len;
+        
+        // Return signed container and length
         (c, len)
     }
 }

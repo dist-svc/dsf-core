@@ -62,6 +62,7 @@ pub mod prelude;
 use crate::types::{Id, PublicKey, PrivateKey, SecretKey};
 
 /// Key object stored and returned by a KeySource
+#[derive(Clone, PartialEq, Debug)]
 pub struct Keys {
     /// Service public key
     pub pub_key: PublicKey,
@@ -81,6 +82,50 @@ impl Keys {
             sec_key: None,
             sym_keys: None,
         }
+    }
+
+    pub fn with_pri_key(mut self, pri_key: PrivateKey) -> Self {
+        self.pri_key = Some(pri_key);
+        self
+    }
+
+    pub fn with_sec_key(mut self, sec_key: SecretKey) -> Self {
+        self.sec_key = Some(sec_key);
+        self
+    }
+
+    /// Derive encryption keys for the specified peer
+    pub fn derive_peer(&self, pub_key: PublicKey) -> Result<Keys, ()> {
+        // Derivation requires our public key
+        let pri_key = match &self.pri_key {
+            Some(p) => p,
+            None => return Err(()),
+        };
+
+        // Generate symmetric keys
+        let sym_keys = crypto::sk_derive(&self.pub_key, pri_key, &pub_key)?;
+
+        // Return generated key object
+        Ok(Keys{
+            pub_key,
+            pri_key: self.pri_key.clone(),
+            sec_key: None,
+            sym_keys: Some(sym_keys),
+        })
+    }
+}
+
+#[cfg(test)]
+impl KeySource for Keys {
+    fn keys(&self, _id: &Id) -> Option<Keys> {
+        Some(self.clone())
+    }
+}
+
+#[cfg(test)]
+impl KeySource for Option<Keys> {
+    fn keys(&self, _id: &Id) -> Option<Keys> {
+        self.clone()
     }
 }
 
@@ -109,8 +154,8 @@ impl <'a, K: KeySource + Sized> KeySource for CachedKeySource<'a, K> {
             return Some(k);
         }
 
-        match self.cached {
-            Some(e) if &e.0 == id => Some(e.1),
+        match &self.cached {
+            Some(e) if &e.0 == id => Some(e.1.clone()),
             _ => None,
         }
     }
@@ -119,7 +164,7 @@ impl <'a, K: KeySource + Sized> KeySource for CachedKeySource<'a, K> {
 pub struct NullKeySource;
 
 impl KeySource for NullKeySource {
-    fn keys(&self, id: &Id) -> Option<Keys> {
+    fn keys(&self, _id: &Id) -> Option<Keys> {
         None
     }
 }

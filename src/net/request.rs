@@ -11,7 +11,6 @@ use crate::page::Page;
 use crate::types::*;
 use crate::{KeySource};
 
-
 use super::Common;
 use super::BUFF_SIZE;
 
@@ -52,7 +51,7 @@ impl Request {
         let common = Common {
             from,
             id: request_id,
-            flags,
+            flags: flags | Flags::SYMMETRIC_DIR,
             public_key: None,
             remote_address: None,
         };
@@ -80,7 +79,7 @@ impl PartialEq for Request {
 }
 
 impl Request {
-    pub fn convert<K>(base: Base, key_source: K) -> Result<Request, Error>
+    pub fn convert<K>(base: Base, key_source: &K) -> Result<Request, Error>
     where
         K: KeySource,
     {

@@ -251,7 +251,7 @@ mod test {
 
     #[bench]
     fn bench_pk_sign(b: &mut Bencher) {
-        let (public, private) = new_pk().expect("Error generating public/private keypair");
+        let (_public, private) = new_pk().expect("Error generating public/private keypair");
         let data = [0xabu8; 256];
 
         b.iter(|| {

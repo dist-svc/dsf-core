@@ -208,7 +208,7 @@ impl Page {
 }
 
 impl Page {
-    pub fn decode_pages<V>(buff: &[u8], key_source: V) -> Result<Vec<Page>, Error>
+    pub fn decode_pages<V>(buff: &[u8], key_source: &V) -> Result<Vec<Page>, Error>
     where
         V: KeySource,
     {
@@ -222,7 +222,7 @@ impl Page {
             // TODO: validate signatures against existing services!
             let (b, n) = Base::parse(
                 &buff[i..],
-                key_source.cached(last_key)
+                &key_source.cached(last_key.clone())
             )?;
 
             i += n;
