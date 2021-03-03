@@ -166,3 +166,10 @@ impl KeySource for NullKeySource {
         None
     }
 }
+
+#[cfg(feature="std")]
+impl KeySource for std::collections::HashMap<Id, Keys> {
+    fn keys(&self, id: &Id) -> Option<Keys> {
+        self.get(id).map(|v| v.clone() )
+    }
+}

@@ -61,11 +61,7 @@ pub fn sk_derive(pub_key: &PublicKey, pri_key: &PrivateKey, remote: &PublicKey) 
 
     // Generate keys
     let k1 = kx::server_session_keys(&pub_key, &pri_key, &remote).unwrap();
-    let k1x: (SecretKey, SecretKey) = (k1.0.0.into(), k1.1.0.into());
     let k2 = kx::client_session_keys(&pub_key, &pri_key, &remote).unwrap();
-    let k2x: (SecretKey, SecretKey) = (k2.0.0.into(), k2.1.0.into());
-
-    println!("k1x: {:?}, k2x: {:?}", k1x, k2x);
 
     Ok((k1.0.0.into(), k2.1.0.into()))
 }

@@ -46,6 +46,13 @@ impl Message {
         }
     }
 
+    pub fn flags(&self) -> Flags {
+        match self {
+            Message::Request(req) => req.common.flags,
+            Message::Response(resp) => resp.common.flags,
+        }
+    }
+
     pub fn flags_mut(&mut self) -> &mut Flags {
         match self {
             Message::Request(req) => req.flags(),

@@ -259,9 +259,11 @@ impl<'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
         };
 
         // Write body
+        // TODO: use symmetric mode keys if available
         let bb = bb.body(base.body(), encryption_key).unwrap();
 
         // Write private options
+        // TODO: use symmetric mode keys if available
         let mut bb = bb
             .private_options(base.private_options(), encryption_key)
             .unwrap();
