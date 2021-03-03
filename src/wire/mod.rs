@@ -54,7 +54,7 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
                     return Err(Error::KeyIdMismatch);
                 }
 
-                let verified = if flags.contains(Flags::SYMMETRIC_MODE) {
+                verified = if flags.contains(Flags::SYMMETRIC_MODE) {
                     // Attempt to use secret key mode if available
                     // TODO: block this for non-message objects
                     let sk = match &keys.sym_keys {

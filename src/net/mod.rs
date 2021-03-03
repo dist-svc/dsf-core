@@ -311,7 +311,6 @@ mod tests {
         let (pub_key_a, pri_key_a) = crypto::new_pk().unwrap();
         let id_a = crypto::hash(&pub_key_a).unwrap();
         let (pub_key_b, pri_key_b) = crypto::new_pk().unwrap();
-        let id_b = crypto::hash(&pub_key_b).unwrap();
 
         let keys_a = Keys::new(pub_key_a.clone()).with_pri_key(pri_key_a);
         let keys_b = Keys::new(pub_key_b.clone()).with_pri_key(pri_key_b);
@@ -327,6 +326,116 @@ mod tests {
         let n = req.encode(&keys_enc, &mut buff).expect("Error encoding message w/ symmetric keys");
 
         let keys_dec = keys_b.derive_peer(pub_key_a).unwrap();
-        let req_a = Message::parse(&buff[..n], &keys_dec).expect("Error decoding message w/ symmetric keys");
+        let _req_a = Message::parse(&buff[..n], &keys_dec).expect("Error decoding message w/ symmetric keys");
+    }
+
+    extern crate test;
+    use test::Bencher;
+
+    #[bench]
+    fn bench_encode_messages_pk(b: &mut Bencher) {
+        let mut buff = vec![0u8; BUFF_SIZE];
+
+        let (pub_key_a, pri_key_a) = crypto::new_pk().unwrap();
+        let id_a = crypto::hash(&pub_key_a).unwrap();
+        let (pub_key_b, pri_key_b) = crypto::new_pk().unwrap();
+
+        let keys_a = Keys::new(pub_key_a.clone()).with_pri_key(pri_key_a);
+        let _keys_b = Keys::new(pub_key_b.clone()).with_pri_key(pri_key_b);
+
+        let req = Message::Request(Request::new(
+            id_a.clone(),
+            0,
+            RequestKind::Hello,
+            Flags::empty(),
+        ));
+
+        let keys_enc = keys_a.derive_peer(pub_key_b).unwrap();
+
+        b.iter(|| {
+            let _n = req.encode(&keys_enc, &mut buff).expect("Error encoding message w/ symmetric keys");
+        });
+    }
+
+    #[bench]
+    fn bench_decode_messages_pk(b: &mut Bencher) {
+        let mut buff = vec![0u8; BUFF_SIZE];
+
+        let (pub_key_a, pri_key_a) = crypto::new_pk().unwrap();
+        let id_a = crypto::hash(&pub_key_a).unwrap();
+        let (pub_key_b, pri_key_b) = crypto::new_pk().unwrap();
+
+        let keys_a = Keys::new(pub_key_a.clone()).with_pri_key(pri_key_a);
+        let keys_b = Keys::new(pub_key_b.clone()).with_pri_key(pri_key_b);
+
+        let req = Message::Request(Request::new(
+            id_a.clone(),
+            0,
+            RequestKind::Hello,
+            Flags::empty(),
+        ));
+
+        let keys_enc = keys_a.derive_peer(pub_key_b).unwrap();
+        let keys_dec = keys_b.derive_peer(pub_key_a).unwrap();
+
+        let n = req.encode(&keys_enc, &mut buff).expect("Error encoding message w/ symmetric keys");
+
+        b.iter(|| {
+            let _req_a = Message::parse(&buff[..n], &keys_dec).expect("Error decoding message w/ symmetric keys");
+        });
+    }
+
+    #[bench]
+    fn bench_encode_messages_sk(b: &mut Bencher) {
+        let mut buff = vec![0u8; BUFF_SIZE];
+
+        let (pub_key_a, pri_key_a) = crypto::new_pk().unwrap();
+        let id_a = crypto::hash(&pub_key_a).unwrap();
+        let (pub_key_b, pri_key_b) = crypto::new_pk().unwrap();
+
+        let keys_a = Keys::new(pub_key_a.clone()).with_pri_key(pri_key_a);
+        let _keys_b = Keys::new(pub_key_b.clone()).with_pri_key(pri_key_b);
+
+        let req = Message::Request(Request::new(
+            id_a.clone(),
+            0,
+            RequestKind::Hello,
+            Flags::SYMMETRIC_MODE,
+        ));
+
+        let keys_enc = keys_a.derive_peer(pub_key_b).unwrap();
+
+
+        b.iter(|| {
+            let _n = req.encode(&keys_enc, &mut buff).expect("Error encoding message w/ symmetric keys");
+        });
+    }
+
+    #[bench]
+    fn bench_decode_messages_sk(b: &mut Bencher) {
+        let mut buff = vec![0u8; BUFF_SIZE];
+
+        let (pub_key_a, pri_key_a) = crypto::new_pk().unwrap();
+        let id_a = crypto::hash(&pub_key_a).unwrap();
+        let (pub_key_b, pri_key_b) = crypto::new_pk().unwrap();
+
+        let keys_a = Keys::new(pub_key_a.clone()).with_pri_key(pri_key_a);
+        let keys_b = Keys::new(pub_key_b.clone()).with_pri_key(pri_key_b);
+
+        let req = Message::Request(Request::new(
+            id_a.clone(),
+            0,
+            RequestKind::Hello,
+            Flags::SYMMETRIC_MODE,
+        ));
+
+        let keys_enc = keys_a.derive_peer(pub_key_b).unwrap();
+        let keys_dec = keys_b.derive_peer(pub_key_a).unwrap();
+
+        let n = req.encode(&keys_enc, &mut buff).expect("Error encoding message w/ symmetric keys");
+
+        b.iter(|| {
+            let _req_a = Message::parse(&buff[..n], &keys_dec).expect("Error decoding message w/ symmetric keys");
+        });
     }
 }
