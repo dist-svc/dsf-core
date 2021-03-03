@@ -115,14 +115,12 @@ impl Keys {
     }
 }
 
-#[cfg(test)]
 impl KeySource for Keys {
     fn keys(&self, _id: &Id) -> Option<Keys> {
         Some(self.clone())
     }
 }
 
-#[cfg(test)]
 impl KeySource for Option<Keys> {
     fn keys(&self, _id: &Id) -> Option<Keys> {
         self.clone()

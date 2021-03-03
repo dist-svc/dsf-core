@@ -23,6 +23,41 @@ pub use container::Container;
 
 use crate::{Keys, KeySource};
 
+/// Helper for validating signatures in symmetric or asymmetric modes
+fn validate(keys: &Keys, id: &Id, kind: Kind,flags: Flags, sig: &Signature, data: &[u8]) -> Result<bool, Error> {
+    // Attempt to use secret key mode if available
+    let valid = if flags.contains(Flags::SYMMETRIC_MODE) {
+        // TEnsure symmetric mode is only used for messages
+        if !kind.is_message() {
+            return Err(Error::UnsupportedSignatureMode);
+        }
+
+        let sk = match &keys.sym_keys {
+            Some(s) if flags.contains(Flags::SYMMETRIC_DIR) => &s.0,
+            Some(s) => &s.1,
+            None => {
+                return Err(Error::NoSymmetricKeys);
+            }
+        };
+
+        crypto::sk_validate(&sk, sig, data)
+            .map_err(|_e| Error::CryptoError)?
+
+    // Otherwise use public key
+    } else {
+        // Check ID matches public key
+        if id != &crypto::hash(&keys.pub_key).unwrap() {
+            error!("Public key mismatch for object from {:?}", id);
+            return Err(Error::KeyIdMismatch);
+        }
+
+        crypto::pk_validate(&keys.pub_key, sig, data)
+            .map_err(|_e| Error::CryptoError)?
+    };
+
+    Ok(valid)
+}
+
 impl<'a, T: AsRef<[u8]>> Container<T> {
     /// Parses a data array into a base object using the pub_key and sec_key functions to locate
     /// keys for validation and decyption
@@ -36,10 +71,9 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
         let (container, n) = Container::from(data);
         let header = container.header();
 
-        // Fetch page flags
+        // Fetch required fields
         let flags = header.flags();
-
-        // Fetch page ID
+        let kind = header.kind();
         let id: Id = container.id().into();
 
         // Fetch signature for page
@@ -54,24 +88,8 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
                     return Err(Error::KeyIdMismatch);
                 }
 
-                verified = if flags.contains(Flags::SYMMETRIC_MODE) {
-                    // Attempt to use secret key mode if available
-                    // TODO: block this for non-message objects
-                    let sk = match &keys.sym_keys {
-                        Some(s) if flags.contains(Flags::SYMMETRIC_DIR) => &s.0,
-                        Some(s) => &s.1,
-                        None => {
-                            return Err(Error::NoSymmetricKeys);
-                        }
-                    };
-
-                    crypto::sk_validate(&sk, &signature, container.signed())
-                        .map_err(|_e| Error::CryptoError)?
-                } else {
-                    // Otherwise use public key
-                    crypto::pk_validate(&keys.pub_key, &signature, container.signed())
-                        .map_err(|_e| Error::CryptoError)?
-                };
+                // Perform verification
+                verified = validate(&keys, &id, kind, flags, &signature, container.signed())?;
 
                 // Stop processing if signature is invalid
                 if !verified {
@@ -128,32 +146,10 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
         // Late validation for self-signed objects from unknown sources
         match (verified, keys) {
             (false, Some(keys)) => {
+                // Check signature
+                verified = validate(&keys, &id, kind, flags, &signature, container.signed())?;
 
-                let verified = if !flags.contains(Flags::SYMMETRIC_MODE) {
-                    // Check ID matches key
-                    if signing_id != crypto::hash(&keys.pub_key).unwrap() {
-                        error!("Public key mismatch for object from {:?}", id);
-                        return Err(Error::KeyIdMismatch);
-                    }
-    
-                    crypto::pk_validate(&keys.pub_key, &signature, container.signed())
-                        .map_err(|_e| Error::CryptoError)?
-                } else {
-                    // Attempt to use secret key mode if available
-                    // TODO: block this for non-message objects
-                    let sk = match &keys.sym_keys {
-                        Some(s) if flags.contains(Flags::SYMMETRIC_DIR) => &s.0,
-                        Some(s) => &s.1,
-                        None => {
-                            return Err(Error::NoSymmetricKeys);
-                        }
-                    };
-
-                    crypto::sk_validate(&sk, &signature, container.signed())
-                        .map_err(|_e| Error::CryptoError)?
-                };
-
-                // Stop processing on verification error
+                // Stop processing on verification failure
                 if !verified {
                     info!("Invalid signature for self-signed object from {:?}", id);
                     return Err(Error::InvalidSignature);
@@ -292,7 +288,10 @@ impl<'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
             bb.sign_pk(&private_key).unwrap()
 
         } else {
-            // TODO: ensure this can only be used for req/resp messages
+            // Ensure this can only be used for req/resp messages
+            if !base.header().kind().is_message() {
+                panic!("Attempted to sign non-message type with symmetric keys");
+            }
             
             let sec_key = match &keys.sym_keys {
                 Some(k) if flags.contains(Flags::SYMMETRIC_DIR) => &k.1,

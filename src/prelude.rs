@@ -20,3 +20,5 @@ pub use crate::net::{
     Message as NetMessage, Request as NetRequest, RequestKind as NetRequestKind,
     Response as NetResponse, ResponseKind as NetResponseKind,
 };
+
+pub use crate::{Keys, KeySource};

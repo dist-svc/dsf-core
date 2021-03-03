@@ -47,6 +47,7 @@ pub enum Error {
     NoSecretKey,
     SecretKeyMismatch,
     NoSymmetricKeys,
+    UnsupportedSignatureMode,
     Timeout,
     Unknown,
 }
