@@ -70,3 +70,6 @@ optional = true
 features = ["derive"]
 optional = true
 version = "1.0"
+
+[patch.crates-io]
+sodiumoxide = { git = "https://github.com/sodiumoxide/sodiumoxide.git" }
