@@ -14,6 +14,8 @@ pub use response::{Response, ResponseKind, Status};
 
 pub const BUFF_SIZE: usize = 10 * 1024;
 
+use crate::{Keys, KeySource};
+
 /// Message is a network request or response message
 #[derive(Clone, PartialEq, Debug)]
 pub enum Message {
@@ -78,22 +80,22 @@ impl Into<Base> for Message {
 impl Message {
     /// Parses an array containing a page into a page object
     /// fn v(id, data, sig)
-    pub fn parse<'a, V, T: AsRef<[u8]>>(data: T, pub_key_s: V) -> Result<(Message, usize), Error>
+    pub fn parse<'a, K, T: AsRef<[u8]>>(data: T, key_source: K) -> Result<(Message, usize), Error>
     where
-        V: Fn(&Id) -> Option<PublicKey>,
+        K: KeySource,
     {
-        let (b, n) = Base::parse(data, &pub_key_s, |_id| None)?;
+        let (b, n) = Base::parse(data, key_source)?;
 
-        let m = Message::convert(b, &pub_key_s)?;
+        let m = Message::convert(b, key_source)?;
 
         Ok((m, n))
     }
 }
 
 impl Message {
-    pub fn convert<V>(base: Base, key_source: V) -> Result<Message, Error>
+    pub fn convert<K>(base: Base, key_source: K) -> Result<Message, Error>
     where
-        V: Fn(&Id) -> Option<PublicKey>,
+        K: KeySource,
     {
         let header = base.header();
         let app_id = header.application_id();

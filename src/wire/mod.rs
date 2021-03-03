@@ -21,13 +21,14 @@ pub use builder::Builder;
 pub mod container;
 pub use container::Container;
 
+use crate::{Keys, KeySource};
+
 impl<'a, T: AsRef<[u8]>> Container<T> {
     /// Parses a data array into a base object using the pub_key and sec_key functions to locate
     /// keys for validation and decyption
-    pub fn parse<P, S>(data: T, mut pub_key_s: P, mut sec_key_s: S) -> Result<(Base, usize), Error>
+    pub fn parse<K>(data: T, mut key_source: K) -> Result<(Base, usize), Error>
     where
-        P: FnMut(&Id) -> Option<PublicKey>,
-        S: FnMut(&Id) -> Option<SecretKey>,
+        K: KeySource,
     {
         let mut verified = false;
 
@@ -47,14 +48,14 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
         // Validate primary types immediately if pubkey is known
         if !flags.contains(Flags::SECONDARY) {
             // Lookup public key
-            if let Some(key) = (pub_key_s)(&id) {
+            if let Some(keys) = key_source.keys(&id) {
                 // Check ID matches key
-                if id != crypto::hash(&key).unwrap() {
+                if id != crypto::hash(&keys.pub_key).unwrap() {
                     return Err(Error::KeyIdMismatch);
                 }
 
                 // Validate message body against key
-                verified = crypto::pk_validate(&key, &signature, container.signed())
+                verified = crypto::pk_validate(&keys.pub_key, &signature, container.signed())
                     .map_err(|_e| Error::CryptoError)?;
 
                 // Stop processing if signature is invalid
@@ -97,8 +98,8 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
         }?;
 
         // Fetch public key
-        let public_key: Option<PublicKey> = match ((pub_key_s)(&signing_id), &pub_key) {
-            (Some(key), _) => Some(key),
+        let public_key: Option<PublicKey> = match (key_source.keys(&signing_id), &pub_key) {
+            (Some(keys), _) => Some(keys.pub_key),
             (None, Some(key)) => Some(key.clone()),
             _ => {
                 warn!(
@@ -139,7 +140,8 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
         let mut private_options_data = container.private_options().to_vec();
 
         // Handle body decryption or parsing
-        let body = match (flags.contains(Flags::ENCRYPTED), sec_key_s(&id)) {
+        let keys = key_source.keys(&id);
+        let body = match (flags.contains(Flags::ENCRYPTED), keys.map(|k| k.sec_key).flatten()) {
             (true, Some(sk)) if body_data.len() > 0 => {
                 // Decrypt body
                 let n = crypto::sk_decrypt2(&sk, &mut body_data)
@@ -158,7 +160,7 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
         };
 
         // Handle private_options decryption or parsing
-        let private_options = match (flags.contains(Flags::ENCRYPTED), sec_key_s(&id)) {
+        let private_options = match (flags.contains(Flags::ENCRYPTED), keys.map(|k| k.sec_key).flatten()) {
             (true, Some(sk)) if private_options_data.len() > 0 => {
                 // Decrypt private options
                 let n = crypto::sk_decrypt2(&sk, &mut private_options_data)
@@ -211,14 +213,19 @@ impl<'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
     pub fn encode(
         buff: T,
         base: &Base,
-        signing_key: &PrivateKey,
-        encryption_key: Option<&SecretKey>,
+        keys: &Keys,
     ) -> (Self, usize) {
         // Setup base builder with header and ID
         let bb = Builder::new(buff).id(base.id()).header(base.header());
 
+        // Check private key exists
+        let private_key = match keys.pri_key {
+            Some(k) => k,
+            None => panic!("Attempted to sign object with no private key"),
+        };
+
         // Check encryption key exists if required
-        let encryption_key = match (base.flags().contains(Flags::ENCRYPTED), encryption_key) {
+        let encryption_key = match (base.flags().contains(Flags::ENCRYPTED), keys.sec_key.as_ref()) {
             (true, Some(k)) => Some(k),
             (true, None) => panic!("Attempted to encrypt object with no secret key"),
             _ => None,
@@ -250,7 +257,7 @@ impl<'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
         let bb = bb.public_options(&opts).unwrap();
 
         // Sign object
-        let c = bb.sign(signing_key).unwrap();
+        let c = bb.sign(&private_key).unwrap();
         let len = c.len;
 
         (c, len)

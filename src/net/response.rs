@@ -12,6 +12,7 @@ use crate::error::Error;
 use crate::options::Options;
 use crate::page::Page;
 use crate::types::*;
+use crate::{KeySource};
 
 use super::Common;
 use super::BUFF_SIZE;
@@ -144,9 +145,9 @@ impl PartialEq for Response {
 }
 
 impl Response {
-    pub fn convert<V>(base: Base, key_source: V) -> Result<Response, Error>
+    pub fn convert<K>(base: Base, key_source: K) -> Result<Response, Error>
     where
-        V: Fn(&Id) -> Option<PublicKey>,
+        K: KeySource
     {
         let header = base.header();
 

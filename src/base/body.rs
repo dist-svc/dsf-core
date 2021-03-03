@@ -11,6 +11,7 @@ use crate::options::Options;
 use crate::page;
 use crate::types::*;
 use crate::wire::Container;
+use crate::{Keys, KeySource};
 
 #[derive(Clone, Debug)]
 pub struct Base {
@@ -325,24 +326,21 @@ impl Base {
 impl Base {
     /// Parses a data array into a base object using the pubkey_source to locate
     /// a key for validation
-    pub fn parse<'a, P, S, T: AsRef<[u8]>>(
+    pub fn parse<'a, K, T: AsRef<[u8]>>(
         data: T,
-        pub_key_s: P,
-        sec_key_s: S,
+        key_source: K,
     ) -> Result<(Base, usize), Error>
     where
-        P: FnMut(&Id) -> Option<PublicKey>,
-        S: FnMut(&Id) -> Option<SecretKey>,
+        K: KeySource,
     {
-        Container::parse(data, pub_key_s, sec_key_s)
+        Container::parse(data, key_source)
     }
 }
 
 impl Base {
     pub fn encode<'a, T: AsRef<[u8]> + AsMut<[u8]>>(
         &mut self,
-        signing_key: Option<&PrivateKey>,
-        encryption_key: Option<&SecretKey>,
+        keys: Option<&Keys>,
         mut buff: T,
     ) -> Result<usize, Error> {
         // Short circuit if raw object is available
@@ -354,13 +352,13 @@ impl Base {
             return Ok(raw.len());
         }
 
-        let signing_key = match signing_key {
-            Some(k) => k,
-            None => return Err(Error::NoPrivateKey),
+        let keys = match keys {
+            Some(k) if k.pri_key.is_some() => k,
+            _ => return Err(Error::NoPrivateKey),
         };
 
         // Build container and encode / encrypt / sign page
-        let (container, n) = Container::encode(buff, &self, signing_key, encryption_key);
+        let (container, n) = Container::encode(buff, &self, keys);
 
         // Update base object signature
         self.set_signature(container.signature().into());

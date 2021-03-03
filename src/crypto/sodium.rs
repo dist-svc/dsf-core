@@ -2,19 +2,16 @@
 //!
 
 use sodiumoxide::crypto::sign;
-use sodiumoxide::crypto::sign::ed25519::PublicKey as SodiumPublicKey;
-use sodiumoxide::crypto::sign::ed25519::SecretKey as SodiumPrivateKey;
-
 use sodiumoxide::crypto::secretbox;
+use sodiumoxide::crypto::kx;
+use sodiumoxide::crypto::auth;
+use sodiumoxide::crypto::hash::sha256;
+
 use sodiumoxide::crypto::secretbox::xsalsa20poly1305::Key as SodiumSecretKey;
 use sodiumoxide::crypto::secretbox::xsalsa20poly1305::Nonce as SodiumSecretNonce;
 use sodiumoxide::crypto::secretbox::xsalsa20poly1305::Tag as SodiumSecretTag;
 use sodiumoxide::crypto::secretbox::xsalsa20poly1305::{MACBYTES, NONCEBYTES};
 
-use sodiumoxide::crypto::kx;
-use sodiumoxide::crypto::auth;
-
-use sodiumoxide::crypto::hash::sha256;
 
 use crate::types::{CryptoHash, PrivateKey, PublicKey, SecretKey, Signature};
 

@@ -12,6 +12,7 @@ use crate::options::Options;
 use crate::page::{Page, PageInfo, PageOptions};
 use crate::service::Service;
 use crate::types::*;
+use crate::Keys;
 
 /// Publisher trait allows services to generate primary, data, and secondary pages
 /// as well as to encode (and sign and optionally encrypt) generated pages
@@ -260,7 +261,13 @@ impl Service {
         b.parent = self.last_sig.clone();
 
         // Encode and sign object
-        let n = b.encode(self.private_key.as_ref(), self.secret_key.as_ref(), buff)?;
+        let keys = Keys {
+            pub_key: self.public_key,
+            pri_key: self.private_key.map(|v| v.clone() ),
+            sec_key: self.secret_key.map(|v| v.clone() ),
+            sym_keys: None,
+        };
+        let n = b.encode(Some(&keys), buff)?;
 
         // Update service last_sig
         self.last_sig = b.signature;

@@ -11,6 +11,8 @@ use crate::crypto;
 use crate::error::Error;
 use crate::options::Options;
 use crate::types::*;
+use crate::{Keys, KeySource};
+
 
 mod info;
 pub use info::PageInfo;
@@ -208,36 +210,19 @@ impl Page {
 impl Page {
     pub fn decode_pages<V>(buff: &[u8], key_source: V) -> Result<Vec<Page>, Error>
     where
-        V: Fn(&Id) -> Option<PublicKey>,
+        V: KeySource,
     {
         let mut pages = vec![];
         let mut i = 0;
 
         // Last key used to cache the previous primary key to decode secondary pages published by a service in a single message.
-        let mut last_key: Option<(Id, PublicKey)> = None;
+        let mut last_key: Option<(Id, Keys)> = None;
 
         while i < buff.len() {
             // TODO: validate signatures against existing services!
             let (b, n) = Base::parse(
                 &buff[i..],
-                |id| {
-                    // Try key_source first
-                    if let Some(key) = (key_source)(id) {
-                        return Some(key);
-                    };
-
-                    // Check for last entry second
-                    if let Some(prev) = &last_key {
-                        if &prev.0 == id {
-                            return Some(prev.1.clone());
-                        }
-                    }
-
-                    // Fail if no public key is found
-                    None
-                },
-                // No encryption key source available here
-                |_id| None,
+                key_source.cached(last_key)
             )?;
 
             i += n;
@@ -252,7 +237,7 @@ impl Page {
 
             // Cache key for next run
             if let Some(key) = page.info().pub_key() {
-                last_key = Some((page.id().clone(), key));
+                last_key = Some((page.id().clone(), Keys::new(key)));
             }
 
             // Push page to parsed list
@@ -275,9 +260,9 @@ impl Page {
                 _ => (),
             };
 
-            // Convert and encode
+            // Convert and encode, note these must be pre-signed
             let mut b = Base::from(p);
-            let n = b.encode(None, None, &mut buff[i..])?;
+            let n = b.encode(None, &mut buff[i..])?;
 
             i += n;
         }

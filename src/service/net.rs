@@ -3,6 +3,7 @@ use crate::error::Error;
 use crate::net::{Message, Request, RequestKind, Response, ResponseKind};
 use crate::service::Service;
 use crate::types::*;
+use crate::Keys;
 
 pub struct PublishOptions {}
 
@@ -44,7 +45,13 @@ impl Net for Service {
     ) -> Result<usize, Error> {
         let mut b: Base = msg.into();
 
-        let n = b.encode(self.private_key.as_ref(), None, buff)?;
+        let keys = Keys {
+            pub_key: self.public_key,
+            pri_key: self.private_key.map(|v| v.clone() ),
+            sec_key: self.secret_key.map(|v| v.clone() ),
+            sym_keys: None,
+        };
+        let n = b.encode(Some(&keys), buff)?;
 
         Ok(n)
     }
