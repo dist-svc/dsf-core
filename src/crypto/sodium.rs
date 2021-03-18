@@ -41,6 +41,15 @@ pub fn pk_validate(public_key: &PublicKey, signature: &Signature, data: &[u8]) -
     Ok(sign::verify_detached(&sig, data, &public_key))
 }
 
+/// pk_derive derives a public key from a provided private kry
+pub fn pk_derive(private_key: &PrivateKey) -> Result<PublicKey, ()> {
+    // Parse key from slice
+    let private_key = sign::SecretKey::from_slice(private_key).unwrap();
+    let public_key = private_key.public_key();
+
+    Ok(public_key.0.into())
+}
+
 /// Derive secret keys for symmetric use from pub/pri keys
 /// Note that these must be swapped (rx->tx, tx->rx) depending on direction
 pub fn sk_derive(pub_key: &PublicKey, pri_key: &PrivateKey, remote: &PublicKey) -> Result<(SecretKey, SecretKey), ()> {
