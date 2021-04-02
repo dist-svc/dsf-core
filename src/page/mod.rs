@@ -11,8 +11,7 @@ use crate::crypto;
 use crate::error::Error;
 use crate::options::Options;
 use crate::types::*;
-use crate::{Keys, KeySource};
-
+use crate::{KeySource, Keys};
 
 mod info;
 pub use info::PageInfo;
@@ -221,10 +220,7 @@ impl Page {
 
         while i < buff.len() {
             // TODO: validate signatures against existing services!
-            let (b, n) = Base::parse(
-                &buff[i..],
-                &key_source.cached(last_key.clone())
-            )?;
+            let (b, n) = Base::parse(&buff[i..], &key_source.cached(last_key.clone()))?;
 
             i += n;
 

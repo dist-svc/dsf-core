@@ -147,10 +147,10 @@ impl Service {
     }
 
     pub fn keys(&self) -> Keys {
-        Keys{
+        Keys {
             pub_key: self.public_key.clone(),
-            pri_key: self.private_key.as_ref().map(|v| v.clone() ),
-            sec_key: self.secret_key.as_ref().map(|v| v.clone() ),
+            pri_key: self.private_key.as_ref().map(|v| v.clone()),
+            sec_key: self.secret_key.as_ref().map(|v| v.clone()),
             sym_keys: None,
         }
     }
@@ -200,11 +200,7 @@ mod test {
         println!("Decoding service page");
         let s = service.clone();
 
-        let (base2, m) = Base::parse(
-            &buff[..n],
-            &keys,
-        )
-        .expect("Error parsing service page");
+        let (base2, m) = Base::parse(&buff[..n], &keys).expect("Error parsing service page");
         assert_eq!(n, m);
         let mut page2: Page = base2
             .try_into()

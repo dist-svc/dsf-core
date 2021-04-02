@@ -14,7 +14,7 @@ pub use response::{Response, ResponseKind, Status};
 
 pub const BUFF_SIZE: usize = 10 * 1024;
 
-use crate::{Keys, KeySource};
+use crate::{KeySource, Keys};
 
 /// Message is a network request or response message
 #[derive(Clone, PartialEq, Debug)]
@@ -160,7 +160,7 @@ mod tests {
     use crate::page::{Page, PageInfo, PageOptions};
     use crate::types::PageKind;
 
-    use crate::{Keys, crypto};
+    use crate::{crypto, Keys};
 
     #[test]
     fn encode_decode_messages_pk() {
@@ -173,7 +173,7 @@ mod tests {
         let flags = Flags::ADDRESS_REQUEST;
         let request_id = 120;
 
-        let keys = Keys{
+        let keys = Keys {
             pub_key: pub_key.clone(),
             pri_key: Some(pri_key),
             sec_key: None,
@@ -293,8 +293,7 @@ mod tests {
                 .encode(Some(&keys), &mut buff)
                 .expect("error encoding message");
             // Parse base and check instances match
-            let (mut d, m) = Base::parse(&buff[..n], &keys)
-                .expect("error parsing message");
+            let (mut d, m) = Base::parse(&buff[..n], &keys).expect("error parsing message");
 
             assert_eq!(n, m);
 
@@ -304,8 +303,8 @@ mod tests {
             assert_eq!(b, d);
 
             // Cast to message and check instances match
-            let message2 = Message::convert(d, &keys)
-                .expect("error converting base object to message");
+            let message2 =
+                Message::convert(d, &keys).expect("error converting base object to message");
 
             assert_eq!(message, message2);
 
@@ -332,10 +331,13 @@ mod tests {
         ));
 
         let keys_enc = keys_a.derive_peer(pub_key_b).unwrap();
-        let n = req.encode(&keys_enc, &mut buff).expect("Error encoding message w/ symmetric keys");
+        let n = req
+            .encode(&keys_enc, &mut buff)
+            .expect("Error encoding message w/ symmetric keys");
 
         let keys_dec = keys_b.derive_peer(pub_key_a).unwrap();
-        let _req_a = Message::parse(&buff[..n], &keys_dec).expect("Error decoding message w/ symmetric keys");
+        let _req_a = Message::parse(&buff[..n], &keys_dec)
+            .expect("Error decoding message w/ symmetric keys");
     }
 
     extern crate test;
@@ -362,7 +364,9 @@ mod tests {
         let keys_enc = keys_a.derive_peer(pub_key_b).unwrap();
 
         b.iter(|| {
-            let _n = req.encode(&keys_enc, &mut buff).expect("Error encoding message w/ symmetric keys");
+            let _n = req
+                .encode(&keys_enc, &mut buff)
+                .expect("Error encoding message w/ symmetric keys");
         });
     }
 
@@ -387,10 +391,13 @@ mod tests {
         let keys_enc = keys_a.derive_peer(pub_key_b).unwrap();
         let keys_dec = keys_b.derive_peer(pub_key_a).unwrap();
 
-        let n = req.encode(&keys_enc, &mut buff).expect("Error encoding message w/ symmetric keys");
+        let n = req
+            .encode(&keys_enc, &mut buff)
+            .expect("Error encoding message w/ symmetric keys");
 
         b.iter(|| {
-            let _req_a = Message::parse(&buff[..n], &keys_dec).expect("Error decoding message w/ symmetric keys");
+            let _req_a = Message::parse(&buff[..n], &keys_dec)
+                .expect("Error decoding message w/ symmetric keys");
         });
     }
 
@@ -414,9 +421,10 @@ mod tests {
 
         let keys_enc = keys_a.derive_peer(pub_key_b).unwrap();
 
-
         b.iter(|| {
-            let _n = req.encode(&keys_enc, &mut buff).expect("Error encoding message w/ symmetric keys");
+            let _n = req
+                .encode(&keys_enc, &mut buff)
+                .expect("Error encoding message w/ symmetric keys");
         });
     }
 
@@ -441,10 +449,13 @@ mod tests {
         let keys_enc = keys_a.derive_peer(pub_key_b).unwrap();
         let keys_dec = keys_b.derive_peer(pub_key_a).unwrap();
 
-        let n = req.encode(&keys_enc, &mut buff).expect("Error encoding message w/ symmetric keys");
+        let n = req
+            .encode(&keys_enc, &mut buff)
+            .expect("Error encoding message w/ symmetric keys");
 
         b.iter(|| {
-            let _req_a = Message::parse(&buff[..n], &keys_dec).expect("Error decoding message w/ symmetric keys");
+            let _req_a = Message::parse(&buff[..n], &keys_dec)
+                .expect("Error decoding message w/ symmetric keys");
         });
     }
 }

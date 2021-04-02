@@ -11,7 +11,7 @@ use crate::options::Options;
 use crate::page;
 use crate::types::*;
 use crate::wire::Container;
-use crate::{Keys, KeySource};
+use crate::{KeySource, Keys};
 
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
@@ -328,10 +328,7 @@ impl Base {
 impl Base {
     /// Parses a data array into a base object using the pubkey_source to locate
     /// a key for validation
-    pub fn parse<'a, K, T: AsRef<[u8]>>(
-        data: T,
-        key_source: &K,
-    ) -> Result<(Base, usize), Error>
+    pub fn parse<'a, K, T: AsRef<[u8]>>(data: T, key_source: &K) -> Result<(Base, usize), Error>
     where
         K: KeySource,
     {
@@ -355,7 +352,7 @@ impl Base {
         }
 
         let keys = match keys {
-            Some(k)  => k,
+            Some(k) => k,
             _ => return Err(Error::NoPrivateKey),
         };
 
@@ -373,9 +370,9 @@ impl Base {
 mod tests {
 
     use super::*;
-    use crate::Keys;
     use crate::base::*;
     use crate::types::PageKind;
+    use crate::Keys;
 
     use crate::crypto;
 
@@ -386,7 +383,15 @@ mod tests {
             .expect("Error generating new ID")
             .into();
         let sec_key = crypto::new_sk().expect("Error generating new secret key");
-        (id, Keys{pub_key, pri_key: Some(pri_key), sec_key: Some(sec_key), sym_keys: None})
+        (
+            id,
+            Keys {
+                pub_key,
+                pri_key: Some(pri_key),
+                sec_key: Some(sec_key),
+                sym_keys: None,
+            },
+        )
     }
 
     #[test]
@@ -407,8 +412,7 @@ mod tests {
             .encode(Some(&keys), &mut buff)
             .expect("Error encoding page");
 
-        let (mut decoded, m) = Base::parse(&buff[..n], &keys)
-            .expect("Error decoding page");
+        let (mut decoded, m) = Base::parse(&buff[..n], &keys).expect("Error decoding page");
 
         decoded.clean();
 
@@ -445,15 +449,15 @@ mod tests {
             .expect("Error encoding page");
         page.raw = Some(buff[..n].to_vec());
 
-        let (mut decoded, m) = Base::parse(&buff[..n], &keys)
-            .expect("Error decoding page with known public key");
+        let (mut decoded, m) =
+            Base::parse(&buff[..n], &keys).expect("Error decoding page with known public key");
 
         decoded.clean();
         assert_eq!(page, decoded);
         assert_eq!(n, m);
 
-        let (mut decoded, m) = Base::parse(&buff[..n], &None)
-            .expect("Error decoding page with unknown public key");
+        let (mut decoded, m) =
+            Base::parse(&buff[..n], &None).expect("Error decoding page with unknown public key");
 
         decoded.clean();
         assert_eq!(page, decoded);
@@ -478,11 +482,7 @@ mod tests {
             .encode(Some(&keys), &mut buff)
             .expect("Error encoding page");
 
-        let (mut decoded, m) = Base::parse(
-            &buff[..n],
-            &keys,
-        )
-        .expect("Error decoding page");
+        let (mut decoded, m) = Base::parse(&buff[..n], &keys).expect("Error decoding page");
 
         decoded.clean();
 

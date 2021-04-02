@@ -21,10 +21,17 @@ pub use builder::Builder;
 pub mod container;
 pub use container::Container;
 
-use crate::{Keys, KeySource};
+use crate::{KeySource, Keys};
 
 /// Helper for validating signatures in symmetric or asymmetric modes
-fn validate(keys: &Keys, id: &Id, kind: Kind,flags: Flags, sig: &Signature, data: &[u8]) -> Result<bool, Error> {
+fn validate(
+    keys: &Keys,
+    id: &Id,
+    kind: Kind,
+    flags: Flags,
+    sig: &Signature,
+    data: &[u8],
+) -> Result<bool, Error> {
     // Attempt to use secret key mode if available
     let valid = if flags.contains(Flags::SYMMETRIC_MODE) {
         // TEnsure symmetric mode is only used for messages
@@ -40,8 +47,7 @@ fn validate(keys: &Keys, id: &Id, kind: Kind,flags: Flags, sig: &Signature, data
             }
         };
 
-        crypto::sk_validate(&sk, sig, data)
-            .map_err(|_e| Error::CryptoError)?
+        crypto::sk_validate(&sk, sig, data).map_err(|_e| Error::CryptoError)?
 
     // Otherwise use public key
     } else {
@@ -51,8 +57,7 @@ fn validate(keys: &Keys, id: &Id, kind: Kind,flags: Flags, sig: &Signature, data
             return Err(Error::KeyIdMismatch);
         }
 
-        crypto::pk_validate(&keys.pub_key, sig, data)
-            .map_err(|_e| Error::CryptoError)?
+        crypto::pk_validate(&keys.pub_key, sig, data).map_err(|_e| Error::CryptoError)?
     };
 
     Ok(valid)
@@ -167,7 +172,10 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
 
         // Handle body decryption or parsing
         let keys = key_source.keys(&id);
-        let body = match (flags.contains(Flags::ENCRYPTED), keys.as_ref().map(|k| k.sec_key.clone() ).flatten()) {
+        let body = match (
+            flags.contains(Flags::ENCRYPTED),
+            keys.as_ref().map(|k| k.sec_key.clone()).flatten(),
+        ) {
             (true, Some(sk)) if body_data.len() > 0 => {
                 // Decrypt body
                 let n = crypto::sk_decrypt2(&sk, &mut body_data)
@@ -186,7 +194,10 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
         };
 
         // Handle private_options decryption or parsing
-        let private_options = match (flags.contains(Flags::ENCRYPTED), keys.map(|k| k.sec_key).flatten()) {
+        let private_options = match (
+            flags.contains(Flags::ENCRYPTED),
+            keys.map(|k| k.sec_key).flatten(),
+        ) {
             (true, Some(sk)) if private_options_data.len() > 0 => {
                 // Decrypt private options
                 let n = crypto::sk_decrypt2(&sk, &mut private_options_data)
@@ -236,11 +247,7 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
 }
 
 impl<'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
-    pub fn encode(
-        buff: T,
-        base: &Base,
-        keys: &Keys,
-    ) -> (Self, usize) {
+    pub fn encode(buff: T, base: &Base, keys: &Keys) -> (Self, usize) {
         // Setup base builder with header and ID
         let bb = Builder::new(buff).id(base.id()).header(base.header());
         let flags = base.flags();
@@ -288,13 +295,12 @@ impl<'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
         // Sign object
         let c = if !flags.contains(Flags::SYMMETRIC_MODE) {
             bb.sign_pk(&private_key).unwrap()
-
         } else {
             // Ensure this can only be used for req/resp messages
             if !base.header().kind().is_message() {
                 panic!("Attempted to sign non-message type with symmetric keys");
             }
-            
+
             let sec_key = match &keys.sym_keys {
                 Some(k) if flags.contains(Flags::SYMMETRIC_DIR) => &k.1,
                 Some(k) => &k.0,
@@ -306,7 +312,7 @@ impl<'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
 
         // Update length
         let len = c.len;
-        
+
         // Return signed container and length
         (c, len)
     }

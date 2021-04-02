@@ -320,7 +320,6 @@ mod tests {
             (MessageKind::Store, Kind(0b0010_0000_0000_0100)),
             (MessageKind::Subscribe, Kind(0b0010_0000_0000_0101)),
             (MessageKind::Unsubscribe, Kind(0b0010_0000_0000_1000)),
-
             (MessageKind::Query, Kind(0b0010_0000_0000_0110)),
             (MessageKind::PushData, Kind(0b0010_0000_0000_0111)),
             (MessageKind::Status, Kind(0b0100_0000_0000_0000)),

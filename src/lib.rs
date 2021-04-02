@@ -2,7 +2,6 @@
 //#![feature(test)]
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(feature = "alloc", feature(alloc_prelude))]
-
 #![feature(test)]
 
 #[cfg(feature = "alloc")]
@@ -59,7 +58,7 @@ pub mod api;
 
 pub mod prelude;
 
-use crate::types::{Id, PublicKey, PrivateKey, SecretKey};
+use crate::types::{Id, PrivateKey, PublicKey, SecretKey};
 
 /// Key object stored and returned by a KeySource
 #[derive(Clone, PartialEq, Debug)]
@@ -76,7 +75,7 @@ pub struct Keys {
 
 impl Keys {
     pub fn new(pub_key: PublicKey) -> Self {
-        Self{ 
+        Self {
             pub_key,
             pri_key: None,
             sec_key: None,
@@ -106,7 +105,7 @@ impl Keys {
         let sym_keys = crypto::sk_derive(&self.pub_key, pri_key, &pub_key)?;
 
         // Return generated key object
-        Ok(Keys{
+        Ok(Keys {
             pub_key,
             pri_key: self.pri_key.clone(),
             sec_key: None,
@@ -132,7 +131,10 @@ pub trait KeySource: Sized {
     fn keys(&self, id: &Id) -> Option<Keys>;
 
     fn cached(&self, existing: Option<(Id, Keys)>) -> CachedKeySource<Self> {
-        CachedKeySource{key_source: self, cached: existing}
+        CachedKeySource {
+            key_source: self,
+            cached: existing,
+        }
     }
 
     fn null(&self) -> NullKeySource {
@@ -146,7 +148,7 @@ pub struct CachedKeySource<'a, K: KeySource + Sized> {
     cached: Option<(Id, Keys)>,
 }
 
-impl <'a, K: KeySource + Sized> KeySource for CachedKeySource<'a, K> {
+impl<'a, K: KeySource + Sized> KeySource for CachedKeySource<'a, K> {
     fn keys(&self, id: &Id) -> Option<Keys> {
         if let Some(k) = self.key_source.keys(id) {
             return Some(k);
@@ -167,9 +169,9 @@ impl KeySource for NullKeySource {
     }
 }
 
-#[cfg(feature="std")]
+#[cfg(feature = "std")]
 impl KeySource for std::collections::HashMap<Id, Keys> {
     fn keys(&self, id: &Id) -> Option<Keys> {
-        self.get(id).map(|v| v.clone() )
+        self.get(id).map(|v| v.clone())
     }
 }

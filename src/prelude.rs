@@ -21,4 +21,4 @@ pub use crate::net::{
     Response as NetResponse, ResponseKind as NetResponseKind,
 };
 
-pub use crate::{Keys, KeySource};
+pub use crate::{KeySource, Keys};

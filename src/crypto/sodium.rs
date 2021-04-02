@@ -1,17 +1,16 @@
 //! Crypto module provides cryptographic interfaces and implementations for DSF
 //!
 
-use sodiumoxide::crypto::sign;
-use sodiumoxide::crypto::secretbox;
-use sodiumoxide::crypto::kx;
 use sodiumoxide::crypto::auth;
 use sodiumoxide::crypto::hash::sha256;
+use sodiumoxide::crypto::kx;
+use sodiumoxide::crypto::secretbox;
+use sodiumoxide::crypto::sign;
 
 use sodiumoxide::crypto::secretbox::xsalsa20poly1305::Key as SodiumSecretKey;
 use sodiumoxide::crypto::secretbox::xsalsa20poly1305::Nonce as SodiumSecretNonce;
 use sodiumoxide::crypto::secretbox::xsalsa20poly1305::Tag as SodiumSecretTag;
 use sodiumoxide::crypto::secretbox::xsalsa20poly1305::{MACBYTES, NONCEBYTES};
-
 
 use crate::types::{CryptoHash, PrivateKey, PublicKey, SecretKey, Signature};
 
@@ -52,7 +51,11 @@ pub fn pk_derive(private_key: &PrivateKey) -> Result<PublicKey, ()> {
 
 /// Derive secret keys for symmetric use from pub/pri keys
 /// Note that these must be swapped (rx->tx, tx->rx) depending on direction
-pub fn sk_derive(pub_key: &PublicKey, pri_key: &PrivateKey, remote: &PublicKey) -> Result<(SecretKey, SecretKey), ()> {
+pub fn sk_derive(
+    pub_key: &PublicKey,
+    pri_key: &PrivateKey,
+    remote: &PublicKey,
+) -> Result<(SecretKey, SecretKey), ()> {
     // Convert to sodium signing keys
     let pri_key = sign::SecretKey::from_slice(pri_key).unwrap();
     let pub_key = sign::PublicKey::from_slice(pub_key).unwrap();
@@ -72,7 +75,7 @@ pub fn sk_derive(pub_key: &PublicKey, pri_key: &PrivateKey, remote: &PublicKey) 
     let k1 = kx::server_session_keys(&pub_key, &pri_key, &remote).unwrap();
     let k2 = kx::client_session_keys(&pub_key, &pri_key, &remote).unwrap();
 
-    Ok((k1.0.0.into(), k2.1.0.into()))
+    Ok((k1.0 .0.into(), k2.1 .0.into()))
 }
 
 pub const SK_META: usize = MACBYTES + NONCEBYTES;
@@ -91,13 +94,13 @@ pub fn sk_sign(secret_key: &SecretKey, message: &[u8]) -> Result<Signature, ()> 
     // Pack out tag to Signature size (TODO: variable sizes here?)
     let mut r = [0u8; 64];
     &r[..32].copy_from_slice(&tag.0);
-    
+
     Ok(r.into())
 }
 
 pub fn sk_validate(secret_key: &PublicKey, signature: &Signature, data: &[u8]) -> Result<bool, ()> {
     let secret_key = auth::Key::from_slice(&secret_key).unwrap();
-    let tag  = auth::Tag::from_slice(&signature[..32]).unwrap();
+    let tag = auth::Tag::from_slice(&signature[..32]).unwrap();
 
     Ok(auth::verify(&tag, data, &secret_key))
 }
@@ -272,7 +275,8 @@ mod test {
         let signature = pk_sign(&private, &data).expect("Error generating signature");
 
         b.iter(|| {
-            let valid = pk_validate(&public, &signature, &data).expect("Error validating signature");
+            let valid =
+                pk_validate(&public, &signature, &data).expect("Error validating signature");
             assert_eq!(true, valid);
         })
     }
@@ -283,7 +287,8 @@ mod test {
         let (pub_key_b, _pri_key_b) = new_pk().expect("Error generating public/private keypair");
 
         b.iter(|| {
-            let _ = sk_derive(&pub_key_a, &pri_key_a, &pub_key_b).expect("Error deriving secret keys");
+            let _ =
+                sk_derive(&pub_key_a, &pri_key_a, &pub_key_b).expect("Error deriving secret keys");
         });
     }
 
