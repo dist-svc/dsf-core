@@ -23,6 +23,7 @@ pub mod offsets {
 /// Wire encoding and decoding exists in `wire::header`
 #[derive(Clone, PartialEq, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct Header {
     /// Protocol version
     pub protocol_version: u16,

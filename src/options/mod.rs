@@ -18,6 +18,7 @@ mod helpers;
 /// DSF defined options fields
 #[derive(PartialEq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Options {
     None,
     PubKey(PubKey),
@@ -38,6 +39,7 @@ pub enum Options {
 /// Generic list of options over generic buffers
 #[derive(PartialEq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum OptionsList<C: AsRef<[Options]>, E: ImmutableData> {
     Cleartext(C),
     Encrypted(E),
@@ -287,6 +289,7 @@ impl Encode for Options {
 
 #[derive(PartialEq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct PubKey {
     pub public_key: PublicKey,
 }
@@ -330,6 +333,7 @@ impl Encode for PubKey {
 
 #[derive(PartialEq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct PeerId {
     pub peer_id: Id,
 }
@@ -371,6 +375,7 @@ impl Encode for PeerId {
 
 #[derive(PartialEq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct PrevSig {
     pub sig: Signature,
 }
@@ -407,6 +412,7 @@ impl Encode for PrevSig {
 
 #[derive(PartialEq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct Kind {
     value: String,
 }
@@ -447,6 +453,7 @@ impl Encode for Kind {
 
 #[derive(PartialEq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct Name {
     value: String,
 }
@@ -542,6 +549,7 @@ impl Encode for AddressV6 {
 
 #[derive(PartialEq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct Metadata {
     key: String,
     value: String,
@@ -601,6 +609,7 @@ impl From<Metadata> for Options {
 
 #[derive(PartialEq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct Issued {
     pub when: DateTime,
 }
@@ -640,6 +649,7 @@ impl Encode for Issued {
 
 #[derive(PartialEq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct Expiry {
     pub when: DateTime,
 }
@@ -678,6 +688,7 @@ impl Encode for Expiry {
 
 #[derive(PartialEq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct Limit {
     pub n: u32,
 }

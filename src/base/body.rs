@@ -14,6 +14,7 @@ use crate::wire::Container;
 use crate::{Keys, KeySource};
 
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct Base {
     /// Page or Object Identifier
     pub(crate) id: Id,
@@ -119,6 +120,7 @@ impl PartialEq for Base {
 
 #[derive(PartialEq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum NewBody<T: ImmutableData> {
     Cleartext(T),
     Encrypted(T),

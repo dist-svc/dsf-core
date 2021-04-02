@@ -18,6 +18,7 @@ use crate::{Keys, KeySource};
 
 /// Message is a network request or response message
 #[derive(Clone, PartialEq, Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Message {
     Request(Request),
     Response(Response),
@@ -139,6 +140,7 @@ impl Message {
 }
 
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct Common {
     pub from: Id,
     pub id: RequestId,

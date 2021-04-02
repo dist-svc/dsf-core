@@ -10,8 +10,8 @@ license = "MPL-2.0"
 edition = "2018"
 
 [features]
-std = [ "managed/std", "bytes/std", "base64/std", "byteorder/std", "sodiumoxide/std", "sha2/std", "chrono/std", "strum", "strum_macros", "thiserror" ]
-alloc = [ "base64/alloc", "chrono/alloc", "sodiumoxide/cty" ]
+std = [ "managed/std", "bytes/std", "base64/std", "byteorder/std", "sha2/std", "chrono/std", "strum", "strum_macros", "thiserror" ]
+alloc = [ "base64/alloc", "chrono/alloc" ]
 default = [ "std", "serde" ]
 
 
@@ -27,6 +27,7 @@ strum_macros = { version = "0.20.1", optional = true }
 no-std-net = { version = "0.3.0", optional = true }
 rand_core = { version = "0.5.1", default_features = false }
 thiserror = { version = "1.0.11", default_features = false, optional = true }
+defmt = { version = "0.2.1", optional = true }
 
 [dependencies.managed]
 version = "0.7.1"

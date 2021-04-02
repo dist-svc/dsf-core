@@ -19,6 +19,7 @@ use super::BUFF_SIZE;
 
 /// Generic Response message
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct Response {
     pub common: Common,
     pub data: ResponseKind,
@@ -27,6 +28,7 @@ pub struct Response {
 /// Response message kinds
 #[derive(Clone, PartialEq, Debug)]
 #[cfg_attr(feature = "strum", derive(strum_macros::Display))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum ResponseKind {
     Status(Status),
     NodesFound(Id, Vec<(Id, Address, PublicKey)>),
@@ -42,6 +44,7 @@ mod status {
 
 /// Status response codes
 #[derive(Clone, PartialEq, Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Status {
     Ok,
     InvalidRequest,

@@ -144,6 +144,7 @@ impl Publisher for Service {
                     .add(Duration::from_secs(24 * 60 * 60))
                     .into(),
             ),
+            previous_sig: self.last_sig.clone(),
             ..Default::default()
         };
 
@@ -156,7 +157,11 @@ impl Publisher for Service {
             page_options,
         );
 
-        self.encode(&mut p, buff).map(|n| (n, p))
+        let n = self.encode(&mut p, buff)?;
+
+        self.last_sig = p.signature.clone();
+
+        Ok((n, p))
     }
 
     /// Secondary generates a secondary page using this service to be attached to / stored at the provided service ID
@@ -242,7 +247,11 @@ impl Publisher for Service {
             page_options,
         );
 
-        self.encode(&mut p, buff).map(|n| (n, p))
+        let n = self.encode(&mut p, buff)?;
+
+        self.last_sig = p.signature.clone();
+
+        Ok((n, p))
     }
 }
 

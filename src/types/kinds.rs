@@ -4,6 +4,7 @@ use core::str::FromStr;
 /// Kind identifies the type of the of the obvject
 #[derive(PartialEq, Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct Kind(pub u16);
 
 impl Kind {
@@ -70,6 +71,7 @@ pub enum KindError {
 #[derive(PartialEq, Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "strum", derive(strum_macros::EnumString))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum PageKind {
     Generic,
     Peer,
@@ -111,6 +113,7 @@ impl Into<Kind> for PageKind {
 #[derive(PartialEq, Debug, Clone, Copy)]
 #[cfg_attr(feature = "strum_macros", derive(strum_macros::EnumString))]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum MessageKind {
     Hello,
     Ping,
@@ -194,6 +197,7 @@ impl Into<Kind> for MessageKind {
 
 #[derive(PartialEq, Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum DataKind {
     Generic,
     Iot,

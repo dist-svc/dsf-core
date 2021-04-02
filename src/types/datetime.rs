@@ -5,6 +5,7 @@ use chrono::{NaiveDateTime, TimeZone, Utc};
 /// Internal UTC DateTime with second resolution
 #[derive(PartialEq, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct DateTime(u64);
 
 impl DateTime {

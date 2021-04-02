@@ -21,8 +21,9 @@ pub use info::PageInfo;
 //pub type PageBuilder = BaseBuilder;
 
 /// High level description of a database page
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct Page {
     // Page ID
     pub id: Id,

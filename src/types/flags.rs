@@ -2,6 +2,7 @@ bitflags! {
 
     /// Page and Message Flags.
     #[derive(Default)]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
     pub struct Flags: u16 {
         const SECONDARY       = (1 << 0);

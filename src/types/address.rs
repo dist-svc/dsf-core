@@ -7,6 +7,7 @@ pub type Ipv6 = [u8; 16];
 /// no_std compatible IPv4/6 address storage
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Ip {
     V4(Ipv4),
     V6(Ipv6),
@@ -14,6 +15,7 @@ pub enum Ip {
 /// no_std compatible socket IPv4/6 address (IP and Port)
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct Address {
     pub ip: Ip,
     pub port: u16,
@@ -60,6 +62,7 @@ impl From<AddressV6> for Address {
 /// no_std compatible socket IPv4 address (IP and Port)
 #[derive(Debug, Copy, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct AddressV4 {
     pub ip: Ipv4,
     pub port: u16,
@@ -88,6 +91,7 @@ impl Into<SocketAddrV4> for AddressV4 {
 /// no_std compatible socket IPv6 address (IP and Port)
 #[derive(Debug, Copy, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct AddressV6 {
     pub ip: Ipv6,
     pub port: u16,

@@ -2,6 +2,7 @@ use crate::types::{Id, PublicKey};
 
 #[derive(Debug, PartialEq, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum PageInfo {
     Primary(Primary),
     Secondary(Secondary),
@@ -48,12 +49,14 @@ impl PageInfo {
 
 #[derive(Debug, PartialEq, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct Primary {
     pub pub_key: PublicKey,
 }
 
 #[derive(Debug, PartialEq, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct Secondary {
     pub peer_id: Id,
 }

@@ -85,6 +85,7 @@ pub use self::address::{Address, AddressV4, AddressV6, Ip};
 macro_rules! arr {
     ($name:ident, $len:expr) => {
         #[derive(Clone)]
+        #[cfg_attr(feature = "defmt", derive(defmt::Format))]
         pub struct $name([u8; $len]);
 
         impl AsRef<[u8]> for $name {
