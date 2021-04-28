@@ -100,6 +100,9 @@ pub struct DataOptions {
 
     /// Private options attached to the data object
     pub private_options: Vec<Options>,
+
+    /// Do not attach last signature to object
+    pub no_last_sig: bool,
 }
 
 impl Default for DataOptions {
@@ -111,6 +114,7 @@ impl Default for DataOptions {
             expiry: None,
             public_options: vec![],
             private_options: vec![],
+            no_last_sig: false,
         }
     }
 }
@@ -231,13 +235,18 @@ impl Publisher for Service {
             ..Default::default()
         };
 
-        let page_options = PageOptions {
+        let mut page_options = PageOptions {
             public_options: options.public_options,
             private_options: PrivateOptions::Cleartext(options.private_options),
+            //previous_sig: self.last_sig.clone(),
             #[cfg(feature = "std")]
             issued: Some(SystemTime::now().into()),
             ..Default::default()
         };
+
+        if !options.no_last_sig {
+            page_options.previous_sig = self.last_sig.clone();
+        }
 
         let mut p = Page::new(
             self.id.clone(),

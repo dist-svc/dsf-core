@@ -130,7 +130,10 @@ pub enum NewBody<T: ImmutableData> {
 impl Body {
     /// Decrypt an object body with the provided secret key
     pub fn decrypt(&mut self, secret_key: Option<&SecretKey>) -> Result<(), Error> {
+        trace!("Attempting to decrypt: {:?}", self);
+
         let body = match (&self, &secret_key) {
+            (NewBody::None, _) => return Ok(()),
             (NewBody::Cleartext(b), _) => b.to_vec(),
             (NewBody::Encrypted(e), Some(sk)) => {
                 let mut d = e.to_vec();

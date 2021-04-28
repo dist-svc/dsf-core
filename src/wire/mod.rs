@@ -142,7 +142,7 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
             _ => {
                 warn!(
                     "Missing public key for message: {:?} signing id: {:?}",
-                    id, signing_id
+                    header.index(), signing_id
                 );
                 None
             }

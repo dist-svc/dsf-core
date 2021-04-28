@@ -8,9 +8,11 @@ pub struct PublishOptions {}
 
 pub trait Net {
     /// Generate a protocol request object from a request message
+    #[deprecated]
     fn build_request(&self, request_id: u16, kind: RequestKind, flags: Flags) -> Base;
 
     /// Generate a protocol response object from a response message (and it's associated request)
+    #[deprecated]
     fn build_response(&self, request_id: u16, resp: ResponseKind, flags: Flags) -> Base;
 
     /// Encode and sign a message

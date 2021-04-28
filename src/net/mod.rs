@@ -133,7 +133,7 @@ impl Message {
         } else if kind.is_response() {
             Ok(Message::Response(Response::convert(base, key_source)?))
         } else {
-            error!("Error converting base object of kind {:?} to message", kind);
+            debug!("Error converting base object of kind {:?} to message", kind);
             Err(Error::InvalidMessageType)
         }
     }
