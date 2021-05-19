@@ -102,7 +102,8 @@ pub mod option_kinds {
     pub const EXPIRY: u16 = 0x0008; // EXPIRY option defines object expiry time
     pub const LIMIT: u16 = 0x0009; // LIMIT option defines maximum number of objects to return
     pub const META: u16 = 0x000a; // META option supports generic metadata key:value pairs
-
+    pub const BUILDING: u16 = 0x000b; // Building name / number (string)
+    pub const ROOM: u16 = 0x000c;     // Room name / number (string)
     pub const APP: u16 = 0x8000; // APP flag indictates option is application specific and should not be parsed here
 }
 

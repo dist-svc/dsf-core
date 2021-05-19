@@ -46,6 +46,7 @@ pub enum RequestKind {
 
     Register(Id, Vec<Page>),
     Unregister(Id),
+    Discover,
 }
 
 impl Request {
@@ -165,6 +166,7 @@ impl Request {
 
                 RequestKind::Unregister(id)
             }
+            MessageKind::Discover => RequestKind::Discover,
             _ => {
                 error!(
                     "No handler for converting base object of kind {:?} to request message",
@@ -260,6 +262,10 @@ impl Into<Base> for Request {
             RequestKind::Unregister(id) => {
                 kind = MessageKind::Unregister;
                 body = id.to_vec();
+            }
+            RequestKind::Discover => {
+                kind = MessageKind::Discover;
+                body = vec![];
             }
         }
 

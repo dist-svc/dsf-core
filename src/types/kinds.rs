@@ -132,6 +132,7 @@ pub enum MessageKind {
     ValuesFound,
     NoResult,
     PullData,
+    Discover,
 }
 
 impl TryFrom<Kind> for MessageKind {
@@ -153,6 +154,7 @@ impl TryFrom<Kind> for MessageKind {
                 kind_flags::PUSH_DATA => MessageKind::PushData,
                 kind_flags::REGISTER => MessageKind::Register,
                 kind_flags::UNREGISTER => MessageKind::Unregister,
+                kind_flags::DISCOVER => MessageKind::Discover,
                 _ => return Err(KindError::Unrecognized(v.0)),
             },
             kind_flags::RESPONSE_FLAGS => match v.0 {
@@ -184,6 +186,7 @@ impl Into<Kind> for MessageKind {
             MessageKind::PushData => kind_flags::PUSH_DATA,
             MessageKind::Register => kind_flags::REGISTER,
             MessageKind::Unregister => kind_flags::UNREGISTER,
+            MessageKind::Discover => kind_flags::DISCOVER,
 
             MessageKind::Status => kind_flags::STATUS,
             MessageKind::NodesFound => kind_flags::NODES_FOUND,
@@ -273,6 +276,7 @@ pub mod kind_flags {
     pub const UNSUBSCRIBE: u16 = 0x0008 | REQUEST_FLAGS;
     pub const REGISTER: u16 = 0x0009 | REQUEST_FLAGS;
     pub const UNREGISTER: u16 = 0x000a | REQUEST_FLAGS;
+    pub const DISCOVER: u16 = 0x000b | REQUEST_FLAGS;
 
     pub const RESPONSE_FLAGS: u16 = 0b0100_0000_0000_0000;
     pub const STATUS: u16 = 0x0000 | RESPONSE_FLAGS;
@@ -319,9 +323,12 @@ mod tests {
             (MessageKind::FindValues, Kind(0b0010_0000_0000_0011)),
             (MessageKind::Store, Kind(0b0010_0000_0000_0100)),
             (MessageKind::Subscribe, Kind(0b0010_0000_0000_0101)),
-            (MessageKind::Unsubscribe, Kind(0b0010_0000_0000_1000)),
             (MessageKind::Query, Kind(0b0010_0000_0000_0110)),
             (MessageKind::PushData, Kind(0b0010_0000_0000_0111)),
+            (MessageKind::Unsubscribe, Kind(0b0010_0000_0000_1000)),
+            (MessageKind::Register, Kind(0b0010_0000_0000_1001)),
+            (MessageKind::Unregister, Kind(0b0010_0000_0000_1010)),
+            (MessageKind::Discover, Kind(0b0010_0000_0000_1011)),
             (MessageKind::Status, Kind(0b0100_0000_0000_0000)),
             (MessageKind::NoResult, Kind(0b0100_0000_0000_0001)),
             (MessageKind::NodesFound, Kind(0b0100_0000_0000_0010)),
