@@ -51,9 +51,11 @@ fn validate(
 
     // Otherwise use public key
     } else {
+        
         // Check ID matches public key
-        if id != &crypto::hash(&keys.pub_key).unwrap() {
-            error!("Public key mismatch for object from {:?}", id);
+        let h = crypto::hash(&keys.pub_key).unwrap();
+        if id != &h {
+            error!("Public key mismatch for object from {:?} ({})", id, h);
             return Err(Error::KeyIdMismatch);
         }
 
@@ -152,7 +154,7 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
         match (verified, keys) {
             (false, Some(keys)) => {
                 // Check signature
-                verified = validate(&keys, &id, kind, flags, &signature, container.signed())?;
+                verified = validate(&keys, &signing_id, kind, flags, &signature, container.signed())?;
 
                 // Stop processing on verification failure
                 if !verified {

@@ -140,7 +140,7 @@ impl Request {
 
                 // Perhaps i should not fetch pages until later..?
                 // And also sign them earlier..?
-                let pages = Page::decode_pages(&body[ID_LEN..], key_source).unwrap();
+                let pages = Page::decode_pages(&body[ID_LEN..], key_source)?;
 
                 RequestKind::Store(id, pages)
             }
@@ -148,7 +148,7 @@ impl Request {
                 let mut id = Id::default();
                 id.copy_from_slice(&body[0..ID_LEN]);
 
-                let pages = Page::decode_pages(&body[ID_LEN..], key_source).unwrap();
+                let pages = Page::decode_pages(&body[ID_LEN..], key_source)?;
 
                 RequestKind::PushData(id, pages)
             }
@@ -156,7 +156,7 @@ impl Request {
                 let mut id = Id::default();
                 id.copy_from_slice(&body[0..ID_LEN]);
 
-                let pages = Page::decode_pages(&body[ID_LEN..], key_source).unwrap();
+                let pages = Page::decode_pages(&body[ID_LEN..], key_source)?;
 
                 RequestKind::Register(id, pages)
             }

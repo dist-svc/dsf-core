@@ -211,7 +211,7 @@ impl Response {
                 let mut id = Id::default();
                 id.copy_from_slice(&body[0..ID_LEN]);
 
-                let pages = Page::decode_pages(&body[ID_LEN..], key_source).unwrap();
+                let pages = Page::decode_pages(&body[ID_LEN..], key_source)?;
 
                 ResponseKind::ValuesFound(id, pages)
             }
@@ -219,7 +219,7 @@ impl Response {
                 let mut id = Id::default();
                 id.copy_from_slice(&body[0..ID_LEN]);
 
-                let pages = Page::decode_pages(&body[ID_LEN..], key_source).unwrap();
+                let pages = Page::decode_pages(&body[ID_LEN..], key_source)?;
 
                 ResponseKind::PullData(id, pages)
             }

@@ -220,7 +220,13 @@ impl Page {
 
         while i < buff.len() {
             // TODO: validate signatures against existing services!
-            let (b, n) = Base::parse(&buff[i..], &key_source.cached(last_key.clone()))?;
+            let (b, n) = match Base::parse(&buff[i..], &key_source.cached(last_key.clone())){
+                Ok(v) => v,
+                Err(e) => {
+                    debug!("Error parsing base message: {:?}", e);
+                    return Err(e);
+                }
+            };
 
             i += n;
 
@@ -427,4 +433,9 @@ impl TryFrom<Base> for Page {
             _extend: (),
         })
     }
+}
+
+#[cfg(test)]
+mod test {
+    
 }
