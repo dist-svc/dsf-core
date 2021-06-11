@@ -242,7 +242,7 @@ impl<C: AsRef<[Options]>, E: ImmutableData> EncodeEncrypted for OptionsList<C, E
         secret_key: Option<&SecretKey>,
     ) -> Result<usize, Error> {
         let n = match self {
-            OptionsList::Cleartext(opts) => {
+            OptionsList::Cleartext(opts) if opts.as_ref().len() > 0 => {
                 // Encode options into buffer
                 let mut n = Options::encode_vec(opts.as_ref(), buf.as_mut())?;
 
@@ -261,7 +261,7 @@ impl<C: AsRef<[Options]>, E: ImmutableData> EncodeEncrypted for OptionsList<C, E
                 b[..e.len()].copy_from_slice(e.as_ref());
                 e.as_ref().len()
             }
-            OptionsList::None => 0,
+            _ => 0,
         };
 
         Ok(n)
