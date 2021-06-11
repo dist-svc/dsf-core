@@ -34,6 +34,7 @@ pub enum Options {
     Expiry(Expiry),
     Limit(Limit),
     Metadata(Metadata),
+    Coord(Coordinates),
 }
 
 /// Generic list of options over generic buffers
@@ -104,6 +105,7 @@ pub mod option_kinds {
     pub const META: u16 = 0x000a; // META option supports generic metadata key:value pairs
     pub const BUILDING: u16 = 0x000b; // Building name / number (string)
     pub const ROOM: u16 = 0x000c;     // Room name / number (string)
+    pub const COORD: u16 = 0x000d;    // Coordinates (lat, lng, alt)
     pub const APP: u16 = 0x8000; // APP flag indictates option is application specific and should not be parsed here
 }
 
@@ -256,6 +258,10 @@ impl Parse for Options {
                 let (opt, n) = Limit::parse(d)?;
                 Ok((Options::Limit(opt), n + OPTION_HEADER_LEN))
             }
+            option_kinds::COORD => {
+                let (opt, n) = Coordinates::parse(d)?;
+                Ok((Options::Coord(opt), n + OPTION_HEADER_LEN))
+            }
             _ => {
                 // Unrecognised option types (and None) are skipped
                 Ok((Options::None, OPTION_HEADER_LEN + option_len))
@@ -280,6 +286,7 @@ impl Encode for Options {
             Options::Issued(ref o) => Ok(o.encode(data)?),
             Options::Expiry(ref o) => Ok(o.encode(data)?),
             Options::Limit(ref o) => Ok(o.encode(data)?),
+            Options::Coord(ref o) => Ok(o.encode(data)?),
             _ => {
                 warn!("Option encoding not implemented for object {:?}", *self);
                 unimplemented!();
@@ -725,6 +732,52 @@ impl Encode for Limit {
         Ok(8)
     }
 }
+
+#[derive(PartialEq, Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub struct Coordinates {
+    pub lat: f32,
+    pub lng: f32,
+    pub alt: f32,
+}
+
+impl Coordinates {
+    pub fn new(lat: f32, lng: f32, alt: f32) -> Self {
+        Self { lat, lng, alt }
+    }
+}
+
+impl Parse for Coordinates {
+    type Output = Self;
+    type Error = Error;
+
+    fn parse(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
+        Ok((
+            Self {
+                lat: NetworkEndian::read_f32(&data[0..]),
+                lng: NetworkEndian::read_f32(&data[4..]),
+                alt: NetworkEndian::read_f32(&data[8..]),
+            },
+            12,
+        ))
+    }
+}
+
+impl Encode for Coordinates {
+    type Error = Error;
+
+    fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
+        NetworkEndian::write_u16(&mut data[0..2], option_kinds::COORD);
+        NetworkEndian::write_u16(&mut data[2..4], 12);
+        NetworkEndian::write_f32(&mut data[4..8], self.lat);
+        NetworkEndian::write_f32(&mut data[8..12], self.lng);
+        NetworkEndian::write_f32(&mut data[12..16], self.alt);
+
+        Ok(8)
+    }
+}
+
 
 #[cfg(test)]
 mod tests {

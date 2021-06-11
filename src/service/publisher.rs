@@ -149,6 +149,8 @@ impl Publisher for Service {
                     .into(),
             ),
             previous_sig: self.last_sig.clone(),
+            public_options: self.public_options.clone(),
+            private_options: self.private_options.clone(),
             ..Default::default()
         };
 
