@@ -39,6 +39,7 @@ pub enum RequestKind {
     FindValue(Id),
     Store(Id, Vec<Page>),
 
+    Locate(Id),
     Subscribe(Id),
     Unsubscribe(Id),
     Query(Id),
@@ -133,6 +134,11 @@ impl Request {
                 let mut id = Id::default();
                 id.copy_from_slice(&body[0..ID_LEN]);
                 RequestKind::Query(id)
+            }
+            MessageKind::Locate => {
+                let mut id = Id::default();
+                id.copy_from_slice(&body[0..ID_LEN]);
+                RequestKind::Locate(id)
             }
             MessageKind::Store => {
                 let mut id = Id::default();
@@ -237,6 +243,10 @@ impl Into<Base> for Request {
             }
             RequestKind::Query(id) => {
                 kind = MessageKind::Query;
+                body = id.to_vec();
+            }
+            RequestKind::Locate(id) => {
+                kind = MessageKind::Locate;
                 body = id.to_vec();
             }
             RequestKind::PushData(id, pages) => {

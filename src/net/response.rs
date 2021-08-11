@@ -40,6 +40,7 @@ pub enum ResponseKind {
 mod status {
     pub const OK: u32 = 0x0000_0000;
     pub const INVALID_REQUEST: u32 = 0x0000_0001;
+    pub const FAILED: u32 = 0x0000_0010;
 }
 
 /// Status response codes
@@ -48,6 +49,7 @@ mod status {
 pub enum Status {
     Ok,
     InvalidRequest,
+    Failed,
     Unknown(u32),
 }
 
@@ -56,6 +58,7 @@ impl From<u32> for Status {
         match v {
             status::OK => Status::Ok,
             status::INVALID_REQUEST => Status::InvalidRequest,
+            status::FAILED => Status::Failed,
             _ => Status::Unknown(v),
         }
     }
@@ -66,6 +69,7 @@ impl Into<u32> for Status {
         match self {
             Status::Ok => status::OK,
             Status::InvalidRequest => status::INVALID_REQUEST,
+            Status::Failed => status::FAILED,
             Status::Unknown(v) => v,
         }
     }

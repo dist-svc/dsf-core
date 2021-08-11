@@ -13,5 +13,8 @@ bitflags! {
 
         const SYMMETRIC_MODE = (1 << 4);
         const SYMMETRIC_DIR = (1 << 5);
+
+        /// Signal a device is constrained (requests are delegation, not for use as DHT peer)
+        const CONSTRAINED = (1 << 6);
     }
 }

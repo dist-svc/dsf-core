@@ -20,7 +20,8 @@ pub use info::PageInfo;
 //pub type PageBuilder = BaseBuilder;
 
 /// High level description of a database page
-#[derive(Debug, Clone)]
+#[derive(derivative::Derivative, Clone)]
+#[derivative(Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct Page {
@@ -54,12 +55,13 @@ pub struct Page {
     pub verified: bool,
 
     // Raw (encoded) data
+    #[derivative(Debug="ignore")]
     pub raw: Option<Vec<u8>>,
 
     _extend: (),
 }
-
-#[derive(Debug, Clone, PartialEq)]
+#[derive(derivative::Derivative, Clone, PartialEq)]
+#[derivative(Debug)]
 pub struct PageOptions {
     // Page issued time
     pub issued: Option<DateTime>,
@@ -75,7 +77,9 @@ pub struct PageOptions {
     pub previous_sig: Option<Signature>,
     // Signature (if signed or decoded)
     pub signature: Option<Signature>,
+
     // Raw (encoded) data
+    #[derivative(Debug="ignore")]
     pub raw: Option<Vec<u8>>,
 }
 

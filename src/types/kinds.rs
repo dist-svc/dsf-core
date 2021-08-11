@@ -126,6 +126,7 @@ pub enum MessageKind {
     PushData,
     Register,
     Unregister,
+    Locate,
 
     Status,
     NodesFound,
@@ -155,6 +156,7 @@ impl TryFrom<Kind> for MessageKind {
                 kind_flags::REGISTER => MessageKind::Register,
                 kind_flags::UNREGISTER => MessageKind::Unregister,
                 kind_flags::DISCOVER => MessageKind::Discover,
+                kind_flags::LOCATE => MessageKind::Locate,
                 _ => return Err(KindError::Unrecognized(v.0)),
             },
             kind_flags::RESPONSE_FLAGS => match v.0 {
@@ -187,6 +189,7 @@ impl Into<Kind> for MessageKind {
             MessageKind::Register => kind_flags::REGISTER,
             MessageKind::Unregister => kind_flags::UNREGISTER,
             MessageKind::Discover => kind_flags::DISCOVER,
+            MessageKind::Locate => kind_flags::LOCATE,
 
             MessageKind::Status => kind_flags::STATUS,
             MessageKind::NodesFound => kind_flags::NODES_FOUND,
@@ -277,6 +280,7 @@ pub mod kind_flags {
     pub const REGISTER: u16 = 0x0009 | REQUEST_FLAGS;
     pub const UNREGISTER: u16 = 0x000a | REQUEST_FLAGS;
     pub const DISCOVER: u16 = 0x000b | REQUEST_FLAGS;
+    pub const LOCATE: u16 = 0x000c | REQUEST_FLAGS;
 
     pub const RESPONSE_FLAGS: u16 = 0b0100_0000_0000_0000;
     pub const STATUS: u16 = 0x0000 | RESPONSE_FLAGS;
