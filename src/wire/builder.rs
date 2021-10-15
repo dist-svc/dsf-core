@@ -5,15 +5,16 @@ use log::trace;
 
 use pretty_hex::*;
 
-use crate::base::header::{offsets, Header, HEADER_LEN};
-use crate::base::{Encode, NewBody};
+use crate::base::{Header};
+use crate::base::{Encode};
 use crate::crypto::{self, sk_encrypt, sk_reencrypt};
 use crate::error::Error;
-use crate::options::{Options, OptionsList};
+use crate::options::{Options};
 use crate::types::*;
 
 use super::container::Container;
 use super::header::WireHeader;
+use super::{offsets, HEADER_LEN};
 
 /// Init state, no data set
 pub struct Init;

@@ -9,7 +9,7 @@ use crate::error::Error;
 use crate::options::Options;
 use crate::page::Page;
 use crate::types::*;
-use crate::KeySource;
+use crate::keys::KeySource;
 
 use super::Common;
 use super::BUFF_SIZE;

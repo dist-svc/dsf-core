@@ -1,5 +1,6 @@
 use crate::types::{Id, PublicKey};
 
+/// Information about a type of page
 #[derive(Debug, PartialEq, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]

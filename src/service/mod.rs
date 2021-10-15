@@ -3,32 +3,31 @@
 //! `Publisher`, `Subscriber`, and `Net` traits provide functionality for publishing services,
 //! subscribing to services, and sending messages respectively.
 
-use crate::base::{Body, PrivateOptions};
+use crate::base::{Body, MaybeEncrypted};
 use crate::crypto;
 use crate::error::Error;
 use crate::options::Options;
-use crate::prelude::Parse;
 use crate::types::*;
 
 #[cfg(feature = "alloc")]
 use alloc::prelude::v1::*;
 
-pub mod kinds;
-
+mod kinds;
+pub use kinds::*;
 // Service extensions
-pub mod publisher;
-pub use publisher::{DataOptions, Publisher, SecondaryOptions};
+mod publisher;
+pub use publisher::{Publisher, DataOptions, SecondaryOptions};
 
-pub mod subscriber;
+mod subscriber;
 pub use subscriber::Subscriber;
 
-pub mod net;
+mod net;
 pub use net::Net;
 
-pub mod builder;
+mod builder;
 pub use builder::ServiceBuilder;
 
-use crate::Keys;
+use crate::keys::Keys;
 
 /// Generic Service Type.
 /// This provides the basis for all services in DSR.
@@ -49,7 +48,7 @@ pub struct Service {
     body: Body,
 
     public_options: Vec<Options>,
-    private_options: PrivateOptions,
+    private_options: MaybeEncrypted<Vec<Options>>,
 
     public_key: PublicKey,
     private_key: Option<PrivateKey>,
@@ -78,7 +77,7 @@ impl Default for Service {
             data_index: 0,
             body: Body::None,
             public_options: vec![],
-            private_options: PrivateOptions::None,
+            private_options: MaybeEncrypted::None,
             public_key,
             private_key: Some(private_key),
             encrypted: false,
@@ -98,7 +97,7 @@ impl Service {
     /// as well as a reset of the data_index.
     pub fn update<U>(&mut self, update_fn: U) -> Result<(), Error>
     where
-        U: Fn(&mut Body, &mut Vec<Options>, &mut PrivateOptions),
+        U: Fn(&mut Body, &mut Vec<Options>, &mut MaybeEncrypted<Vec<Options>>),
     {
         if self.private_key().is_none() {
             return Err(Error::NoPrivateKey);
@@ -172,7 +171,7 @@ mod test {
 
     #[test]
     fn test_service() {
-        let _ = simplelog::SimpleLogger::init(simplelog::LevelFilter::Debug, simplelog::Config::default());
+        //let _ = simplelog::SimpleLogger::init(simplelog::LevelFilter::Debug, simplelog::Config::default());
 
         let socket = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8080);
 

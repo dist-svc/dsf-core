@@ -28,7 +28,7 @@ impl Encode for String {
         let value = self.as_bytes();
 
         NetworkEndian::write_u16(&mut data[0..], value.len() as u16);
-        &mut data[2..value.len() + 2].copy_from_slice(value);
+        data[2..value.len() + 2].copy_from_slice(value);
 
         Ok(value.len() + 2)
     }
@@ -51,7 +51,7 @@ impl Encode for Vec<u8> {
 
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
         NetworkEndian::write_u16(&mut data[..], self.len() as u16);
-        &mut data[2..self.len() + 2].copy_from_slice(self);
+        data[2..self.len() + 2].copy_from_slice(self);
 
         Ok(self.len() + 2)
     }

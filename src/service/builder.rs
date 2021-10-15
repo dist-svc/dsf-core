@@ -1,7 +1,7 @@
 #[cfg(feature = "alloc")]
 use alloc::prelude::v1::*;
 
-use crate::base::{Body, PrivateOptions};
+use crate::base::{Body, MaybeEncrypted};
 use crate::crypto;
 use crate::error::Error;
 use crate::options::Options;
@@ -155,7 +155,7 @@ impl ServiceBuilder {
             data_index: 0,
             body: self.body,
             public_options: self.public_options,
-            private_options: PrivateOptions::Cleartext(self.private_options),
+            private_options: MaybeEncrypted::Cleartext(self.private_options),
             public_key,
             private_key,
             encrypted: self.encrypted,

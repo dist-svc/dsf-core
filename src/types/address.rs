@@ -1,7 +1,10 @@
 #[cfg(feature = "std")]
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
 
+/// Internal IPv4 address type
 pub type Ipv4 = [u8; 4];
+
+/// Internal IPv6 address type
 pub type Ipv6 = [u8; 16];
 
 /// no_std compatible IPv4/6 address storage

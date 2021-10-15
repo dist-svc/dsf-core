@@ -1,11 +1,16 @@
+//! Error types for DSF Core
+
 #[cfg(feature = "std")]
 use std::io::Error as IoError;
 #[cfg(feature = "std")]
 use std::time::SystemTimeError;
 
+/// Error enum represents possible core errors
+/// 
+/// For serialisation add `serde`, `thiserror`, `strum`, and/or `defmt` features
 #[derive(PartialEq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-#[cfg_attr(feature = "std", derive(thiserror::Error))]
+#[cfg_attr(feature = "thiserror", derive(thiserror::Error))]
 #[cfg_attr(feature = "strum", derive(strum_macros::Display))]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Error {

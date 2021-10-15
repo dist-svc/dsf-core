@@ -2,25 +2,9 @@
 
 use crate::types::{Flags, Kind};
 
-/// Header object length
-pub const HEADER_LEN: usize = 16;
-
-/// Offsets for fixed fields in the protocol header
-pub mod offsets {
-    pub const PROTO_VERSION: usize = 0;
-    pub const APPLICATION_ID: usize = 2;
-    pub const OBJECT_KIND: usize = 4;
-    pub const FLAGS: usize = 6;
-    pub const INDEX: usize = 8;
-    pub const DATA_LEN: usize = 10;
-    pub const PRIVATE_OPTIONS_LEN: usize = 12;
-    pub const PUBLIC_OPTIONS_LEN: usize = 14;
-    pub const ID: usize = 16;
-    pub const BODY: usize = 48;
-}
-
 /// Header encodes information for a given page in the database.
-/// Wire encoding and decoding exists in `wire::header`
+/// 
+/// Wire encoding and decoding exists in [`crate::wire::WireHeader`]
 #[derive(Clone, PartialEq, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]

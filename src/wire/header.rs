@@ -1,7 +1,8 @@
 use byteorder::{ByteOrder, NetworkEndian};
 
-use crate::base::header::{offsets, Header};
-use crate::types::{Flags, ImmutableData, Kind, MutableData, SECRET_KEY_TAG_LEN};
+use crate::base::{Header};
+use crate::types::{Flags, ImmutableData, Kind, MutableData};
+use super::{offsets, SECRET_KEY_TAG_LEN};
 
 /// Header generic over arbitrary storage for wire encoding
 // TODO: decide what to do with the high / low level impls
@@ -167,9 +168,9 @@ impl<T: MutableData> WireHeader<T> {
 mod tests {
 
     use super::*;
+    use crate::wire::HEADER_LEN;
 
-    use crate::base::header::{Header, HEADER_LEN};
-
+    use crate::base::{Header};
     use crate::types::PageKind;
 
     #[test]

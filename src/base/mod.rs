@@ -1,19 +1,24 @@
 //! Base module provides a low-level structure for data encoding and decoding
 
 use core::marker::PhantomData;
+use core::fmt::Debug;
 
-pub mod header;
+mod header;
 pub use header::*;
 
-pub mod body;
+mod body;
 pub use body::*;
+
+use crate::types::ImmutableData;
 
 /// Parse trait for building parse-able objects
 pub trait Parse {
     /// Output type returned from parsing
     type Output;
+    
     /// Error type returned on parse error
     type Error;
+
     /// Parse method consumes a slice and returns an object and the remaining slice.
     fn parse(buff: &[u8]) -> Result<(Self::Output, usize), Self::Error>;
 
@@ -86,5 +91,34 @@ pub trait Encode {
         }
 
         Ok(index)
+    }
+}
+
+/// Container for objects / collections that may be encrypted
+#[derive(PartialEq, Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub enum MaybeEncrypted<O: Debug = Vec<u8>, E: ImmutableData = Vec<u8>> {
+    Cleartext(O),
+    Encrypted(E),
+    None,
+}
+
+impl From<Vec<u8>> for MaybeEncrypted<Vec<u8>, Vec<u8>> {
+    fn from(o: Vec<u8>) -> Self {
+        if o.len() > 0 {
+            MaybeEncrypted::Cleartext(o)
+        } else {
+            MaybeEncrypted::None
+        }
+    }
+}
+
+impl From<Option<MaybeEncrypted>> for MaybeEncrypted {
+    fn from(o: Option<MaybeEncrypted>) -> Self {
+        match o {
+            Some(b) => b,
+            None => MaybeEncrypted::None,
+        }
     }
 }

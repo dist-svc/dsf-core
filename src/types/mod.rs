@@ -7,6 +7,7 @@ use core::fmt;
 use core::hash::{Hash, Hasher};
 use core::ops::{Deref, DerefMut};
 use core::str::FromStr;
+use std::marker::PhantomData;
 
 #[cfg(feature = "serde")]
 use serde::de::{self, Visitor};
@@ -84,177 +85,164 @@ pub use self::datetime::DateTime;
 pub mod address;
 pub use self::address::{Address, AddressV4, AddressV6, Ip};
 
-macro_rules! arr {
-    ($name:ident, $len:expr) => {
-        #[derive(Clone)]
-        #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-        pub struct $name([u8; $len]);
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub struct  Array<const N: usize> ([u8; N]);
 
-        impl AsRef<[u8]> for $name {
-            fn as_ref(&self) -> &[u8] {
-                &self.0
-            }
-        }
 
-        impl AsMut<[u8]> for $name {
-            fn as_mut(&mut self) -> &mut [u8] {
-                &mut self.0
-            }
-        }
+pub type Array32 = Array<32>;
+pub type Array64 = Array<64>;
+pub type Array40 = Array<40>;
 
-        impl Deref for $name {
-            type Target = [u8];
 
-            fn deref(&self) -> &[u8] {
-                &self.0
-            }
-        }
-
-        impl DerefMut for $name {
-            fn deref_mut(&mut self) -> &mut [u8] {
-                &mut self.0
-            }
-        }
-
-        impl Default for $name {
-            fn default() -> Self {
-                $name([0u8; $len])
-            }
-        }
-
-        impl Ord for $name {
-            fn cmp(&self, other: &Self) -> Ordering {
-                self.0.cmp(&other.0)
-            }
-        }
-
-        impl PartialOrd for $name {
-            fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-                Some(self.cmp(other))
-            }
-        }
-
-        impl From<&[u8]> for $name {
-            fn from(data: &[u8]) -> Self {
-                let mut a = [0u8; $len];
-                a.copy_from_slice(data);
-                a.into()
-            }
-        }
-
-        impl From<[u8; $len]> for $name {
-            fn from(data: [u8; $len]) -> Self {
-                $name(data)
-            }
-        }
-
-        impl Into<[u8; $len]> for $name {
-            fn into(self) -> [u8; $len] {
-                self.0
-            }
-        }
-
-        impl PartialEq<$name> for $name {
-            fn eq(&self, other: &Self) -> bool {
-                self.0.as_ref() == other.0.as_ref()
-            }
-        }
-
-        impl PartialEq<[u8; $len]> for $name {
-            fn eq(&self, other: &[u8; $len]) -> bool {
-                self.0.as_ref() == other.as_ref()
-            }
-        }
-
-        impl Hash for $name {
-            fn hash<H: Hasher>(&self, state: &mut H) {
-                self.0.hash(state)
-            }
-        }
-
-        impl Eq for $name {}
-
-        impl fmt::Display for $name {
-            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                let r: &[u8] = &self.0;
-                let encoded = base64::encode_config(&r, base64::URL_SAFE);
-                write!(f, "{}", encoded)?;
-                Ok(())
-            }
-        }
-
-        impl fmt::Debug for $name {
-            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                fmt::Display::fmt(self, f)
-            }
-        }
-
-        impl fmt::UpperHex for $name {
-            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                for i in 0..self.0.len() {
-                    if i == 0 {
-                        write!(f, "{:02X}", self.0[i])?;
-                    } else {
-                        write!(f, ":{:02X}", self.0[i])?;
-                    }
-                }
-                Ok(())
-            }
-        }
-
-        impl FromStr for $name {
-            type Err = base64::DecodeError;
-
-            fn from_str(s: &str) -> Result<Self, Self::Err> {
-                let mut data = [0u8; $len];
-                let decoded = base64::decode_config(s, base64::URL_SAFE)?;
-                data.clone_from_slice(&decoded);
-                Ok(data.into())
-            }
-        }
-
-        #[cfg(feature = "serde")]
-        impl serde::Serialize for $name {
-            fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-            where
-                S: Serializer,
-            {
-                let encoded = self.to_string();
-                serializer.serialize_str(&encoded)
-            }
-        }
-
-        #[cfg(feature = "serde")]
-        impl<'de> serde::Deserialize<'de> for $name {
-            fn deserialize<D>(deserializer: D) -> Result<$name, D::Error>
-            where
-                D: Deserializer<'de>,
-            {
-                struct B64Visitor;
-
-                impl<'de> Visitor<'de> for B64Visitor {
-                    type Value = $name;
-
-                    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                        formatter.write_str("a base64 encoded string")
-                    }
-
-                    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
-                    where
-                        E: de::Error,
-                    {
-                        $name::from_str(value).map_err(|_e| de::Error::custom("decoding b64"))
-                    }
-                }
-
-                deserializer.deserialize_str(B64Visitor)
-            }
-        }
-    };
+impl <const N: usize> AsRef<[u8]> for Array<N> {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
 }
 
-arr!(Array32, 32);
-arr!(Array64, 64);
+impl <const N: usize> AsMut<[u8]> for Array<N> {
+    fn as_mut(&mut self) -> &mut [u8] {
+        &mut self.0
+    }
+}
+
+impl <const N: usize> Deref for Array<N> {
+    type Target = [u8];
+
+    fn deref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl <const N: usize> DerefMut for Array<N> {
+    fn deref_mut(&mut self) -> &mut [u8] {
+        &mut self.0
+    }
+}
+
+impl <const N: usize> Default for Array<N> {
+    fn default() -> Self {
+        Array([0u8; N])
+    }
+}
+
+impl <const N: usize> Ord for Array<N> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.0.cmp(&other.0)
+    }
+}
+
+impl <const N: usize> PartialOrd for Array<N> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl <const N: usize> From<&[u8]> for Array<N> {
+    fn from(data: &[u8]) -> Self {
+        let mut a = [0u8; N];
+        a.copy_from_slice(data);
+        a.into()
+    }
+}
+
+impl <const N: usize> From<[u8; N]> for Array<N> {
+    fn from(data: [u8; N]) -> Self {
+        Array(data)
+    }
+}
+
+impl <const N: usize> Into<[u8; N]> for Array<N> {
+    fn into(self) -> [u8; N] {
+        self.0
+    }
+}
+
+impl <const N: usize> PartialEq<[u8; N]> for Array<N> {
+    fn eq(&self, other: &[u8; N]) -> bool {
+        self.0.as_ref() == other.as_ref()
+    }
+}
+
+impl <const N: usize> Hash for Array<N> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.0.hash(state)
+    }
+}
+
+impl <const N: usize> Eq for Array<N> {}
+
+impl <const N: usize> fmt::Display for Array<N> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let r: &[u8] = &self.0;
+        let encoded = base64::encode_config(&r, base64::URL_SAFE);
+        write!(f, "{}", encoded)?;
+        Ok(())
+    }
+}
+
+impl <const N: usize> fmt::UpperHex for Array<N> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for i in 0..self.0.len() {
+            if i == 0 {
+                write!(f, "{:02X}", self.0[i])?;
+            } else {
+                write!(f, ":{:02X}", self.0[i])?;
+            }
+        }
+        Ok(())
+    }
+}
+
+impl <const N: usize> FromStr for Array<N> {
+    type Err = base64::DecodeError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut data = [0u8; N];
+        let decoded = base64::decode_config(s, base64::URL_SAFE)?;
+        data.clone_from_slice(&decoded);
+        Ok(data.into())
+    }
+}
+
+#[cfg(feature = "serde")]
+impl <const N: usize> serde::Serialize for Array<N> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let encoded = self.to_string();
+        serializer.serialize_str(&encoded)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de, const N: usize> serde::Deserialize<'de> for Array<N> {
+    fn deserialize<D>(deserializer: D) -> Result<Array<N>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct B64Visitor<T>(PhantomData<T>);
+
+        impl<'de, T: FromStr> Visitor<'de> for B64Visitor<T> {
+            type Value = T;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a base64 encoded string")
+            }
+
+            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                T::from_str(value).map_err(|_e| de::Error::custom("decoding b64"))
+            }
+        }
+
+        deserializer.deserialize_str(B64Visitor::<Array<N>>(PhantomData))
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -262,7 +250,7 @@ mod tests {
 
     #[test]
     fn encode_decode_array32() {
-        let a = Array32([0u8; 32]);
+        let a = Array::<32>([0u8; 32]);
 
         let b = a.to_string();
 

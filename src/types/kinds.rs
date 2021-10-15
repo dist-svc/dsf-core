@@ -61,7 +61,9 @@ impl Into<u16> for Kind {
     }
 }
 
+// Error parsing kind values
 #[derive(Clone, PartialEq, Debug, Copy)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum KindError {
     InvalidKind(u16),
     Unrecognized(u16),
@@ -111,7 +113,7 @@ impl Into<Kind> for PageKind {
 }
 
 #[derive(PartialEq, Debug, Clone, Copy)]
-#[cfg_attr(feature = "strum_macros", derive(strum_macros::EnumString))]
+#[cfg_attr(feature = "strum_macros", derive(strum_macros::EnumString, strum_macros::Display))]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum MessageKind {

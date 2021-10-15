@@ -6,12 +6,11 @@ use alloc::prelude::v1::*;
 
 use pretty_hex::*;
 
-use crate::base::{Base, Body, Header, PrivateOptions};
+use crate::base::{Base, Body, Header, MaybeEncrypted};
 use crate::crypto;
 use crate::error::Error;
-use crate::options::{Options, OptionsList};
+use crate::options::{Options};
 use crate::types::*;
-
 /// Header provides a low-cost header abstraction for encoding/decoding
 pub mod header;
 
@@ -23,7 +22,27 @@ pub use builder::Builder;
 pub mod container;
 pub use container::Container;
 
-use crate::{KeySource, Keys};
+use crate::keys::{KeySource, Keys};
+
+
+
+/// Header object length
+pub const HEADER_LEN: usize = 16;
+
+/// Offsets for fixed fields in the protocol header
+mod offsets {
+    pub const PROTO_VERSION: usize = 0;
+    pub const APPLICATION_ID: usize = 2;
+    pub const OBJECT_KIND: usize = 4;
+    pub const FLAGS: usize = 6;
+    pub const INDEX: usize = 8;
+    pub const DATA_LEN: usize = 10;
+    pub const PRIVATE_OPTIONS_LEN: usize = 12;
+    pub const PUBLIC_OPTIONS_LEN: usize = 14;
+    pub const ID: usize = 16;
+    pub const BODY: usize = 48;
+}
+
 
 /// Helper for validating signatures in symmetric or asymmetric modes
 fn validate(
@@ -207,8 +226,8 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
                 };
 
                 let opts = match opts.len() {
-                    0 => PrivateOptions::None,
-                    _ => PrivateOptions::Cleartext(opts)
+                    0 => MaybeEncrypted::None,
+                    _ => MaybeEncrypted::Cleartext(opts)
                 };
 
                 (body, opts, Some(tag.to_vec()))
@@ -225,8 +244,8 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
                 };
 
                 let opts = match container.private_options().len() {
-                    0 => PrivateOptions::None,
-                    _ => PrivateOptions::Encrypted(container.private_options().to_vec())
+                    0 => MaybeEncrypted::None,
+                    _ => MaybeEncrypted::Encrypted(container.private_options().to_vec())
                 };
 
                 (body, opts, Some(tag.to_vec()))
@@ -241,8 +260,8 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
                 };
 
                 let opts = match opts.len() {
-                    0 => PrivateOptions::None,
-                    _ => PrivateOptions::Cleartext(opts)
+                    0 => MaybeEncrypted::None,
+                    _ => MaybeEncrypted::Cleartext(opts)
                 };
 
                 (body, opts, None)
@@ -282,7 +301,7 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
 }
 
 impl<'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
-    pub fn encode(buff: T, base: &Base, keys: &Keys) -> (Self, usize) {
+    pub fn encode(buff: T, base: &Base, keys: &Keys) -> Result<(Self, usize), Error> {
         trace!("Encode for object: {:?}", base);
 
         // Setup base builder with header and ID
@@ -296,9 +315,9 @@ impl<'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
         };
 
         // Check encryption key exists if required
-        let encryption_key = match (flags.contains(Flags::ENCRYPTED), keys.sec_key.as_ref()) {
+        let _encryption_key = match (flags.contains(Flags::ENCRYPTED), keys.sec_key.as_ref()) {
             (true, Some(k)) => Some(k),
-            (true, None) => panic!("Attempted to encrypt object with no secret key"),
+            (true, None) => return Err(Error::NoSecretKey),
             _ => None,
         };
 
@@ -307,16 +326,16 @@ impl<'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
 
         // Append body
         let bb = match &base.body {
-            Body::Cleartext(c) => bb.body(c).unwrap(),
-            Body::Encrypted(e) => bb.body(e).unwrap(),
-            Body::None => bb.body(&[]).unwrap(),
+            MaybeEncrypted::Cleartext(c) => bb.body(c)?,
+            MaybeEncrypted::Encrypted(e) => bb.body(e)?,
+            MaybeEncrypted::None => bb.body(&[])?,
         };
         
         // Append private options
         let bb = match &base.private_options {
-            OptionsList::Cleartext(c) => bb.private_options(c).unwrap(),
-            OptionsList::Encrypted(e) => bb.private_options_raw(e).unwrap(),
-            OptionsList::None => bb.private_options(&[]).unwrap(),
+            MaybeEncrypted::Cleartext(c) => bb.private_options(c)?,
+            MaybeEncrypted::Encrypted(e) => bb.private_options_raw(e)?,
+            MaybeEncrypted::None => bb.private_options(&[])?,
         };
 
 
@@ -326,16 +345,16 @@ impl<'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
             // If we're not encrypted, bypass
             (false, _, _, _, _) => bb.public(),
             // If we're holding encrypted data, just re-encode it
-            (true, _, Body::Encrypted(_) | Body::None, OptionsList::Encrypted(_) | OptionsList::None, Some(t)) => {
-                bb.tag(t).unwrap()
+            (true, _, Body::Encrypted(_) | Body::None, MaybeEncrypted::Encrypted(_) | MaybeEncrypted::None, Some(t)) => {
+                bb.tag(t)?
             },
             // If we have keys and a tag, re-encrypt
-            (true, Some(sk), Body::Cleartext(_) | Body::None, OptionsList::Cleartext(_) | OptionsList::None, Some(t)) => {
-                bb.re_encrypt(sk, t).unwrap()
+            (true, Some(sk), Body::Cleartext(_) | Body::None, MaybeEncrypted::Cleartext(_) | MaybeEncrypted::None, Some(t)) => {
+                bb.re_encrypt(sk, t)?
             },
             // If we have keys but no tag, new encryption
-            (true, Some(sk), Body::Cleartext(_) | Body::None, OptionsList::Cleartext(_) | OptionsList::None , None) => {
-                bb.encrypt(sk).unwrap()
+            (true, Some(sk), Body::Cleartext(_) | Body::None, MaybeEncrypted::Cleartext(_) | MaybeEncrypted::None , None) => {
+                bb.encrypt(sk)?
             },
             // If we have no keys, fail
             (true, _, _, _, _) => {
@@ -347,22 +366,22 @@ impl<'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
         // Write public options
         // Add public key option if specified
         if let Some(k) = &base.public_key {
-            bb.public_option(&Options::pub_key(k.clone())).unwrap();
+            bb.public_option(&Options::pub_key(k.clone()))?;
         }
 
         if let Some(s) = &base.parent {
-            bb.public_option(&Options::prev_sig(s)).unwrap();
+            bb.public_option(&Options::prev_sig(s))?;
         }
 
         if let Some(i) = &base.peer_id {
-            bb.public_option(&Options::peer_id(i.clone())).unwrap();
+            bb.public_option(&Options::peer_id(i.clone()))?;
         }
 
-        let bb = bb.public_options(&base.public_options()).unwrap();
+        let bb = bb.public_options(&base.public_options())?;
 
         // Sign object
         let c = if !flags.contains(Flags::SYMMETRIC_MODE) {
-            bb.sign_pk(&private_key).unwrap()
+            bb.sign_pk(&private_key)?
         } else {
             // Ensure this can only be used for req/resp messages
             if !base.header().kind().is_message() {
@@ -375,14 +394,14 @@ impl<'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
                 _ => panic!("Attempted to sign object with no secret key"),
             };
 
-            bb.sign_sk(&sec_key).unwrap()
+            bb.sign_sk(&sec_key)?
         };
 
         // Update length
         let len = c.len;
 
         // Return signed container and length
-        (c, len)
+        Ok((c, len))
     }
 }
 

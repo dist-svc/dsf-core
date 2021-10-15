@@ -338,7 +338,7 @@ impl Encode for PubKey {
         NetworkEndian::write_u16(&mut data[0..2], option_kinds::PUBKEY);
         NetworkEndian::write_u16(&mut data[2..4], PUBLIC_KEY_LEN as u16);
 
-        &mut data[OPTION_HEADER_LEN..OPTION_HEADER_LEN + PUBLIC_KEY_LEN]
+        data[OPTION_HEADER_LEN..OPTION_HEADER_LEN + PUBLIC_KEY_LEN]
             .copy_from_slice(&self.public_key);
 
         Ok(OPTION_HEADER_LEN + PUBLIC_KEY_LEN)
@@ -418,7 +418,7 @@ impl Encode for PrevSig {
         NetworkEndian::write_u16(&mut data[0..2], option_kinds::PREV_SIG);
         NetworkEndian::write_u16(&mut data[2..4], SIGNATURE_LEN as u16);
 
-        &mut data[OPTION_HEADER_LEN..OPTION_HEADER_LEN + SIGNATURE_LEN].copy_from_slice(&self.sig);
+        data[OPTION_HEADER_LEN..OPTION_HEADER_LEN + SIGNATURE_LEN].copy_from_slice(&self.sig);
 
         Ok(OPTION_HEADER_LEN + SIGNATURE_LEN)
     }
@@ -526,7 +526,7 @@ impl Encode for AddressV4 {
         NetworkEndian::write_u16(&mut data[0..2], option_kinds::ADDR_IPV4);
         NetworkEndian::write_u16(&mut data[2..4], 6);
 
-        &mut data[OPTION_HEADER_LEN..OPTION_HEADER_LEN + 4].copy_from_slice(&self.ip);
+        data[OPTION_HEADER_LEN..OPTION_HEADER_LEN + 4].copy_from_slice(&self.ip);
         NetworkEndian::write_u16(&mut data[OPTION_HEADER_LEN + 4..], self.port);
 
         Ok(OPTION_HEADER_LEN + 6)

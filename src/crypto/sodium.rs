@@ -93,7 +93,7 @@ pub fn sk_sign(secret_key: &SecretKey, message: &[u8]) -> Result<Signature, ()> 
 
     // Pack out tag to Signature size (TODO: variable sizes here?)
     let mut r = [0u8; 64];
-    &r[..32].copy_from_slice(&tag.0);
+    r[..32].copy_from_slice(&tag.0);
 
     Ok(r.into())
 }

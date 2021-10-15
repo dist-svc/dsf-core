@@ -11,8 +11,13 @@ use crate::options::Options;
 use crate::page;
 use crate::types::*;
 use crate::wire::Container;
-use crate::{KeySource, Keys};
+use crate::keys::{KeySource, Keys};
 
+use super::MaybeEncrypted;
+
+/// Base type used as a midpoint for in-memory representation and encode/decode of objects
+/// 
+/// See [`crate::wire`] for wire encoding and decoding
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct Base {
@@ -27,7 +32,7 @@ pub struct Base {
 
     /// Private options supports the addition of options that are only visible
     /// to authorized service consumers
-    pub(crate) private_options: PrivateOptions,
+    pub(crate) private_options: MaybeEncrypted<Vec<Options>, Vec<u8>>,
 
     /// Public options provide a simple mechanism for extension of objects
     pub(crate) public_options: Vec<Options>,
@@ -63,7 +68,7 @@ pub struct Base {
 /// Options for constructing base objects
 pub struct BaseOptions {
     /// Private / encrypted options
-    pub private_options: PrivateOptions,
+    pub private_options: MaybeEncrypted<Vec<Options>>,
     /// Public / plaintext options
     pub public_options: Vec<Options>,
     /// Parent object signature
@@ -81,7 +86,7 @@ pub struct BaseOptions {
 impl Default for BaseOptions {
     fn default() -> Self {
         Self {
-            private_options: PrivateOptions::None,
+            private_options: MaybeEncrypted::None,
             public_options: vec![],
             parent: None,
             public_key: None,
@@ -100,8 +105,8 @@ impl BaseOptions {
 
     pub fn append_private_option(&mut self, o: Options) -> &mut Self {
         match &mut self.private_options {
-            PrivateOptions::Cleartext(opts) => opts.push(o),
-            _ => self.private_options = PrivateOptions::Cleartext(vec![o]),
+            MaybeEncrypted::Cleartext(opts) => opts.push(o),
+            _ => self.private_options = MaybeEncrypted::Cleartext(vec![o]),
         }
         self
     }
@@ -121,86 +126,26 @@ impl PartialEq for Base {
     }
 }
 
-#[derive(PartialEq, Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub enum NewBody<T: ImmutableData> {
-    Cleartext(T),
-    Encrypted(T),
-    None,
-}
-
-impl Body {
-    /// Decrypt an object body with the provided secret key
-    pub fn decrypt(&mut self, secret_key: Option<&SecretKey>) -> Result<(), Error> {
-        trace!("Attempting to decrypt: {:?}", self);
-
-        let body = match (&self, &secret_key) {
-            (NewBody::None, _) => return Ok(()),
-            (NewBody::Cleartext(b), _) => b.to_vec(),
-            (NewBody::Encrypted(e), Some(sk)) => {
-                let mut d = e.to_vec();
-
-                let n = match crate::crypto::sk_decrypt2(sk, &mut d) {
-                    Ok(n) => n,
-                    Err(_) => return Err(Error::SecretKeyMismatch),
-                };
-
-                d.truncate(n);
-
-                d
-            }
-            _ => return Err(Error::NoSecretKey),
-        };
-
-        *self = Self::Cleartext(body);
-
-        Ok(())
-    }
-}
-
 /// Body may be empty, encrypted, or Cleartext
 // TODO: move NewBody from wire to here, propagate generic types
-pub type Body = NewBody<Vec<u8>>;
+pub type Body = super::MaybeEncrypted;
 
-impl From<Vec<u8>> for Body {
-    fn from(o: Vec<u8>) -> Self {
-        if o.len() > 0 {
-            Body::Cleartext(o)
-        } else {
-            Body::None
-        }
-    }
-}
-
-impl From<Option<Body>> for Body {
-    fn from(o: Option<Body>) -> Self {
-        match o {
-            Some(b) => b,
-            None => Body::None,
-        }
-    }
-}
-
-//pub type OptionsList = crate::wire::builder::OptionsList<Vec<Options>, Vec<u8>>;
-pub type PrivateOptions = crate::options::OptionsList<Vec<Options>, Vec<u8>>;
-
-impl From<Vec<Options>> for PrivateOptions {
+impl From<Vec<Options>> for MaybeEncrypted<Vec<Options>> {
     fn from(o: Vec<Options>) -> Self {
         if o.len() > 0 {
-            PrivateOptions::Cleartext(o)
+            MaybeEncrypted::Cleartext(o)
         } else {
-            PrivateOptions::None
+            MaybeEncrypted::None
         }
     }
 }
 
-impl PrivateOptions {
+impl MaybeEncrypted<Vec<Options>> {
     pub fn append(&mut self, o: Options) {
         match self {
-            PrivateOptions::Cleartext(opts) => opts.push(o),
-            PrivateOptions::None => *self = PrivateOptions::Cleartext(vec![o]),
-            _ => panic!("attmepting to append private options to encrypted object"),
+            MaybeEncrypted::Cleartext(opts) => opts.push(o),
+            MaybeEncrypted::None => *self = MaybeEncrypted::Cleartext(vec![o]),
+            _ => panic!("attempting to append values to encrypted object"),
         }
     }
 }
@@ -251,7 +196,7 @@ impl Base {
         &self.public_options
     }
 
-    pub fn private_options(&self) -> &PrivateOptions {
+    pub fn private_options(&self) -> &MaybeEncrypted<Vec<Options>> {
         &self.private_options
     }
 
@@ -269,8 +214,8 @@ impl Base {
 
     pub fn append_private_option(&mut self, o: Options) {
         match &mut self.private_options {
-            PrivateOptions::Cleartext(opts) => opts.push(o),
-            PrivateOptions::None => self.private_options = PrivateOptions::Cleartext(vec![o]),
+            MaybeEncrypted::Cleartext(opts) => opts.push(o),
+            MaybeEncrypted::None => self.private_options = MaybeEncrypted::Cleartext(vec![o]),
             _ => panic!("attmepting to append private options to encrypted object"),
         }
     }
@@ -353,7 +298,7 @@ impl Base {
         if let Some(raw) = &self.raw {
             let d = buff.as_mut();
 
-            &mut d[0..raw.len()].copy_from_slice(&raw);
+            d[0..raw.len()].copy_from_slice(&raw);
 
             return Ok(raw.len());
         }
@@ -364,7 +309,7 @@ impl Base {
         };
 
         // Build container and encode / encrypt / sign page
-        let (container, n) = Container::encode(buff, &self, keys);
+        let (container, n) = Container::encode(buff, &self, keys)?;
 
         // Update base object signature
         self.set_signature(container.signature().into());
@@ -379,7 +324,7 @@ mod tests {
     use super::*;
     use crate::base::*;
     use crate::types::PageKind;
-    use crate::Keys;
+    use crate::keys::Keys;
 
     use crate::crypto;
 

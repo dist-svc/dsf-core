@@ -1,6 +1,7 @@
-//! Net module contains high-level message objects used to communicate between peers
-//! to maintain the network, publish and subscribe to services, and exchange data.
-//! These can be converted to and from base objects for encoding/decoding.
+//! Net module contains high-level message objects used to communicate between peers.
+//! 
+//! These messages are used to maintain the network, publish and subscribe to services, and exchange data,
+//! and can be converted to and from base objects for encoding/decoding.
 
 use crate::base::Base;
 use crate::error::Error;
@@ -14,7 +15,8 @@ pub use response::{Response, ResponseKind, Status};
 
 pub const BUFF_SIZE: usize = 10 * 1024;
 
-use crate::{KeySource, Keys};
+use crate::keys::{KeySource, Keys};
+
 
 /// Message is a network request or response message
 #[derive(Clone, PartialEq, Debug)]
@@ -160,7 +162,7 @@ mod tests {
     use crate::page::{Page, PageInfo, PageOptions};
     use crate::types::PageKind;
 
-    use crate::{crypto, Keys};
+    use crate::{crypto, keys::Keys};
 
     #[test]
     fn encode_decode_messages_pk() {

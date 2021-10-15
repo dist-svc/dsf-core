@@ -6,12 +6,13 @@ use core::convert::TryFrom;
 #[cfg(feature = "alloc")]
 use alloc::prelude::v1::*;
 
-use crate::base::{Base, BaseOptions, Body, Header, PrivateOptions};
+use crate::base::{Base, BaseOptions, Body, Header, MaybeEncrypted};
 use crate::crypto;
 use crate::error::Error;
 use crate::options::Options;
 use crate::types::*;
-use crate::{KeySource, Keys};
+use crate::keys::{KeySource, Keys};
+
 
 mod info;
 pub use info::PageInfo;
@@ -43,7 +44,7 @@ pub struct Page {
 
     pub public_options: Vec<Options>,
 
-    pub private_options: PrivateOptions,
+    pub private_options: MaybeEncrypted<Vec<Options>>,
 
     // Previous page signature
     pub previous_sig: Option<Signature>,
@@ -71,7 +72,7 @@ pub struct PageOptions {
     // Public options
     pub public_options: Vec<Options>,
     // Private options
-    pub private_options: PrivateOptions,
+    pub private_options: MaybeEncrypted<Vec<Options>>,
 
     // Previous page signature
     pub previous_sig: Option<Signature>,
@@ -89,7 +90,7 @@ impl Default for PageOptions {
             issued: None,
             expiry: None,
             public_options: vec![],
-            private_options: PrivateOptions::None,
+            private_options: MaybeEncrypted::None,
             previous_sig: None,
             signature: None,
             raw: None,
@@ -190,7 +191,7 @@ impl Page {
         &self.public_options
     }
 
-    pub fn private_options(&self) -> &PrivateOptions {
+    pub fn private_options(&self) -> &MaybeEncrypted<Vec<Options>> {
         &self.private_options
     }
 

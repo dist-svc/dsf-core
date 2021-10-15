@@ -6,7 +6,7 @@ use std::time::{Duration, SystemTime};
 #[cfg(feature = "alloc")]
 use alloc::prelude::v1::*;
 
-use crate::base::{Base, Body, Header, PrivateOptions};
+use crate::base::{Base, Body, Header, MaybeEncrypted};
 use crate::error::Error;
 use crate::options::Options;
 use crate::page::{Page, PageInfo, PageOptions};
@@ -196,7 +196,7 @@ impl Publisher for Service {
 
         let page_options = PageOptions {
             public_options: options.public_options,
-            private_options: PrivateOptions::Cleartext(options.private_options),
+            private_options: MaybeEncrypted::Cleartext(options.private_options),
             // TODO: Re-enable issued time
             #[cfg(feature = "std")]
             issued: Some(SystemTime::now().into()),
@@ -239,7 +239,7 @@ impl Publisher for Service {
 
         let mut page_options = PageOptions {
             public_options: options.public_options,
-            private_options: PrivateOptions::Cleartext(options.private_options),
+            private_options: MaybeEncrypted::Cleartext(options.private_options),
             //previous_sig: self.last_sig.clone(),
             #[cfg(feature = "std")]
             issued: Some(SystemTime::now().into()),

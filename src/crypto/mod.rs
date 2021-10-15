@@ -3,7 +3,7 @@
 
 use crate::types::*;
 
-pub mod sodium;
+mod sodium;
 pub use sodium::*;
 
 #[cfg(feature = "crypto-dalek")]

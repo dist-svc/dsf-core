@@ -1,12 +1,12 @@
 use crate::types::*;
 
-use crate::base::header::{offsets, HEADER_LEN};
 use crate::options::{Options, OptionsIter};
 
 use super::header::WireHeader;
+use super::{offsets, HEADER_LEN};
 
 /// Container object provides base field accessors over an arbitrary (mutable or immutable) buffers
-/// See https://lab.whitequark.org/notes/2016-12-13/abstracting-over-mutability-in-rust/ for details
+/// See <https://lab.whitequark.org/notes/2016-12-13/abstracting-over-mutability-in-rust/> for details
 #[derive(Clone, Debug, PartialEq)]
 pub struct Container<T: ImmutableData> {
     /// Internal data buffer
