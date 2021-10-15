@@ -285,7 +285,7 @@ impl Into<Base> for Response {
                 }
 
                 // Encode options list to body
-                let n = Options::encode_vec(&options, &mut buff[ID_LEN..]).unwrap();
+                let n = Options::encode_iter(&options, &mut buff[ID_LEN..]).unwrap();
 
                 body = buff[..ID_LEN + n].to_vec();
             }

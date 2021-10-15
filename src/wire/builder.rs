@@ -1,8 +1,13 @@
 use core::marker::PhantomData;
+use core::fmt::Debug;
+
+use log::trace;
+
+use pretty_hex::*;
 
 use crate::base::header::{offsets, Header, HEADER_LEN};
 use crate::base::{Encode, NewBody};
-use crate::crypto;
+use crate::crypto::{self, sk_encrypt, sk_reencrypt};
 use crate::error::Error;
 use crate::options::{Options, OptionsList};
 use crate::types::*;
@@ -18,6 +23,10 @@ pub struct SetBody;
 
 /// SetPrivateOptions state, has Body and previous (SetBody)
 pub struct SetPrivateOptions;
+
+
+/// Encrypt state, has body and private options
+pub struct Encrypt;
 
 /// SetPublicOptions state, has PrivateOptions and previous (SetPrivateOptions)
 pub struct SetPublicOptions;
@@ -62,6 +71,11 @@ impl<S, T: MutableData> Builder<S, T> {
     pub fn header_mut(&mut self) -> WireHeader<&mut [u8]> {
         WireHeader::new(&mut self.buf.as_mut()[..HEADER_LEN])
     }
+
+    /// Fetch a mutable instance of the object header
+    pub fn header_ref(&self) -> WireHeader<&[u8]> {
+        WireHeader::new(&self.buf.as_ref()[..HEADER_LEN])
+    }
 }
 
 impl<T: MutableData> Builder<Init, T> {
@@ -69,7 +83,7 @@ impl<T: MutableData> Builder<Init, T> {
     pub fn new(buf: T) -> Self {
         Builder {
             buf,
-            n: 0,
+            n: offsets::BODY,
             c: 0,
             _s: PhantomData,
         }
@@ -78,6 +92,8 @@ impl<T: MutableData> Builder<Init, T> {
     /// Set the object header.
     /// Note that length fields will be overwritten by actual lengths
     pub fn header(mut self, header: &Header) -> Self {
+        trace!("Set header: {:02?}", header);
+        
         self.header_mut().encode(header);
         self
     }
@@ -85,17 +101,19 @@ impl<T: MutableData> Builder<Init, T> {
     /// Add body data, mutating the state of the builder
     pub fn body<B: ImmutableData>(
         mut self,
-        body: &NewBody<B>,
-        secret_key: Option<&SecretKey>,
+        body: &B,
     ) -> Result<Builder<SetPrivateOptions, T>, Error> {
         let b = self.buf.as_mut();
+        let body = body.as_ref();
 
         self.n = offsets::BODY;
 
-        let body_len = body.encode(&mut b[self.n..], secret_key)?;
-        self.n += body_len;
+        b[self.n..][..body.len()].copy_from_slice(body);
+        self.n += body.len();
 
-        self.header_mut().set_data_len(body_len);
+        self.header_mut().set_data_len(body.len());
+
+        trace!("Add {} byte body, new index: {}", body.len(), self.n);
 
         Ok(Builder {
             buf: self.buf,
@@ -103,23 +121,60 @@ impl<T: MutableData> Builder<Init, T> {
             c: 0,
             _s: PhantomData,
         })
+    }
+
+    pub fn encrypted<B: ImmutableData, O: ImmutableData, P: ImmutableData>(
+        mut self,
+        body: &B,
+        private_options: &O,
+        tag: &P
+    ) -> Result<Builder<SetPublicOptions, T>, Error> {
+        todo!()
     }
 }
 
 impl<T: MutableData> Builder<SetPrivateOptions, T> {
     /// Encode private options
     /// This must be done in one pass as the entire options block is encrypted
-    pub fn private_options<C: AsRef<[Options]>, E: ImmutableData>(
+    pub fn private_options<C: AsRef<[Options]> + Debug>(
         mut self,
-        options: &OptionsList<C, E>,
-        secret_key: Option<&SecretKey>,
-    ) -> Result<Builder<SetPublicOptions, T>, Error> {
+        options: &C,
+    ) -> Result<Builder<Encrypt, T>, Error> {
         let b = self.buf.as_mut();
 
-        let n = options.encode(&mut b[self.n..], secret_key)?;
+        let n = Options::encode_iter(options, &mut b[self.n..])?;
         self.n += n;
 
+        trace!("Encoded private options: {:02x?}", &b[self.n-n..][..n]);
+
         self.header_mut().set_private_options_len(n);
+
+
+        trace!("Add private options: {:02x?}, {} bytes, new index: {}", options, n, self.n);
+
+        Ok(Builder {
+            buf: self.buf,
+            n: self.n,
+            c: 0,
+            _s: PhantomData,
+        })
+    }
+
+    /// Write raw public options
+    /// This must be done in one pass as the entire options block is encrypted
+    pub fn private_options_raw<C: ImmutableData>(
+        mut self,
+        options: &C,
+    ) -> Result<Builder<Encrypt, T>, Error> {
+        let b = self.buf.as_mut();
+        let o = options.as_ref();
+
+        b[self.n..][..o.len()].copy_from_slice(o);
+        self.n += o.len();
+
+        self.header_mut().set_private_options_len(o.len());
+
+        trace!("Add raw private options, {} bytes, new index: {}", o.len(), self.n);
 
         Ok(Builder {
             buf: self.buf,
@@ -130,20 +185,133 @@ impl<T: MutableData> Builder<SetPrivateOptions, T> {
     }
 }
 
+impl<T: MutableData> Builder<Encrypt, T> {
+    /// Encrypt private data and options
+    /// This must be done in one pass as the entire data/options block is encrypted
+    pub fn encrypt(
+        mut self,
+        secret_key: &SecretKey,
+    ) -> Result<Builder<SetPublicOptions, T>, Error> {
+        // Calculate area to be encrypted
+        let o = HEADER_LEN + ID_LEN;
+        let l = self.header_ref().data_len()
+                + self.header_ref().private_options_len();
+
+        let b = self.buf.as_mut();
+
+        let block = &mut b[o..o+l];
+        trace!("Encrypting block: {:?}", block.hex_dump());
+
+        // Perform encryption
+        let tag = sk_encrypt(secret_key, block).unwrap();
+
+        trace!("Encrypted block: {:?}", block.hex_dump());
+        trace!("Encryption tag: {:?}", tag.hex_dump());
+
+        // Attach tag to object
+        b[self.n..][..SECRET_KEY_TAG_LEN].copy_from_slice(&tag);
+        self.n += SECRET_KEY_TAG_LEN;
+
+        trace!("Encrypted {} bytes at offset {}, new index: {}", l, o, self.n);
+
+        Ok(Builder {
+            buf: self.buf,
+            n: self.n,
+            c: 0,
+            _s: PhantomData,
+        })
+    }
+
+    /// Re-encode private data and options, using existing encryption tag
+    /// This must be done in one pass as the entire data/options block is encrypted
+    pub fn re_encrypt<C: ImmutableData>(
+        mut self,
+        secret_key: &SecretKey,
+        tag: C
+    ) -> Result<Builder<SetPublicOptions, T>, Error> {
+        // Calculate area to be encrypted
+        let o = HEADER_LEN + ID_LEN;
+        let l = self.header_ref().data_len()
+                + self.header_ref().private_options_len();
+
+        let b = self.buf.as_mut();
+
+        // Perform encryption
+        sk_reencrypt(secret_key, tag.as_ref(), &mut b[o..o+l]).unwrap();
+
+        // Attach tag to object
+        b[self.n..][..SECRET_KEY_TAG_LEN].copy_from_slice(&tag.as_ref());
+        self.n += SECRET_KEY_TAG_LEN;
+
+        trace!("Re-encrypted {} bytes at offset {} with tag: {:02x?}, new index: {}", l, o, tag.as_ref(), self.n);
+
+
+        Ok(Builder {
+            buf: self.buf,
+            n: self.n,
+            c: 0,
+            _s: PhantomData,
+        })
+    }
+
+    /// Attach tag for already encrypted data
+    pub fn tag<C: ImmutableData>(
+        mut self,
+        tag: C
+    ) -> Result<Builder<SetPublicOptions, T>, Error> {
+        // Calculate area to be encrypted
+        let o = HEADER_LEN + ID_LEN
+                + self.header_ref().data_len()
+                + self.header_ref().private_options_len();
+
+        let b = self.buf.as_mut();
+
+        // Attach tag to object
+        b[o..][..SECRET_KEY_TAG_LEN].copy_from_slice(tag.as_ref());
+        self.n = o + SECRET_KEY_TAG_LEN;
+
+        trace!("Added tag: {:02x?}, new index: {}", tag.as_ref(), self.n);
+
+        Ok(Builder {
+            buf: self.buf,
+            n: self.n,
+            c: 0,
+            _s: PhantomData,
+        })
+    }
+
+    pub fn public(
+        mut self,
+    ) -> Builder<SetPublicOptions, T> {
+        trace!("Set object type to public, index: {}", self.n);
+
+        Builder {
+            buf: self.buf,
+            n: self.n,
+            c: 0,
+            _s: PhantomData,
+        }
+    }
+}
+
+
+
 impl<T: MutableData> Builder<SetPublicOptions, T> {
     /// Encode a list of public options
-    pub fn public_options<C: AsRef<[Options]>, E: ImmutableData>(
+    pub fn public_options<C: AsRef<[Options]> + Debug>(
         mut self,
-        options: &OptionsList<C, E>,
+        options: C,
     ) -> Result<Builder<SetPublicOptions, T>, Error> {
         let b = self.buf.as_mut();
 
-        let n = options.encode(&mut b[self.n..], None)?;
+        let n = Options::encode_iter(options.as_ref(), &mut b[self.n..])?;
         self.n += n;
         self.c += n;
         let c = self.c;
 
         self.header_mut().set_public_options_len(c);
+
+        trace!("Add public options: {:?}, {} bytes, new index: {}", options, n, self.n);
 
         Ok(self)
     }
@@ -159,6 +327,9 @@ impl<T: MutableData> Builder<SetPublicOptions, T> {
 
         self.header_mut().set_public_options_len(c);
 
+        trace!("Add public option: {:?}, {} bytes, new index: {}", option, n, self.n);
+
+
         Ok(())
     }
 
@@ -169,9 +340,13 @@ impl<T: MutableData> Builder<SetPublicOptions, T> {
         // Generate signature
         let sig = crypto::pk_sign(signing_key, &b[..self.n]).unwrap();
 
+        trace!("Sign {} byte object, new index: {}", self.n, self.n + SIGNATURE_LEN);
+
         // Write to object
-        &b[self.n..self.n + SIGNATURE_LEN].copy_from_slice(&sig);
+       (&mut b[self.n..self.n + SIGNATURE_LEN]).copy_from_slice(&sig);
         self.n += SIGNATURE_LEN;
+
+        trace!("Created object: {:?}", PrettyHex::hex_dump(&self));
 
         // Return base object
         Ok(Container {
@@ -188,7 +363,7 @@ impl<T: MutableData> Builder<SetPublicOptions, T> {
         let sig = crypto::sk_sign(signing_key, &b[..self.n]).unwrap();
 
         // Write to object
-        &b[self.n..self.n + SIGNATURE_LEN].copy_from_slice(&sig);
+        (&mut b[self.n..self.n + SIGNATURE_LEN]).copy_from_slice(&sig);
         self.n += SIGNATURE_LEN;
 
         // Return base object
@@ -199,71 +374,9 @@ impl<T: MutableData> Builder<SetPublicOptions, T> {
     }
 }
 
-impl<T: ImmutableData> EncodeEncrypted for NewBody<T> {
-    /// Encode and optionally encrypt body
-    fn encode<B: MutableData>(
-        &self,
-        mut buf: B,
-        secret_key: Option<&SecretKey>,
-    ) -> Result<usize, Error> {
-        let b = buf.as_mut();
-
-        let n = match self {
-            NewBody::Cleartext(clear) => {
-                let c = clear.as_ref();
-
-                b[..c.len()].copy_from_slice(c);
-
-                if let Some(sk) = secret_key {
-                    crypto::sk_encrypt2(sk, b, c.len()).unwrap()
-                } else {
-                    c.len()
-                }
-            }
-            NewBody::Encrypted(enc) => {
-                let e = enc.as_ref();
-
-                b[..e.len()].copy_from_slice(e);
-
-                e.len()
-            }
-            NewBody::None => 0,
-        };
-
-        Ok(n)
-    }
-}
-
-impl<C: AsRef<[Options]>, E: ImmutableData> EncodeEncrypted for OptionsList<C, E> {
-    /// Encode and optionally encrypt options
-    fn encode<B: MutableData>(
-        &self,
-        mut buf: B,
-        secret_key: Option<&SecretKey>,
-    ) -> Result<usize, Error> {
-        let n = match self {
-            OptionsList::Cleartext(opts) if opts.as_ref().len() > 0 => {
-                // Encode options into buffer
-                let mut n = Options::encode_vec(opts.as_ref(), buf.as_mut())?;
-
-                // Encrypt if required
-                if let Some(sk) = secret_key {
-                    n = crypto::sk_encrypt2(sk, buf.as_mut(), n).unwrap();
-                }
-
-                n
-            }
-            OptionsList::Encrypted(enc) => {
-                // Write options directly to buffer
-                let b = buf.as_mut();
-                let e = enc.as_ref();
-
-                b[..e.len()].copy_from_slice(e.as_ref());
-                e.as_ref().len()
-            }
-            _ => 0,
-        };
-
-        Ok(n)
+impl<S, T: MutableData> AsRef<[u8]> for Builder<S, T>   {
+    fn as_ref(&self) -> &[u8] {
+        let n = self.n;
+        &self.buf.as_ref()[..n]
     }
 }

@@ -7,6 +7,7 @@ use crate::base::{Body, PrivateOptions};
 use crate::crypto;
 use crate::error::Error;
 use crate::options::Options;
+use crate::prelude::Parse;
 use crate::types::*;
 
 #[cfg(feature = "alloc")]
@@ -171,6 +172,8 @@ mod test {
 
     #[test]
     fn test_service() {
+        let _ = simplelog::SimpleLogger::init(simplelog::LevelFilter::Debug, simplelog::Config::default());
+
         let socket = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8080);
 
         println!("Creating new service");

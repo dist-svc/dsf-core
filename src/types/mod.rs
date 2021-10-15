@@ -58,6 +58,8 @@ pub const SECRET_KEY_LEN: usize = 32;
 /// Secret key type
 pub type SecretKey = Array32;
 
+pub const SECRET_KEY_TAG_LEN: usize = 40;
+
 pub const HASH_LEN: usize = 32;
 
 pub type CryptoHash = Array32;

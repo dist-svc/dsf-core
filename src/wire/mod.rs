@@ -4,6 +4,8 @@
 #[cfg(feature = "alloc")]
 use alloc::prelude::v1::*;
 
+use pretty_hex::*;
+
 use crate::base::{Base, Body, Header, PrivateOptions};
 use crate::crypto;
 use crate::error::Error;
@@ -78,6 +80,10 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
         let (container, n) = Container::from(data);
         let header = container.header();
 
+        trace!("Parsing object: {:02x?}", container.hex_dump());
+
+        trace!("Parsed header: {:02x?}", header);
+
         // Fetch required fields
         let flags = header.flags();
         let kind = header.kind();
@@ -85,6 +91,8 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
 
         // Fetch signature for page
         let signature: Signature = container.signature().into();
+
+        trace!("Validating signature: {:02x?}", signature.as_ref());
 
         // Validate primary types immediately if pubkey is known
         if !flags.contains(Flags::SECONDARY) {
@@ -106,13 +114,15 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
             }
         }
 
+        trace!("Fetching public options");
+
         // Fetch public options
         let mut peer_id = None;
         let mut pub_key = None;
         let mut parent = None;
 
         let public_options: Vec<_> = container
-            .public_options()
+            .public_options_iter()
             .filter_map(|o| match &o {
                 Options::PeerId(v) => {
                     peer_id = Some(v.peer_id.clone());
@@ -150,6 +160,8 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
             }
         };
 
+        trace!("Re-validating object");
+
         // Late validation for self-signed objects from unknown sources
         match (verified, keys) {
             (false, Some(keys)) => {
@@ -169,55 +181,75 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
             _ => (),
         }
 
-        let mut body_data = container.body().to_vec();
-        let mut private_options_data = container.private_options().to_vec();
+        trace!("Starting decryption");
 
-        // Handle body decryption or parsing
-        let keys = key_source.keys(&id);
-        let body = match (
-            flags.contains(Flags::ENCRYPTED),
-            keys.as_ref().map(|k| k.sec_key.clone()).flatten(),
-        ) {
-            (true, Some(sk)) if body_data.len() > 0 => {
-                // Decrypt body
-                let n = crypto::sk_decrypt2(&sk, &mut body_data)
-                    .map_err(|_e| Error::InvalidSignature)?;
-                body_data = (&body_data[..n]).to_vec();
+        let sk = key_source.keys(&id).map(|k| k.sec_key ).flatten();
 
-                Body::Cleartext(body_data)
+        let (body, private_options, tag) = match (flags.contains(Flags::ENCRYPTED), sk) {
+            // If we're encrypted _and_ we have keys, attempt decryption
+            (true, Some(sk)) => {
+                let mut cyphertext = container.cyphertext().to_vec();
+                let tag = container.tag();
+
+                trace!("Decrypting block: {:?}", cyphertext.hex_dump());
+                trace!("Decryption tag: {:?}", tag.hex_dump());
+
+                let _n = crypto::sk_decrypt(&sk, tag, &mut cyphertext)
+                    .map_err(|_e| Error::InvalidSignature);
+
+                trace!("Decrypted: {:?}", cyphertext.hex_dump());
+
+                let (opts, _n) = Options::parse_vec(&cyphertext[header.data_len()..])?;
+
+                let body = match header.data_len() {
+                    0 => Body::None,
+                    _ => Body::Cleartext(cyphertext[..header.data_len()].to_vec()),
+                };
+
+                let opts = match opts.len() {
+                    0 => PrivateOptions::None,
+                    _ => PrivateOptions::Cleartext(opts)
+                };
+
+                (body, opts, Some(tag.to_vec()))
+            },
+            // If we're encrypted and _don't_ have keys, return cyphertexts
+            (true, None) => {
+                debug!("No secret key found for object from: {}", id);
+
+                let tag = container.tag();
+
+                let body = match header.data_len() {
+                    0 => Body::None,
+                    _ => Body::Encrypted(container.body().to_vec()),
+                };
+
+                let opts = match container.private_options().len() {
+                    0 => PrivateOptions::None,
+                    _ => PrivateOptions::Encrypted(container.private_options().to_vec())
+                };
+
+                (body, opts, Some(tag.to_vec()))
+            },
+            // If we're not encrypted, return data directly
+            _ => {
+                let (opts, _n) = Options::parse_vec(container.private_options())?;
+
+                let body = match header.data_len() {
+                    0 => Body::None,
+                    _ => Body::Cleartext(container.body().to_vec()),
+                };
+
+                let opts = match opts.len() {
+                    0 => PrivateOptions::None,
+                    _ => PrivateOptions::Cleartext(opts)
+                };
+
+                (body, opts, None)
             }
-            (true, None) if body_data.len() > 0 => {
-                debug!("No encryption key found for data");
-
-                Body::Encrypted(body_data)
-            }
-            (false, _) if body_data.len() > 0 => Body::Cleartext(body_data),
-            _ => Body::None,
         };
 
-        // Handle private_options decryption or parsing
-        let private_options = match (
-            flags.contains(Flags::ENCRYPTED),
-            keys.map(|k| k.sec_key).flatten(),
-        ) {
-            (true, Some(sk)) if private_options_data.len() > 0 => {
-                // Decrypt private options
-                let n = crypto::sk_decrypt2(&sk, &mut private_options_data)
-                    .map_err(|_e| Error::InvalidSignature)?;
-                private_options_data = (&private_options_data[..n]).to_vec();
-
-                // Decode private options
-                let (private_options, _n) = Options::parse_vec(&private_options_data)?;
-
-                PrivateOptions::Cleartext(private_options)
-            }
-            (true, None) if private_options_data.len() > 0 => {
-                debug!("No encryption key found for data");
-
-                PrivateOptions::Encrypted(private_options_data)
-            }
-            _ => PrivateOptions::None,
-        };
+        trace!("Parse OK!");
 
         // Return page and options
         Ok((
@@ -238,6 +270,7 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
                 peer_id: peer_id.clone(),
                 public_key: pub_key.clone(),
 
+                tag,
                 signature: Some(signature),
                 verified,
 
@@ -250,6 +283,8 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
 
 impl<'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
     pub fn encode(buff: T, base: &Base, keys: &Keys) -> (Self, usize) {
+        trace!("Encode for object: {:?}", base);
+
         // Setup base builder with header and ID
         let bb = Builder::new(buff).id(base.id()).header(base.header());
         let flags = base.flags();
@@ -267,15 +302,47 @@ impl<'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
             _ => None,
         };
 
-        // Write body
-        // TODO: use symmetric mode keys if available
-        let bb = bb.body(base.body(), encryption_key).unwrap();
+        let encrypted = flags.contains(Flags::ENCRYPTED);
+        let sec_key = keys.sec_key.as_ref();
 
-        // Write private options
-        // TODO: use symmetric mode keys if available
-        let mut bb = bb
-            .private_options(base.private_options(), encryption_key)
-            .unwrap();
+        // Append body
+        let bb = match &base.body {
+            Body::Cleartext(c) => bb.body(c).unwrap(),
+            Body::Encrypted(e) => bb.body(e).unwrap(),
+            Body::None => bb.body(&[]).unwrap(),
+        };
+        
+        // Append private options
+        let bb = match &base.private_options {
+            OptionsList::Cleartext(c) => bb.private_options(c).unwrap(),
+            OptionsList::Encrypted(e) => bb.private_options_raw(e).unwrap(),
+            OptionsList::None => bb.private_options(&[]).unwrap(),
+        };
+
+
+        // Ensure state is valid and apply encryption
+        // TODO: it'd be great to enforce this better via the builder
+        let mut bb = match (encrypted, sec_key, &base.body, &base.private_options, &base.tag) {
+            // If we're not encrypted, bypass
+            (false, _, _, _, _) => bb.public(),
+            // If we're holding encrypted data, just re-encode it
+            (true, _, Body::Encrypted(_) | Body::None, OptionsList::Encrypted(_) | OptionsList::None, Some(t)) => {
+                bb.tag(t).unwrap()
+            },
+            // If we have keys and a tag, re-encrypt
+            (true, Some(sk), Body::Cleartext(_) | Body::None, OptionsList::Cleartext(_) | OptionsList::None, Some(t)) => {
+                bb.re_encrypt(sk, t).unwrap()
+            },
+            // If we have keys but no tag, new encryption
+            (true, Some(sk), Body::Cleartext(_) | Body::None, OptionsList::Cleartext(_) | OptionsList::None , None) => {
+                bb.encrypt(sk).unwrap()
+            },
+            // If we have no keys, fail
+            (true, _, _, _, _) => {
+                panic!("Encrypt failed, no secret key or mismatched clear/cyphertexts");
+            },
+            _ => panic!("Unexpected encrypt state"),
+        };
 
         // Write public options
         // Add public key option if specified
@@ -291,8 +358,7 @@ impl<'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
             bb.public_option(&Options::peer_id(i.clone())).unwrap();
         }
 
-        let opts = OptionsList::<_, &[u8]>::Cleartext(base.public_options());
-        let bb = bb.public_options(&opts).unwrap();
+        let bb = bb.public_options(&base.public_options()).unwrap();
 
         // Sign object
         let c = if !flags.contains(Flags::SYMMETRIC_MODE) {
@@ -321,4 +387,9 @@ impl<'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
 }
 
 #[cfg(test)]
-mod test {}
+mod test {
+
+
+
+    
+}

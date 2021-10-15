@@ -1,6 +1,8 @@
 //! Options are used to support extension of protocol objects
 //! with DSF and application-specific optional fields.
 
+use core::fmt::Debug;
+
 #[cfg(feature = "alloc")]
 use alloc::prelude::v1::*;
 
@@ -41,7 +43,7 @@ pub enum Options {
 #[derive(PartialEq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub enum OptionsList<C: AsRef<[Options]>, E: ImmutableData> {
+pub enum OptionsList<C: AsRef<[Options]> + Debug, E: ImmutableData + Debug> {
     Cleartext(C),
     Encrypted(E),
     None,
@@ -120,6 +122,8 @@ impl Options {
         let mut i = 0;
 
         while rem.len() >= OPTION_HEADER_LEN {
+            trace!("Parse option {} at offset {}", options.len(), i);
+
             let (o, n) = Options::parse(&rem)?;
             i += n;
 
@@ -131,10 +135,10 @@ impl Options {
     }
 
     /// Encode a vector of options
-    pub fn encode_vec(options: &[Options], data: &mut [u8]) -> Result<usize, Error> {
+    pub fn encode_iter<O: AsRef<[Options]>>(options: O, data: &mut [u8]) -> Result<usize, Error> {
         let mut i = 0;
 
-        for o in options.iter() {
+        for o in options.as_ref() {
             i += o.encode(&mut data[i..])?;
         }
 
@@ -207,6 +211,8 @@ impl Parse for Options {
         if data.len() < OPTION_HEADER_LEN {
             return Err(Error::InvalidOptionLength);
         }
+
+        trace!("Parse option header: {:02x?}", &data[0..4]);
 
         let option_kind = NetworkEndian::read_u16(&data[0..2]);
         let option_len = NetworkEndian::read_u16(&data[2..4]) as usize;
@@ -847,7 +853,7 @@ mod tests {
         ];
 
         let mut data = vec![0u8; 1024];
-        let n1 = Options::encode_vec(&tests, &mut data).expect("Error encoding options vector");
+        let n1 = Options::encode_iter(&tests, &mut data).expect("Error encoding options vector");
 
         let encoded = &data[0..n1];
         let (decoded, n2) = Options::parse_vec(encoded).expect("Error decoding options vector");

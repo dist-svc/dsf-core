@@ -120,6 +120,25 @@ pub fn sk_encrypt(secret_key: &SecretKey, message: &mut [u8]) -> Result<[u8; SK_
     Ok(meta)
 }
 
+pub fn sk_reencrypt(secret_key: &SecretKey, meta: &[u8], message: &mut [u8]) -> Result<[u8; SK_META], ()> {
+    let secret_key = SodiumSecretKey::from_slice(secret_key).unwrap();
+
+    let t1 = SodiumSecretTag::from_slice(&meta[..MACBYTES]).unwrap();
+    let nonce = SodiumSecretNonce::from_slice(&meta[MACBYTES..]).unwrap();
+
+    // Perform in-place encryption
+    let t2 = secretbox::seal_detached(message, &nonce, &secret_key);
+
+    assert_eq!(t1, t2);
+
+    // Generate encryption metadata
+    let mut meta = [0u8; SK_META];
+    (&mut meta[..MACBYTES]).copy_from_slice(&t2.0);
+    (&mut meta[MACBYTES..]).copy_from_slice(&nonce.0);
+
+    Ok(meta)
+}
+
 pub fn sk_decrypt(secret_key: &SecretKey, meta: &[u8], message: &mut [u8]) -> Result<(), ()> {
     let secret_key = SodiumSecretKey::from_slice(secret_key).unwrap();
 
@@ -188,7 +207,30 @@ mod test {
     extern crate test;
     use test::Bencher;
 
+    use crate::types::SECRET_KEY_TAG_LEN;
     use super::*;
+
+    #[test]
+    fn test_sk_tag_lengths() {
+        assert_eq!(SECRET_KEY_TAG_LEN, NONCEBYTES + MACBYTES);
+    }
+
+    /// Ensure encryption is reversible so we can decrypt/re-encrypt without
+    /// storing an additional copy of the data
+    #[test]
+    fn test_sk_encrypt_same_nonce() {
+        let mut d1 = [0xaa, 0xbb, 0xcc, 0xdd];
+        let mut d2 = d1.clone();
+
+        let key = secretbox::gen_key();
+        let nonce = secretbox::gen_nonce();
+
+        let t1 = secretbox::seal_detached(&mut d1, &nonce, &key);
+        let t2 = secretbox::seal_detached(&mut d2, &nonce, &key);
+
+        assert_eq!(d1, d2);
+        assert_eq!(t1, t2);
+    }
 
     #[test]
     fn test_pk_sign_verify() {
