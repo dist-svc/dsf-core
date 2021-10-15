@@ -47,6 +47,9 @@ pub struct Base {
     /// This is automatically included / extracted to simplify higher level parsing
     pub(crate) peer_id: Option<Id>,
 
+    /// Object tag (if encrypted)
+    pub(crate) tag: Option<Vec<u8>>,
+
     /// Object signature
     pub(crate) signature: Option<Signature>,
 
@@ -222,6 +225,7 @@ impl Base {
             public_key: options.public_key,
             peer_id: options.peer_id,
             signature: options.signature,
+            tag: None,
             verified: false,
             raw: options.raw,
         }
@@ -404,6 +408,8 @@ mod tests {
 
         let header = Header {
             kind: PageKind::Generic.into(),
+            application_id: 10,
+            index: 12,
             ..Default::default()
         };
         let data = vec![1, 2, 3, 4, 5, 6, 7];

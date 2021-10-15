@@ -43,26 +43,72 @@ impl<'a, T: ImmutableData> Container<T> {
     pub fn body(&self) -> &[u8] {
         let data = self.buff.as_ref();
 
-        let n = HEADER_LEN + ID_LEN;
         let s = self.header().data_len();
-        &data[n..n + s]
+        &data[offsets::BODY..][..s]
     }
 
     /// Return the private options section data
     pub fn private_options(&self) -> &[u8] {
         let data = self.buff.as_ref();
 
-        let n = HEADER_LEN + ID_LEN + self.header().data_len();
+        let n = offsets::BODY + self.header().data_len();
         let s = self.header().private_options_len();
         &data[n..n + s]
     }
 
+    /// Return public options section data
+    pub fn public_options(&self) -> &[u8] {
+        let h = self.header();
+        let data = self.buff.as_ref();
+
+        let tag_len = if h.flags().contains(Flags::ENCRYPTED) {
+            SECRET_KEY_TAG_LEN
+        } else {
+            0
+        };
+
+        let n = offsets::BODY + h.data_len()
+                + h.private_options_len() + tag_len;
+        let s = h.public_options_len();
+        &data[n..n + s]
+    }
+
+    /// Ciphertext for encrypted objects (body + private options fields)
+    pub fn cyphertext(&self) -> &[u8] {
+        let data = self.buff.as_ref();
+
+        let s = self.header().data_len() + self.header().private_options_len();
+
+        &data[offsets::BODY..][..s]
+    }
+
+    /// Tag for secret key encryption
+    pub fn tag(&self) -> &[u8] {
+        let h = self.header();
+        let data = self.buff.as_ref();
+
+        if !h.flags().contains(Flags::ENCRYPTED) {
+            return &[];
+        }
+
+        let n = HEADER_LEN + ID_LEN + h.data_len()
+                + h.private_options_len();
+
+        &data[n..n + SECRET_KEY_TAG_LEN]
+    }
+
     /// Return the public options section data
-    pub fn public_options(&self) -> impl Iterator<Item = Options> + '_ {
+    pub fn public_options_iter(&self) -> impl Iterator<Item = Options> + '_ {
         let data = self.buff.as_ref();
         let header = self.header();
 
-        let n = HEADER_LEN + ID_LEN + header.data_len() + header.private_options_len();
+        let tag_len = if header.flags().contains(Flags::ENCRYPTED) {
+            SECRET_KEY_TAG_LEN
+        } else {
+            0
+        };
+
+        let n = HEADER_LEN + ID_LEN + header.data_len() + header.private_options_len() + tag_len;
         let s = header.public_options_len();
         OptionsIter::new(&data[n..n + s])
     }
@@ -89,10 +135,17 @@ impl<'a, T: ImmutableData> Container<T> {
     pub fn len(&self) -> usize {
         let header = self.header();
 
+        let tag_len = if header.flags().contains(Flags::ENCRYPTED) {
+            SECRET_KEY_TAG_LEN
+        } else {
+            0
+        };
+
         HEADER_LEN
             + ID_LEN
             + header.data_len()
             + header.private_options_len()
+            + tag_len
             + header.public_options_len()
             + SIGNATURE_LEN
     }
@@ -116,5 +169,12 @@ impl<'a, T: ImmutableData> Container<T> {
         let len = self.len();
 
         &data[0..len]
+    }
+}
+
+impl<'a, T: ImmutableData> AsRef<[u8]> for  Container<T> {
+    fn as_ref(&self) -> &[u8] {
+        let n = self.len;
+        &self.buff.as_ref()[..n]
     }
 }

@@ -1,7 +1,7 @@
 use byteorder::{ByteOrder, NetworkEndian};
 
 use crate::base::header::{offsets, Header};
-use crate::types::{Flags, ImmutableData, Kind, MutableData};
+use crate::types::{Flags, ImmutableData, Kind, MutableData, SECRET_KEY_TAG_LEN};
 
 /// Header generic over arbitrary storage for wire encoding
 // TODO: decide what to do with the high / low level impls
@@ -54,6 +54,49 @@ impl<T: ImmutableData> WireHeader<T> {
 
     pub fn public_options_len(&self) -> usize {
         NetworkEndian::read_u16(&self.buff.as_ref()[offsets::PUBLIC_OPTIONS_LEN..]) as usize
+    }
+
+
+    pub fn data_offset(&self) -> usize {
+        offsets::BODY
+    }
+
+    pub fn private_options_offset(&self) -> usize {
+        self.data_offset() + self.data_len()
+    }
+
+    pub fn tag_offset(&self) -> usize {
+        self.private_options_offset() + self.private_options_len()
+    }
+
+    pub fn public_options_offset(&self) -> usize {
+        let mut o = self.private_options_offset() + self.private_options_len();
+
+        if self.flags().contains(Flags::ENCRYPTED) {
+            o += SECRET_KEY_TAG_LEN
+        };
+
+        o
+    }
+
+    pub fn signature_offset(&self) -> usize {
+        self.public_options_offset() + self.public_options_len()
+    }
+}
+
+#[cfg(feature = "std")]
+impl<T: ImmutableData> std::fmt::Debug for WireHeader<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        f.debug_struct("WireHeader")
+            .field("protocol_version", &self.protocol_version())
+            .field("application_id", &self.application_id())
+            .field("kind", &self.kind())
+            .field("flags", &self.flags())
+            .field("index", &self.index())
+            .field("data_len", &self.data_len())
+            .field("private_options_len", &self.private_options_len())
+            .field("public_options_len", &self.public_options_len())
+            .finish()
     }
 }
 

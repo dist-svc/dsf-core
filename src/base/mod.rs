@@ -66,6 +66,11 @@ pub trait Encode {
     /// Encode method writes object data to the provided writer
     fn encode(&self, buff: &mut [u8]) -> Result<usize, Self::Error>;
 
+    /// Encode len fetches expected encoded length for an object
+    fn encode_len(&self) -> Result<usize, Self::Error> {
+        todo!()
+    }
+
     /// Encode a iterator of encodable objects
     fn encode_iter<'a, V: Iterator<Item = &'a Self>>(
         vals: V,

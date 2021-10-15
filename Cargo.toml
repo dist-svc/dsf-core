@@ -11,7 +11,7 @@ edition = "2018"
 
 [features]
 std = [ "managed/std", "bytes/std", "base64/std", "byteorder/std", "sha2/std", "chrono/std", "strum", "strum_macros", "thiserror" ]
-alloc = [ "base64/alloc", "chrono/alloc" ]
+alloc = [ "base64/alloc", "chrono/alloc", "pretty-hex/alloc" ]
 default = [ "std", "serde" ]
 
 
@@ -29,6 +29,7 @@ rand_core = { version = "0.5.1", default_features = false }
 thiserror = { version = "1.0.11", default_features = false, optional = true }
 defmt = { version = "0.2.1", optional = true }
 derivative = "2.2.0"
+pretty-hex = { version = "0.2.1", default_features = false }
 
 [dependencies.managed]
 version = "0.7.1"
@@ -75,3 +76,6 @@ version = "1.0"
 
 [patch.crates-io]
 sodiumoxide = { git = "https://github.com/sodiumoxide/sodiumoxide.git" }
+
+[dev-dependencies]
+simplelog = "0.10.2"
