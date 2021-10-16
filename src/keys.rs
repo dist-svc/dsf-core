@@ -1,25 +1,45 @@
 
 
+use crate::options::PubKey;
 use crate::types::{Id, PrivateKey, PublicKey, SecretKey};
 use crate::crypto;
 
 /// Key object stored and returned by a KeySource
 #[derive(Clone, PartialEq, Debug)]
+#[cfg_attr(feature="structopt", derive(structopt::StructOpt))]
 pub struct Keys {
     /// Service public key
-    pub pub_key: PublicKey,
+    #[cfg_attr(feature="structopt", structopt(long))]
+    pub pub_key: Option<PublicKey>,
+
     /// Service private key
+    #[cfg_attr(feature="structopt", structopt(long))]
     pub pri_key: Option<PrivateKey>,
+
     /// Secret key for data encryption
+    #[cfg_attr(feature="structopt", structopt(long))]
     pub sec_key: Option<SecretKey>,
+
     /// Symmetric keys for p2p message signing / verification
+    #[cfg_attr(feature="structopt", structopt(skip))]
     pub sym_keys: Option<(SecretKey, SecretKey)>,
+}
+
+impl Default for Keys {
+    fn default() -> Self {
+        Self { 
+            pub_key: None, 
+            pri_key: None, 
+            sec_key: None, 
+            sym_keys: None
+        }
+    }
 }
 
 impl Keys {
     pub fn new(pub_key: PublicKey) -> Self {
         Self {
-            pub_key,
+            pub_key: Some(pub_key),
             pri_key: None,
             sec_key: None,
             sym_keys: None,
@@ -36,26 +56,74 @@ impl Keys {
         self
     }
 
+    pub fn pub_key(&mut self) -> Option<PublicKey> {
+        match (&self.pub_key, &self.pri_key) {
+            // Return pub key directly if exists
+            (Some(pub_key), _) => Some(pub_key.clone()),
+            // Compute pub_key via pri_key if exists
+            (_, Some(pri_key)) => {
+                self.pub_key = crypto::pk_derive(pri_key).ok();
+                self.pub_key.clone()
+            },
+            // No pub_key available
+            _ => None,
+        }
+    }
+
     /// Derive encryption keys for the specified peer
-    pub fn derive_peer(&self, pub_key: PublicKey) -> Result<Keys, ()> {
+    pub fn derive_peer(&self, peer_pub_key: PublicKey) -> Result<Keys, ()> {
         // Derivation requires our public key
-        let pri_key = match &self.pri_key {
-            Some(p) => p,
-            None => return Err(()),
+        let (pub_key, pri_key) = match (&self.pub_key, &self.pri_key) {
+            (Some(pub_key), Some(pri_key)) => (pub_key, pri_key),
+            _ => return Err(()),
         };
 
         // Generate symmetric keys
-        let sym_keys = crypto::sk_derive(&self.pub_key, pri_key, &pub_key)?;
+        let sym_keys = crypto::sk_derive(pub_key, pri_key, &peer_pub_key)?;
 
-        // Return generated key object
+        // Return generated key object for peer
         Ok(Keys {
-            pub_key,
-            pri_key: self.pri_key.clone(),
+            pub_key: Some(peer_pub_key),
+            pri_key: None,
             sec_key: None,
             sym_keys: Some(sym_keys),
         })
     }
 }
+
+pub trait KeySource: Sized {
+    /// Find keys for a given service / peer ID
+    fn keys(&self, id: &Id) -> Option<Keys>;
+
+    /// Fetch public key
+    fn pub_key(&self, id: &Id) -> Option<PublicKey> {
+        self.keys(id).map(|k| k.pub_key ).flatten()
+    }
+
+    /// Fetch private key
+    fn pri_key(&self, id: &Id) -> Option<PrivateKey> {
+        self.keys(id).map(|k| k.pri_key ).flatten()
+    }
+
+    /// Fetch secret key
+    fn sec_key(&self, id: &Id) -> Option<SecretKey> {
+        self.keys(id).map(|k| k.sec_key ).flatten()
+    }
+
+    /// Build cached keystore wrapper
+    fn cached(&self, existing: Option<(Id, Keys)>) -> CachedKeySource<Self> {
+        CachedKeySource {
+            key_source: self,
+            cached: existing,
+        }
+    }
+
+    /// Build null keystore implementation
+    fn null() -> NullKeySource {
+        NullKeySource
+    }
+}
+
 
 impl KeySource for Keys {
     fn keys(&self, _id: &Id) -> Option<Keys> {
@@ -69,21 +137,21 @@ impl KeySource for Option<Keys> {
     }
 }
 
-pub trait KeySource: Sized {
-    /// Find keys for a given service / peer ID
-    fn keys(&self, id: &Id) -> Option<Keys>;
-
-    fn cached(&self, existing: Option<(Id, Keys)>) -> CachedKeySource<Self> {
-        CachedKeySource {
-            key_source: self,
-            cached: existing,
-        }
+impl KeySource for Option<SecretKey> {
+    fn keys(&self, _id: &Id) -> Option<Keys> {
+        self.as_ref().map(|v| {
+            Keys{
+                sec_key: Some(v.clone()),
+                ..Default::default()
+            }
+        })
     }
 
-    fn null(&self) -> NullKeySource {
-        NullKeySource
+    fn sec_key(&self, _id: &Id) -> Option<SecretKey> {
+        self.as_ref().map(|v| v.clone() )
     }
 }
+
 
 /// Wrapper to cache a KeySource with a value for immediate lookup
 pub struct CachedKeySource<'a, K: KeySource + Sized> {
@@ -104,6 +172,7 @@ impl<'a, K: KeySource + Sized> KeySource for CachedKeySource<'a, K> {
     }
 }
 
+/// Null key source implementation contains no keys
 pub struct NullKeySource;
 
 impl KeySource for NullKeySource {

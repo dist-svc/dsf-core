@@ -74,15 +74,19 @@ fn validate(
 
     // Otherwise use public key
     } else {
+        let pub_key = match &keys.pub_key {
+            Some(pk) => pk,
+            None => return Err(Error::NoPublicKey),
+        };
         
         // Check ID matches public key
-        let h = crypto::hash(&keys.pub_key).unwrap();
+        let h = crypto::hash(pub_key).unwrap();
         if id != &h {
             error!("Public key mismatch for object from {:?} ({})", id, h);
             return Err(Error::KeyIdMismatch);
         }
-
-        crypto::pk_validate(&keys.pub_key, sig, data).map_err(|_e| Error::CryptoError)?
+        
+        crypto::pk_validate(pub_key, sig, data).map_err(|_e| Error::CryptoError)?
     };
 
     Ok(valid)
@@ -113,14 +117,15 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
         // Fetch signature for page
         let signature: Signature = container.signature().into();
 
-        trace!("Validating signature: {:02x?}", signature.as_ref());
-
         // Validate primary types immediately if pubkey is known
-        if !flags.contains(Flags::SECONDARY) {
-            // Lookup public key
-            if let Some(keys) = key_source.keys(&id) {
+        match (!flags.contains(Flags::SECONDARY), key_source.keys(&id)) {
+            (true, Some(keys)) if keys.pub_key.is_some() => {
+                let pub_key = keys.pub_key.as_ref().unwrap();
+
+                trace!("Early signature validate: {:02x?} using key: {:?}", signature.as_ref(), pub_key);
+
                 // Check ID matches key
-                if id != crypto::hash(&keys.pub_key).unwrap() {
+                if id != crypto::hash(&pub_key).unwrap() {
                     return Err(Error::KeyIdMismatch);
                 }
 
@@ -132,7 +137,10 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
                     info!("Invalid signature with known pubkey");
                     return Err(Error::InvalidSignature);
                 }
-            }
+            },
+            _ => {
+                trace!("Skipping early signature validation, no keys loaded");
+            },
         }
 
         trace!("Fetching public options");
@@ -161,6 +169,7 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
             })
             .collect();
 
+
         // Look for signing ID
         let signing_id: Id = match (flags.contains(Flags::SECONDARY), &peer_id) {
             (false, _) => Ok(container.id().into()),
@@ -168,10 +177,13 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
             _ => Err(Error::NoPeerId),
         }?;
 
+        trace!("Peer id: {:?} pub_key: {:?} parent: {:?} signing_id: {:?}",
+            peer_id, pub_key, parent, signing_id);
+
         // Fetch public key
         let keys: Option<Keys> = match (key_source.keys(&signing_id), &pub_key) {
-            (Some(keys), _) => Some(keys),
-            (None, Some(key)) => Some(Keys::new(key.clone())),
+            (Some(keys), _) if keys.pub_key.is_some() => Some(keys),
+            (_, Some(key)) => Some(Keys::new(key.clone())),
             _ => {
                 warn!(
                     "Missing public key for message: {:?} signing id: {:?}",
@@ -181,7 +193,7 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
             }
         };
 
-        trace!("Re-validating object");
+        trace!("Re-validating object (keys: {:?})", keys);
 
         // Late validation for self-signed objects from unknown sources
         match (verified, keys) {
@@ -204,7 +216,7 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
 
         trace!("Starting decryption");
 
-        let sk = key_source.keys(&id).map(|k| k.sec_key ).flatten();
+        let sk = key_source.sec_key(&id);
 
         let (body, private_options, tag) = match (flags.contains(Flags::ENCRYPTED), sk) {
             // If we're encrypted _and_ we have keys, attempt decryption

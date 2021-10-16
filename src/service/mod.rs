@@ -148,7 +148,7 @@ impl Service {
 
     pub fn keys(&self) -> Keys {
         Keys {
-            pub_key: self.public_key.clone(),
+            pub_key: Some(self.public_key.clone()),
             pri_key: self.private_key.as_ref().map(|v| v.clone()),
             sec_key: self.secret_key.as_ref().map(|v| v.clone()),
             sym_keys: None,
