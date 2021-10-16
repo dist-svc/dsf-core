@@ -1,5 +1,4 @@
 bitflags! {
-
     /// Page and Message Flags.
     #[derive(Default)]
     #[cfg_attr(feature = "defmt", derive(defmt::Format))]

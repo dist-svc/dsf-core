@@ -125,12 +125,12 @@ impl<T: MutableData> Builder<Init, T> {
     }
 
     pub fn encrypted<B: ImmutableData, O: ImmutableData, P: ImmutableData>(
-        mut self,
+        self,
         body: &B,
         private_options: &O,
         tag: &P
     ) -> Result<Builder<SetPublicOptions, T>, Error> {
-        todo!()
+        self.body(body)?.private_options_raw(private_options)?.tag(tag)
     }
 }
 
@@ -282,7 +282,7 @@ impl<T: MutableData> Builder<Encrypt, T> {
     }
 
     pub fn public(
-        mut self,
+        self,
     ) -> Builder<SetPublicOptions, T> {
         trace!("Set object type to public, index: {}", self.n);
 

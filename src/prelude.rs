@@ -8,6 +8,8 @@ pub use crate::types::{
     Address, Data, DataKind, Flags, Id, Kind, MessageKind, PageKind, RequestId,
 };
 
+pub use crate::options::Options;
+
 pub use crate::error::Error as DsfError;
 
 pub use crate::types::{PrivateKey, PublicKey, SecretKey, Signature};

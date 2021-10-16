@@ -28,45 +28,40 @@ pub trait MutableData: AsMut<[u8]> + ImmutableData {}
 /// Generic impl of MutableData trait (since we don't have trait aliasing)
 impl<T: AsMut<[u8]> + ImmutableData> MutableData for T {}
 
-pub const ID_LEN: usize = 32;
 
+pub const ID_LEN: usize = 32;
 /// ID type
-pub type Id = Array32;
+pub type Id = Array<ID_LEN>;
 
 pub const REQUEST_ID_LEN: usize = 2;
-
 /// Request ID type
 pub type RequestId = u16;
 
 pub const PUBLIC_KEY_LEN: usize = 32;
-
 /// Public key type
-pub type PublicKey = Array32;
+pub type PublicKey = Array<PUBLIC_KEY_LEN>;
 
 pub const PRIVATE_KEY_LEN: usize = 64;
-
 /// Private key type
-pub type PrivateKey = Array64;
+pub type PrivateKey = Array<PRIVATE_KEY_LEN>;
 
 pub const SIGNATURE_LEN: usize = 64;
-//pub struct Signature([u8; SIGNATURE_LEN]);
-
 /// Signature type
-pub type Signature = Array64;
+pub type Signature = Array<SIGNATURE_LEN>;
 
 pub const SECRET_KEY_LEN: usize = 32;
-
 /// Secret key type
-pub type SecretKey = Array32;
+pub type SecretKey = Array<SECRET_KEY_LEN>;
 
 pub const SECRET_KEY_TAG_LEN: usize = 40;
+/// Secret key encryption metadata (tag and nonce)
+pub type SecretMeta = Array<SECRET_KEY_TAG_LEN>;
+
 
 pub const HASH_LEN: usize = 32;
+/// Cryptographic hash value
+pub type CryptoHash = Array<HASH_LEN>;
 
-pub type CryptoHash = Array32;
-
-pub const ENCRYPTED_META_LEN: usize = 64;
-pub type EncryptedMeta = Array64;
 
 //#[derive(Clone, PartialEq, Debug)]
 //TODO: remove
@@ -85,7 +80,8 @@ pub use self::datetime::DateTime;
 pub mod address;
 pub use self::address::{Address, AddressV4, AddressV6, Ip};
 
-#[derive(Debug, Clone, PartialEq)]
+/// Basic const-generic array type to override display etc.
+#[derive(Clone, PartialEq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct  Array<const N: usize> ([u8; N]);
 
@@ -174,6 +170,15 @@ impl <const N: usize> Hash for Array<N> {
 impl <const N: usize> Eq for Array<N> {}
 
 impl <const N: usize> fmt::Display for Array<N> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let r: &[u8] = &self.0;
+        let encoded = base64::encode_config(&r, base64::URL_SAFE);
+        write!(f, "{}", encoded)?;
+        Ok(())
+    }
+}
+
+impl <const N: usize> fmt::Debug for Array<N> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let r: &[u8] = &self.0;
         let encoded = base64::encode_config(&r, base64::URL_SAFE);

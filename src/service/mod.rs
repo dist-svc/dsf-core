@@ -30,7 +30,7 @@ pub use builder::ServiceBuilder;
 use crate::keys::Keys;
 
 /// Generic Service Type.
-/// This provides the basis for all services in DSR.
+/// This provides the basis for all services in DSF.
 ///
 /// Services should be constructed using the ServiceBuilder type
 #[derive(PartialEq, Debug, Clone)]

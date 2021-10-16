@@ -278,8 +278,7 @@ impl Base {
 }
 
 impl Base {
-    /// Parses a data array into a base object using the pubkey_source to locate
-    /// a key for validation
+    /// Parses a data array into a base object using the pubkey_source to locate keys for validation and decryption
     pub fn parse<'a, K, T: AsRef<[u8]>>(data: T, key_source: &K) -> Result<(Base, usize), Error>
     where
         K: KeySource,
@@ -289,6 +288,8 @@ impl Base {
 }
 
 impl Base {
+    /// Writes a base object to the specified buffer using the provided keys for encryption and signing
+    /// bypassing encoding if the raw object is available
     pub fn encode<'a, T: AsRef<[u8]> + AsMut<[u8]>>(
         &mut self,
         keys: Option<&Keys>,

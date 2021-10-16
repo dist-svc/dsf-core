@@ -104,6 +104,36 @@ pub enum MaybeEncrypted<O: Debug = Vec<u8>, E: ImmutableData = Vec<u8>> {
     None,
 }
 
+impl <O: Debug, E: ImmutableData> MaybeEncrypted<O, E> {
+    pub fn cleartext(o: O) -> Self {
+        Self::Cleartext(o)
+    }
+
+    pub fn encrypted(e: E) -> Self {
+        Self::Encrypted(e)
+    }
+}
+
+impl <O: Encode + Debug, E: ImmutableData> Encode for MaybeEncrypted<O, E> {
+    type Error = <O as Encode>::Error;
+
+    /// Encode a MaybeEncrypted object, writing data directly if encrypted or
+    /// calling the inner .encode function for decrypted objects
+    fn encode(&self, buff: &mut [u8]) -> Result<usize, Self::Error> {
+        match self {
+            Self::Encrypted(e) if e.as_ref().len() > 0 => {
+                let l = e.as_ref();
+                buff[..l.len()].copy_from_slice(l);
+                Ok(l.len())
+            },
+            Self::Cleartext(o) => o.encode(buff),
+            _ => Ok(0)
+        }
+    }
+}
+
+
+
 impl From<Vec<u8>> for MaybeEncrypted<Vec<u8>, Vec<u8>> {
     fn from(o: Vec<u8>) -> Self {
         if o.len() > 0 {

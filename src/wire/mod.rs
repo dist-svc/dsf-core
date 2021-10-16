@@ -4,6 +4,8 @@
 #[cfg(feature = "alloc")]
 use alloc::prelude::v1::*;
 
+use core::ops::{Deref, DerefMut};
+
 use pretty_hex::*;
 
 use crate::base::{Base, Body, Header, MaybeEncrypted};
@@ -358,9 +360,9 @@ impl<'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
             },
             // If we have no keys, fail
             (true, _, _, _, _) => {
-                panic!("Encrypt failed, no secret key or mismatched clear/cyphertexts");
+                error!("Encrypt failed, no secret key or mismatched clear/cyphertexts");
+                return Err(Error::NoSecretKey);
             },
-            _ => panic!("Unexpected encrypt state"),
         };
 
         // Write public options
@@ -403,6 +405,54 @@ impl<'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
         // Return signed container and length
         Ok((c, len))
     }
+}
+
+
+/// Helper to decrypt optionally encrypted fields
+pub(crate) fn decrypt(sk: &SecretKey, body: &mut MaybeEncrypted, private_opts: &mut MaybeEncrypted<Vec<Options>>, tag: Option<&SecretMeta>) -> Result<(), Error> {
+    
+    // Check we have a tag
+    let tag = match tag {
+        Some(t) => t,
+        None => return Err(Error::Unknown),
+    };
+
+    // Build cyphertext
+    let mut cyphertext: Vec<u8> = vec![];
+    
+    let body_len = match body {
+        MaybeEncrypted::Cleartext(_) => return Err(Error::Unknown),
+        MaybeEncrypted::None => 0,
+        MaybeEncrypted::Encrypted(e) => {
+            cyphertext.extend(e.iter());
+            e.len()
+        },
+    };
+
+    let private_opt_len = match private_opts {
+        MaybeEncrypted::Cleartext(_) => return Err(Error::Unknown),
+        MaybeEncrypted::None => 0,
+        MaybeEncrypted::Encrypted(e) => {
+            cyphertext.extend(e.iter());
+            e.len()
+        },
+    };
+
+    // Perform decryption
+    let _n = crypto::sk_decrypt(&sk, tag, cyphertext.deref_mut())
+            .map_err(|_e| Error::InvalidSignature)?;
+
+    // Write-back decrypted data
+    if body_len > 0 {
+        *body = MaybeEncrypted::Cleartext(cyphertext[..body_len].to_vec());
+    }
+
+    if private_opt_len > 0 {
+        let (opts, _n) = Options::parse_vec(&cyphertext[body_len..])?;
+        *private_opts = MaybeEncrypted::Cleartext(opts);
+    }
+
+    return Ok(())
 }
 
 #[cfg(test)]

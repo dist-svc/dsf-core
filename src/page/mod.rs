@@ -35,19 +35,23 @@ pub struct Page {
     // Information associated with different object kinds
     pub info: PageInfo,
 
-    // Page Body
-    pub body: Body,
-
     // Common options
     pub issued: Option<DateTime>,
     pub expiry: Option<DateTime>,
 
-    pub public_options: Vec<Options>,
-
-    pub private_options: MaybeEncrypted<Vec<Options>>,
-
     // Previous page signature
     pub previous_sig: Option<Signature>,
+
+    // Page Body
+    pub body: MaybeEncrypted<Vec<u8>>,
+
+    // Full options lists
+    pub public_options: Vec<Options>,
+    pub private_options: MaybeEncrypted<Vec<Options>>,
+
+
+    // Tag (if encrypted)
+    pub tag: Option<SecretMeta>,
 
     // Signature (if signed or decoded)
     pub signature: Option<Signature>,
@@ -130,6 +134,7 @@ impl Page {
 
             previous_sig: options.previous_sig,
 
+            tag: None,
             signature: options.signature,
             raw: options.raw,
 
@@ -209,6 +214,10 @@ impl Page {
 
     pub fn clean(&mut self) {
         self.raw = None;
+    }
+
+    pub fn decrypt(&mut self, sk: &SecretKey) -> Result<(), Error> {
+        crate::wire::decrypt(sk, &mut self.body, &mut self.private_options, self.tag.as_ref())
     }
 }
 
@@ -431,6 +440,7 @@ impl TryFrom<Base> for Page {
 
             public_options,
             private_options: base.private_options.clone(),
+            tag: None,
             signature: signature.clone(),
             verified: base.verified,
 

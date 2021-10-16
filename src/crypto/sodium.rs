@@ -12,7 +12,7 @@ use sodiumoxide::crypto::secretbox::xsalsa20poly1305::Nonce as SodiumSecretNonce
 use sodiumoxide::crypto::secretbox::xsalsa20poly1305::Tag as SodiumSecretTag;
 use sodiumoxide::crypto::secretbox::xsalsa20poly1305::{MACBYTES, NONCEBYTES};
 
-use crate::types::{CryptoHash, PrivateKey, PublicKey, SecretKey, Signature};
+use crate::types::{CryptoHash, PrivateKey, PublicKey, SecretKey, Signature, SecretMeta};
 
 /// new_pk creates a new public/private key pair
 pub fn new_pk() -> Result<(PublicKey, PrivateKey), ()> {
@@ -105,7 +105,7 @@ pub fn sk_validate(secret_key: &PublicKey, signature: &Signature, data: &[u8]) -
     Ok(auth::verify(&tag, data, &secret_key))
 }
 
-pub fn sk_encrypt(secret_key: &SecretKey, message: &mut [u8]) -> Result<[u8; SK_META], ()> {
+pub fn sk_encrypt(secret_key: &SecretKey, message: &mut [u8]) -> Result<SecretMeta, ()> {
     let secret_key = SodiumSecretKey::from_slice(secret_key).unwrap();
     let nonce = secretbox::gen_nonce();
 
@@ -117,10 +117,10 @@ pub fn sk_encrypt(secret_key: &SecretKey, message: &mut [u8]) -> Result<[u8; SK_
     (&mut meta[..MACBYTES]).copy_from_slice(&tag.0);
     (&mut meta[MACBYTES..]).copy_from_slice(&nonce.0);
 
-    Ok(meta)
+    Ok(meta.into())
 }
 
-pub fn sk_reencrypt(secret_key: &SecretKey, meta: &[u8], message: &mut [u8]) -> Result<[u8; SK_META], ()> {
+pub fn sk_reencrypt(secret_key: &SecretKey, meta: &[u8], message: &mut [u8]) -> Result<SecretMeta, ()> {
     let secret_key = SodiumSecretKey::from_slice(secret_key).unwrap();
 
     let t1 = SodiumSecretTag::from_slice(&meta[..MACBYTES]).unwrap();
@@ -136,7 +136,7 @@ pub fn sk_reencrypt(secret_key: &SecretKey, meta: &[u8], message: &mut [u8]) -> 
     (&mut meta[..MACBYTES]).copy_from_slice(&t2.0);
     (&mut meta[MACBYTES..]).copy_from_slice(&nonce.0);
 
-    Ok(meta)
+    Ok(meta.into())
 }
 
 pub fn sk_decrypt(secret_key: &SecretKey, meta: &[u8], message: &mut [u8]) -> Result<(), ()> {
