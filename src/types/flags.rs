@@ -20,5 +20,8 @@ bitflags! {
 
         /// Signal a device is constrained (requests are delegation, not for use as DHT peer)
         const CONSTRAINED = (1 << 6);
+
+        /// Signal a device is transient, limiting persistence of ID and address
+        const NO_PERSIST = (1 << 7);
     }
 }

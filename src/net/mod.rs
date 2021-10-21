@@ -26,6 +26,18 @@ pub enum Message {
     Response(Response),
 }
 
+impl From<Request> for Message {
+    fn from(req: Request) -> Self {
+        Self::Request(req)
+    }
+}
+
+impl From<Response> for Message {
+    fn from(resp: Response) -> Self {
+        Self::Response(resp)
+    }
+}
+
 impl Message {
     pub fn request(req: Request) -> Self {
         Self::Request(req)
