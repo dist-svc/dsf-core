@@ -4,7 +4,7 @@ use core::ops::Add;
 use std::time::{Duration, SystemTime};
 
 #[cfg(feature = "alloc")]
-use alloc::prelude::v1::*;
+use alloc::vec::{Vec};
 
 use crate::base::{Base, Body, Header, MaybeEncrypted};
 use crate::error::Error;

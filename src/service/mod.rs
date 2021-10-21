@@ -10,7 +10,7 @@ use crate::options::Options;
 use crate::types::*;
 
 #[cfg(feature = "alloc")]
-use alloc::prelude::v1::*;
+use alloc::vec::{Vec};
 
 mod kinds;
 pub use kinds::*;

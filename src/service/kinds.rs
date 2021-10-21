@@ -1,5 +1,5 @@
 #[cfg(feature = "alloc")]
-use alloc::prelude::v1::*;
+use alloc::vec::{Vec};
 
 //use std::collections::HashMap;
 

@@ -1,11 +1,12 @@
 #[cfg(feature = "alloc")]
-use alloc::prelude::v1::*;
+use alloc::vec::{Vec};
 
 use crate::base::{Body, MaybeEncrypted};
 use crate::crypto;
 use crate::error::Error;
 use crate::options::Options;
 use crate::types::*;
+use crate::keys::Keys;
 
 use super::Service;
 
@@ -16,6 +17,7 @@ pub struct ServiceBuilder {
 
     kind: PageKind,
     application_id: u16,
+    index: u16,
     body: Body,
 
     private_key: Option<PrivateKey>,
@@ -24,6 +26,9 @@ pub struct ServiceBuilder {
 
     public_options: Vec<Options>,
     private_options: Vec<Options>,
+
+
+    last_sig: Option<Signature>,
 }
 
 impl Default for ServiceBuilder {
@@ -34,6 +39,7 @@ impl Default for ServiceBuilder {
             public_key: None,
 
             application_id: 0,
+            index: 0,
             kind: PageKind::Generic,
             body: Body::None,
 
@@ -43,6 +49,8 @@ impl Default for ServiceBuilder {
 
             public_options: vec![],
             private_options: vec![],
+
+            last_sig: None,
         }
     }
 }
@@ -82,6 +90,11 @@ impl ServiceBuilder {
         self.public_key = Some(public_key);
         self
     }
+    
+    pub fn last_index(mut self, index: u16) -> Self {
+        self.index = index;
+        self
+    }
 
     pub fn kind(mut self, kind: PageKind) -> Self {
         self.kind = kind;
@@ -100,6 +113,20 @@ impl ServiceBuilder {
 
     pub fn secret_key(mut self, secret_key: SecretKey) -> Self {
         self.secret_key = Some(secret_key);
+        self
+    }
+
+    pub fn keys(mut self, keys: Keys) -> Self {
+        let Keys{sec_key, pri_key, ..} = keys;
+
+        if let Some(pk) = pri_key {
+            self.private_key = Some(pk)
+        }
+
+        if let Some(sk) = sec_key {
+            self.secret_key = Some(sk)
+        }
+
         self
     }
 
@@ -124,6 +151,11 @@ impl ServiceBuilder {
 
     pub fn private_options(mut self, o: Vec<Options>) -> Self {
         self.private_options = o;
+        self
+    }
+
+    pub fn last_signature(mut self, s: Signature) -> Self {
+        self.last_sig = Some(s);
         self
     }
 

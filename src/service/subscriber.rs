@@ -1,7 +1,7 @@
 use core::convert::TryInto;
 
 #[cfg(feature = "alloc")]
-use alloc::prelude::v1::*;
+use alloc::vec::{Vec};
 
 use crate::crypto;
 use crate::error::Error;

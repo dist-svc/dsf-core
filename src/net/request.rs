@@ -2,7 +2,7 @@ use core::convert::TryFrom;
 use core::ops::Deref;
 
 #[cfg(feature = "alloc")]
-use alloc::prelude::v1::*;
+use alloc::vec::{Vec};
 
 use crate::base::{Base, BaseOptions, Body, Header};
 use crate::error::Error;

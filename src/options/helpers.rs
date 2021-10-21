@@ -1,7 +1,7 @@
 use core::str;
 
 #[cfg(feature = "alloc")]
-use alloc::prelude::v1::*;
+use alloc::vec::{Vec};
 
 use byteorder::{ByteOrder, NetworkEndian};
 

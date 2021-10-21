@@ -2,7 +2,7 @@
 //! and can be encoded and decoded for wire communication.
 
 #[cfg(feature = "alloc")]
-use alloc::prelude::v1::*;
+use alloc::vec::{Vec};
 
 use crate::base::Header;
 use crate::error::Error;
@@ -221,6 +221,7 @@ impl Base {
     }
 
     pub fn clean(&mut self) {}
+
 }
 
 // TODO: move these to the options module?

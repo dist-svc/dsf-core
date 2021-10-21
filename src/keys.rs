@@ -110,6 +110,11 @@ pub trait KeySource: Sized {
         self.keys(id).map(|k| k.sec_key ).flatten()
     }
 
+    /// Update keys for the specified ID (optional)
+    fn update<F: FnMut(&mut Keys) -> ()>(&mut self, _id: &Id, _f: F) -> bool {
+        false
+    }
+
     /// Build cached keystore wrapper
     fn cached(&self, existing: Option<(Id, Keys)>) -> CachedKeySource<Self> {
         CachedKeySource {
