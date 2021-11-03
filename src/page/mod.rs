@@ -15,7 +15,7 @@ use crate::keys::{KeySource, Keys};
 
 
 mod info;
-pub use info::PageInfo;
+pub use info::{PageInfo, Primary, Secondary, Tertiary};
 
 //pub type Page = Base;
 //pub type PageBuilder = BaseBuilder;
@@ -314,6 +314,9 @@ impl From<&Page> for Base {
             }
             PageInfo::Secondary(secondary) => {
                 default_options.push(Options::peer_id(secondary.peer_id.clone()));
+            }
+            PageInfo::Tertiary(tertiary) => {
+                // TODO?
             }
             PageInfo::Data(_data) => {}
         }

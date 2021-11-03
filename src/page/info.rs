@@ -8,6 +8,7 @@ pub enum PageInfo {
     Primary(Primary),
     Secondary(Secondary),
     Data(()),
+    Tertiary(Tertiary),
 }
 
 impl PageInfo {
@@ -60,4 +61,11 @@ pub struct Primary {
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct Secondary {
     pub peer_id: Id,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub struct Tertiary {
+    pub service_id: Id,
 }

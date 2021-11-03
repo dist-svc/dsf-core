@@ -84,6 +84,20 @@ impl ServiceBuilder {
         }
     }
 
+    /// Setup a name service with the specified prefix
+    pub fn ns(prefix: &str) -> Self {
+        let mut s = Self {
+            // TODO: fix up kinds, seems to be conflation between DB and DSF pages?
+            // maybe this should be flags for pri | sec | ter + enum for variant?
+            kind: PageKind::Generic,
+            ..Default::default()
+        };
+
+        s.private_options = vec![Options::name(prefix)];
+
+        s
+    }
+
     /// Set the ID and public key for the service
     pub fn id(mut self, id: Id, public_key: PublicKey) -> Self {
         self.id = Some(id);
@@ -144,13 +158,13 @@ impl ServiceBuilder {
         self
     }
 
-    pub fn public_options(mut self, o: Vec<Options>) -> Self {
-        self.public_options = o;
+    pub fn public_options(mut self, mut o: Vec<Options>) -> Self {
+        self.public_options.append(&mut o);
         self
     }
 
-    pub fn private_options(mut self, o: Vec<Options>) -> Self {
-        self.private_options = o;
+    pub fn private_options(mut self, mut o: Vec<Options>) -> Self {
+        self.private_options.append(&mut o);
         self
     }
 

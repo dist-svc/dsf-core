@@ -126,6 +126,10 @@ impl Service {
         }
     }
 
+    pub fn public_options(&self) -> &[Options] {
+        &self.public_options
+    }
+
     pub fn public_key(&self) -> PublicKey {
         self.public_key.clone()
     }

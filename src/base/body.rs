@@ -326,7 +326,7 @@ mod tests {
     use super::*;
     use crate::base::*;
     use crate::types::PageKind;
-    use crate::keys::Keys;
+    use crate::keys::{Keys, NullKeySource};
 
     use crate::crypto;
 
@@ -340,7 +340,7 @@ mod tests {
         (
             id,
             Keys {
-                pub_key,
+                pub_key: Some(pub_key),
                 pri_key: Some(pri_key),
                 sec_key: Some(sec_key),
                 sym_keys: None,
@@ -394,7 +394,7 @@ mod tests {
             Body::Cleartext(data),
             BaseOptions {
                 peer_id: Some(id.clone()),
-                public_key: Some(keys.pub_key.clone()),
+                public_key: keys.pub_key.clone(),
                 ..Default::default()
             },
         );
@@ -413,7 +413,7 @@ mod tests {
         assert_eq!(n, m);
 
         let (mut decoded, m) =
-            Base::parse(&buff[..n], &None).expect("Error decoding page with unknown public key");
+            Base::parse(&buff[..n], &NullKeySource).expect("Error decoding page with unknown public key");
 
         decoded.clean();
         assert_eq!(page, decoded);

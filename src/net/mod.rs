@@ -188,7 +188,7 @@ mod tests {
         let request_id = 120;
 
         let keys = Keys {
-            pub_key: pub_key.clone(),
+            pub_key: Some(pub_key.clone()),
             pri_key: Some(pri_key),
             sec_key: None,
             sym_keys: None,

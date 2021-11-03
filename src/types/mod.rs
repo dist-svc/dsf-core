@@ -7,7 +7,8 @@ use core::fmt;
 use core::hash::{Hash, Hasher};
 use core::ops::{Deref, DerefMut};
 use core::str::FromStr;
-use std::marker::PhantomData;
+use core::marker::PhantomData;
+use core::ops::BitXor;
 
 #[cfg(feature = "serde")]
 use serde::de::{self, Visitor};
@@ -168,6 +169,18 @@ impl <const N: usize> Hash for Array<N> {
 }
 
 impl <const N: usize> Eq for Array<N> {}
+
+impl <const N: usize> BitXor for Array<N> {
+    type Output = Array<N>;
+
+    fn bitxor(self, rhs: Array<N>) -> Self::Output {
+        let mut s = self.clone();
+        for i in 0..N {
+            s[i] ^= rhs[i]
+        }
+        s
+    }
+}
 
 impl <const N: usize> fmt::Display for Array<N> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

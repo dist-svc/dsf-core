@@ -40,7 +40,7 @@ pub fn pk_validate(public_key: &PublicKey, signature: &Signature, data: &[u8]) -
     Ok(sign::verify_detached(&sig, data, &public_key))
 }
 
-/// pk_derive derives a public key from a provided private kry
+/// pk_derive derives a public key from a provided private key
 pub fn pk_derive(private_key: &PrivateKey) -> Result<PublicKey, ()> {
     // Parse key from slice
     let private_key = sign::SecretKey::from_slice(private_key).unwrap();

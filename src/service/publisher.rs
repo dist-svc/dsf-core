@@ -268,7 +268,7 @@ impl Publisher for Service {
 
 impl Service {
     // Encode a page to the provided buffer, updating the internal signature state
-    fn encode<T: AsRef<[u8]> + AsMut<[u8]>>(
+    pub fn encode<T: AsRef<[u8]> + AsMut<[u8]>>(
         &mut self,
         page: &mut Page,
         buff: T,

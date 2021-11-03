@@ -1,7 +1,10 @@
 //! Options are used to support extension of protocol objects
 //! with DSF and application-specific optional fields.
-
+ 
+use core::convert::TryFrom;
 use core::fmt::Debug;
+
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 #[cfg(feature = "alloc")]
 use alloc::vec::{Vec};
@@ -98,8 +101,31 @@ pub mod option_kinds {
     pub const BUILDING: u16 = 0x000b; // Building name / number (string)
     pub const ROOM: u16 = 0x000c;     // Room name / number (string)
     pub const COORD: u16 = 0x000d;    // Coordinates (lat, lng, alt)
-    pub const APP: u16 = 0x8000; // APP flag indictates option is application specific and should not be parsed here
+    pub const APP: u16 = 0x8000; // APP flag indicates option is application specific and should not be parsed here
 }
+
+#[derive(PartialEq, Debug, Clone, Copy, IntoPrimitive, TryFromPrimitive)]
+#[cfg_attr(feature = "strum_macros", derive(strum_macros::EnumString, strum_macros::Display))]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[repr(u16)]
+pub enum OptionKind {
+    PubKey      = 0x0000,   // Public Key
+    PeerId      = 0x0001,   // ID of Peer responsible for secondary page
+    PrevSig     = 0x0002,   // Previous object signature
+    Kind        = 0x0003,   // Service KIND in utf-8
+    Name        = 0x0004,   // Service NAME in utf-8
+    IpAddrV4    = 0x0005,   // IPv4 service address
+    IpAddrV6    = 0x0006,   // IPv6 service address
+    Issued      = 0x0007,   // ISSUED option defines object creation time
+    Expiry      = 0x0008,   // EXPIRY option defines object expiry time
+    Limit       = 0x0009,   // LIMIT option defines maximum number of objects to return
+    Meta        = 0x000a,   // META option supports generic metadata key:value pairs
+    Building    = 0x000b,   // Building name / number (string)
+    Room        = 0x000c,   // Room name / number (string)
+    Coord       = 0x000d,   // Coordinates (lat, lng, alt)
+}
+
 
 /// Option header length
 const OPTION_HEADER_LEN: usize = 4;
@@ -209,60 +235,33 @@ impl Parse for Options {
 
         let d = &data[OPTION_HEADER_LEN..OPTION_HEADER_LEN + option_len];
 
-        match option_kind {
-            option_kinds::PUBKEY => {
-                let (opt, n) = PubKey::parse(d)?;
-                Ok((Options::PubKey(opt), n + OPTION_HEADER_LEN))
-            }
-            option_kinds::PEER_ID => {
-                let (opt, n) = PeerId::parse(d)?;
-                Ok((Options::PeerId(opt), n + OPTION_HEADER_LEN))
-            }
-            option_kinds::PREV_SIG => {
-                let (opt, n) = PrevSig::parse(d)?;
-                Ok((Options::PrevSig(opt), n + OPTION_HEADER_LEN))
-            }
-            option_kinds::KIND => {
-                let (opt, n) = Kind::parse(d)?;
-                Ok((Options::Kind(opt), n + OPTION_HEADER_LEN))
-            }
-            option_kinds::NAME => {
-                let (opt, n) = Name::parse(d)?;
-                Ok((Options::Name(opt), n + OPTION_HEADER_LEN))
-            }
-            option_kinds::ADDR_IPV4 => {
-                let (opt, n) = AddressV4::parse(d)?;
-                Ok((Options::IPv4(opt), n + OPTION_HEADER_LEN))
-            }
-            option_kinds::ADDR_IPV6 => {
-                let (opt, n) = AddressV6::parse(d)?;
-                Ok((Options::IPv6(opt), n + OPTION_HEADER_LEN))
-            }
-            option_kinds::META => {
-                let (opt, n) = Metadata::parse(d)?;
-                Ok((Options::Metadata(opt), n + OPTION_HEADER_LEN))
-            }
-            option_kinds::ISSUED => {
-                let (opt, n) = Issued::parse(d)?;
-                Ok((Options::Issued(opt), n + OPTION_HEADER_LEN))
-            }
-            option_kinds::EXPIRY => {
-                let (opt, n) = Expiry::parse(d)?;
-                Ok((Options::Expiry(opt), n + OPTION_HEADER_LEN))
-            }
-            option_kinds::LIMIT => {
-                let (opt, n) = Limit::parse(d)?;
-                Ok((Options::Limit(opt), n + OPTION_HEADER_LEN))
-            }
-            option_kinds::COORD => {
-                let (opt, n) = Coordinates::parse(d)?;
-                Ok((Options::Coord(opt), n + OPTION_HEADER_LEN))
-            }
-            _ => {
-                // Unrecognised option types (and None) are skipped
-                Ok((Options::None, OPTION_HEADER_LEN + option_len))
-            }
-        }
+        // Convert to option kind
+        let k = match OptionKind::try_from(option_kind) {
+            Ok(v) => v,
+            Err(_e) => {
+                // TODO: return raw / unsupported / applicationoption data
+                return Ok((Options::None, option_len + OPTION_HEADER_LEN));
+            },
+        };
+
+        let (n, o) = match k {
+            OptionKind::PubKey => PubKey::parse(d).map(|(o, n) | (n, Options::PubKey(o)) )?,
+            OptionKind::PeerId => PeerId::parse(d).map(|(o, n) | (n, Options::PeerId(o)) )?,
+            OptionKind::PrevSig => PrevSig::parse(d).map(|(o, n) | (n, Options::PrevSig(o)) )?,
+            OptionKind::Kind => Kind::parse(d).map(|(o, n) | (n, Options::Kind(o)) )?,
+            OptionKind::Name => Name::parse(d).map(|(o, n) | (n, Options::Name(o)) )?,
+            OptionKind::IpAddrV4 => AddressV4::parse(d).map(|(o, n) | (n, Options::IPv4(o)) )?,
+            OptionKind::IpAddrV6 => AddressV6::parse(d).map(|(o, n) | (n, Options::IPv6(o)) )?,
+            OptionKind::Meta => Metadata::parse(d).map(|(o, n) | (n, Options::Metadata(o)) )?,
+            OptionKind::Issued => Issued::parse(d).map(|(o, n) | (n, Options::Issued(o)) )?,
+            OptionKind::Expiry => Expiry::parse(d).map(|(o, n) | (n, Options::Expiry(o)) )?,
+            OptionKind::Limit => Limit::parse(d).map(|(o, n) | (n, Options::Limit(o)) )?,
+            OptionKind::Coord => Coordinates::parse(d).map(|(o, n) | (n, Options::Coord(o)) )?,
+            OptionKind::Building => todo!(),
+            OptionKind::Room => todo!(),
+        };
+
+        Ok((o, n + OPTION_HEADER_LEN))
     }
 }
 
@@ -371,7 +370,7 @@ impl Encode for PeerId {
         NetworkEndian::write_u16(&mut data[0..2], option_kinds::PEER_ID);
         NetworkEndian::write_u16(&mut data[2..4], ID_LEN as u16);
 
-        data[OPTION_HEADER_LEN..OPTION_HEADER_LEN + ID_LEN].copy_from_slice(&self.peer_id);
+        data[OPTION_HEADER_LEN..][..ID_LEN].copy_from_slice(&self.peer_id);
 
         Ok(OPTION_HEADER_LEN + ID_LEN)
     }
@@ -408,7 +407,7 @@ impl Encode for PrevSig {
         NetworkEndian::write_u16(&mut data[0..2], option_kinds::PREV_SIG);
         NetworkEndian::write_u16(&mut data[2..4], SIGNATURE_LEN as u16);
 
-        data[OPTION_HEADER_LEN..OPTION_HEADER_LEN + SIGNATURE_LEN].copy_from_slice(&self.sig);
+        data[OPTION_HEADER_LEN..][..SIGNATURE_LEN].copy_from_slice(&self.sig);
 
         Ok(OPTION_HEADER_LEN + SIGNATURE_LEN)
     }
@@ -459,7 +458,7 @@ impl Encode for Kind {
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct Name {
-    value: String,
+    pub value: String,
 }
 
 impl Name {

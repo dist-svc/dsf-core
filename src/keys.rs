@@ -84,7 +84,8 @@ impl Keys {
         // Return generated key object for peer
         Ok(Keys {
             pub_key: Some(peer_pub_key),
-            pri_key: None,
+            // TODO: this is -our- private key, shouldn't really be returned / available outside the object
+            pri_key: self.pri_key.clone(),
             sec_key: None,
             sym_keys: Some(sym_keys),
         })
