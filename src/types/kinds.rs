@@ -151,7 +151,7 @@ impl TryFrom<Kind> for MessageKind {
             return Err(KindError::InvalidKind(v.0 & kind_flags::KIND_MASK));
         }
         
-        // TODO: do not attempt to parse application specific flags
+        // TODO: do not attempt to parse application specific kinds
         
         // Parse message kind
         match MessageKind::try_from(v.0) {

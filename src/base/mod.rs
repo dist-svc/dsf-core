@@ -9,6 +9,7 @@ pub use header::*;
 mod body;
 pub use body::*;
 
+use crate::options::Options;
 use crate::types::ImmutableData;
 
 /// Parse trait for building parse-able objects
@@ -114,7 +115,8 @@ impl <O: Debug, E: ImmutableData> MaybeEncrypted<O, E> {
     }
 }
 
-impl <O: Encode + Debug, E: ImmutableData> Encode for MaybeEncrypted<O, E> {
+impl <O: Encode + Debug, E: ImmutableData> Encode for MaybeEncrypted<O, E> 
+{
     type Error = <O as Encode>::Error;
 
     /// Encode a MaybeEncrypted object, writing data directly if encrypted or
@@ -132,7 +134,29 @@ impl <O: Encode + Debug, E: ImmutableData> Encode for MaybeEncrypted<O, E> {
     }
 }
 
+impl <'a> MaybeEncrypted<&'a [Options], &'a [u8]> {
+    pub fn to_vec(&self) -> MaybeEncrypted<Vec<Options>, Vec<u8>> {
+        match self {
+            Self::Encrypted(e) => MaybeEncrypted::Encrypted(e.to_vec()),
+            Self::Cleartext(e) => MaybeEncrypted::Cleartext(e.to_vec()),
+            Self::None => MaybeEncrypted::None,
+        }
+    }   
+}
 
+impl <'a, C, E> MaybeEncrypted<C, E> 
+where
+    C: AsRef<[Options]> + Debug,
+    E: ImmutableData,
+{
+    pub fn as_ref(&'a self) -> MaybeEncrypted<&'a [Options], &'a [u8]> {
+        match self {
+            Self::Encrypted(e) => MaybeEncrypted::Encrypted(e.as_ref()),
+            Self::Cleartext(c) => MaybeEncrypted::Cleartext(c.as_ref()),
+            Self::None => MaybeEncrypted::None,
+        }
+    }
+}
 
 impl From<Vec<u8>> for MaybeEncrypted<Vec<u8>, Vec<u8>> {
     fn from(o: Vec<u8>) -> Self {

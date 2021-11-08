@@ -25,7 +25,7 @@ pub use info::{PageInfo, Primary, Secondary, Tertiary};
 #[derivative(Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub struct Page {
+pub struct Page<Raw=Vec<u8>> {
     // Page ID
     pub id: Id,
 
@@ -61,22 +61,22 @@ pub struct Page {
 
     // Raw (encoded) data
     #[derivative(Debug="ignore")]
-    pub raw: Option<Vec<u8>>,
+    pub raw: Option<Raw>,
 
     _extend: (),
 }
 #[derive(derivative::Derivative, Clone, PartialEq)]
 #[derivative(Debug)]
-pub struct PageOptions {
+pub struct PageOptions<'a, Raw=Vec<u8>>{
     // Page issued time
     pub issued: Option<DateTime>,
     // Page expiry time
     pub expiry: Option<DateTime>,
 
     // Public options
-    pub public_options: Vec<Options>,
+    pub public_options: &'a [Options],
     // Private options
-    pub private_options: MaybeEncrypted<Vec<Options>>,
+    pub private_options: MaybeEncrypted<&'a [Options], &'a [u8]>,
 
     // Previous page signature
     pub previous_sig: Option<Signature>,
@@ -85,15 +85,15 @@ pub struct PageOptions {
 
     // Raw (encoded) data
     #[derivative(Debug="ignore")]
-    pub raw: Option<Vec<u8>>,
+    pub raw: Option<Raw>,
 }
 
-impl Default for PageOptions {
+impl<'a> Default for PageOptions<'a> {
     fn default() -> Self {
         Self {
             issued: None,
             expiry: None,
-            public_options: vec![],
+            public_options: &[],
             private_options: MaybeEncrypted::None,
             previous_sig: None,
             signature: None,
@@ -129,8 +129,8 @@ impl Page {
             issued: options.issued,
             expiry: options.expiry,
 
-            public_options: options.public_options,
-            private_options: options.private_options,
+            public_options: options.public_options.to_vec(),
+            private_options: options.private_options.to_vec(),
 
             previous_sig: options.previous_sig,
 

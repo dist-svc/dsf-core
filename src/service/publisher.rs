@@ -15,12 +15,19 @@ use crate::types::*;
 
 /// Publisher trait allows services to generate primary, data, and secondary pages
 /// as well as to encode (and sign and optionally encrypt) generated pages
-pub trait Publisher {
+pub trait Publisher{
     /// Generates a primary page to publish for the given service and encodes it into the provided buffer
     fn publish_primary<T: AsRef<[u8]> + AsMut<[u8]>>(
         &mut self,
         buff: T,
     ) -> Result<(usize, Page), Error>;
+
+    // Helper to publish primary page using fixed sized buffer
+    fn publish_primary_buff<const N: usize>(&mut self) -> Result<(usize, [u8; N], Page), Error> {
+        let mut buff = [0u8; N];
+        let (n, p) = self.publish_primary(&mut buff)?;
+        Ok((n, buff, p))
+    }
 
     /// Create a data object for publishing with the provided options and encodes it into the provided buffer
     fn publish_data<T: AsRef<[u8]> + AsMut<[u8]>>(
@@ -29,6 +36,13 @@ pub trait Publisher {
         buff: T,
     ) -> Result<(usize, Page), Error>;
 
+    // Helper to publish data block using fixed size buffer
+    fn publish_data_buff<const N: usize>(&mut self, options: DataOptions) -> Result<(usize, [u8; N], Page), Error> {
+        let mut buff = [0u8; N];
+        let (n, p) = self.publish_data(options, &mut buff)?;
+        Ok((n, buff, p))
+    }
+
     /// Create a secondary page for publishing with the provided options and encodes it into the provided buffer
     fn publish_secondary<T: AsRef<[u8]> + AsMut<[u8]>>(
         &mut self,
@@ -36,10 +50,17 @@ pub trait Publisher {
         options: SecondaryOptions,
         buff: T,
     ) -> Result<(usize, Page), Error>;
+
+    // Helper to publish secondary page fixed size buffer
+    fn publish_secondary_buff<const N: usize>(&mut self, id: &Id, options: SecondaryOptions) -> Result<(usize, [u8; N], Page), Error> {
+        let mut buff = [0u8; N];
+        let (n, p) = self.publish_secondary(id, options, &mut buff)?;
+        Ok((n, buff, p))
+    }
 }
 
 #[derive(Clone)]
-pub struct SecondaryOptions {
+pub struct SecondaryOptions<'a> {
     /// Application ID of primary service
     pub application_id: u16,
 
@@ -60,13 +81,13 @@ pub struct SecondaryOptions {
     pub expiry: Option<DateTime>,
 
     /// Public options attached to the page
-    pub public_options: Vec<Options>,
+    pub public_options: &'a [Options],
 
     /// Private options attached to the page
-    pub private_options: Vec<Options>,
+    pub private_options: &'a [Options],
 }
 
-impl Default for SecondaryOptions {
+impl <'a>Default for SecondaryOptions<'a> {
     fn default() -> Self {
         Self {
             application_id: 0,
@@ -75,14 +96,14 @@ impl Default for SecondaryOptions {
             body: Body::None,
             issued: None,
             expiry: None,
-            public_options: vec![],
-            private_options: vec![],
+            public_options: &[],
+            private_options: &[],
         }
     }
 }
 
 #[derive(Clone)]
-pub struct DataOptions {
+pub struct DataOptions<'a> {
     /// Data object kind
     pub data_kind: Kind,
 
@@ -96,24 +117,24 @@ pub struct DataOptions {
     pub expiry: Option<DateTime>,
 
     /// Public options attached to the data object
-    pub public_options: Vec<Options>,
+    pub public_options: &'a [Options],
 
     /// Private options attached to the data object
-    pub private_options: Vec<Options>,
+    pub private_options: &'a [Options],
 
     /// Do not attach last signature to object
     pub no_last_sig: bool,
 }
 
-impl Default for DataOptions {
+impl<'a> Default for DataOptions<'a> {
     fn default() -> Self {
         Self {
             data_kind: DataKind::Generic.into(),
             body: Body::None,
             issued: None,
             expiry: None,
-            public_options: vec![],
-            private_options: vec![],
+            public_options: &[],
+            private_options: &[],
             no_last_sig: false,
         }
     }
@@ -149,8 +170,8 @@ impl Publisher for Service {
                     .into(),
             ),
             previous_sig: self.last_sig.clone(),
-            public_options: self.public_options.clone(),
-            private_options: self.private_options.clone(),
+            public_options: &self.public_options,
+            private_options: self.private_options.as_ref(),
             ..Default::default()
         };
 
@@ -195,8 +216,8 @@ impl Publisher for Service {
         };
 
         let page_options = PageOptions {
-            public_options: options.public_options,
-            private_options: MaybeEncrypted::Cleartext(options.private_options),
+            public_options: &options.public_options,
+            private_options: MaybeEncrypted::Cleartext(&options.private_options),
             // TODO: Re-enable issued time
             #[cfg(feature = "std")]
             issued: Some(SystemTime::now().into()),
@@ -238,8 +259,8 @@ impl Publisher for Service {
         };
 
         let mut page_options = PageOptions {
-            public_options: options.public_options,
-            private_options: MaybeEncrypted::Cleartext(options.private_options),
+            public_options: &options.public_options,
+            private_options: MaybeEncrypted::Cleartext(&options.private_options),
             //previous_sig: self.last_sig.clone(),
             #[cfg(feature = "std")]
             issued: Some(SystemTime::now().into()),
