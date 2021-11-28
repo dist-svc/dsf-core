@@ -9,6 +9,7 @@ pub enum ServiceKind {
     Generic,
     Peer,
     Replica,
+    Registry,
     Unknown(i16),
 }
 

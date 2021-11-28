@@ -15,7 +15,7 @@ use crate::types::*;
 
 /// Publisher trait allows services to generate primary, data, and secondary pages
 /// as well as to encode (and sign and optionally encrypt) generated pages
-pub trait Publisher{
+pub trait Publisher<const N: usize = 512> {
     /// Generates a primary page to publish for the given service and encodes it into the provided buffer
     fn publish_primary<T: AsRef<[u8]> + AsMut<[u8]>>(
         &mut self,
@@ -23,7 +23,7 @@ pub trait Publisher{
     ) -> Result<(usize, Page), Error>;
 
     // Helper to publish primary page using fixed sized buffer
-    fn publish_primary_buff<const N: usize>(&mut self) -> Result<(usize, [u8; N], Page), Error> {
+    fn publish_primary_buff(&mut self) -> Result<(usize, [u8; N], Page), Error> {
         let mut buff = [0u8; N];
         let (n, p) = self.publish_primary(&mut buff)?;
         Ok((n, buff, p))
@@ -37,7 +37,7 @@ pub trait Publisher{
     ) -> Result<(usize, Page), Error>;
 
     // Helper to publish data block using fixed size buffer
-    fn publish_data_buff<const N: usize>(&mut self, options: DataOptions) -> Result<(usize, [u8; N], Page), Error> {
+    fn publish_data_buff(&mut self, options: DataOptions) -> Result<(usize, [u8; N], Page), Error> {
         let mut buff = [0u8; N];
         let (n, p) = self.publish_data(options, &mut buff)?;
         Ok((n, buff, p))
@@ -52,7 +52,7 @@ pub trait Publisher{
     ) -> Result<(usize, Page), Error>;
 
     // Helper to publish secondary page fixed size buffer
-    fn publish_secondary_buff<const N: usize>(&mut self, id: &Id, options: SecondaryOptions) -> Result<(usize, [u8; N], Page), Error> {
+    fn publish_secondary_buff(&mut self, id: &Id, options: SecondaryOptions) -> Result<(usize, [u8; N], Page), Error> {
         let mut buff = [0u8; N];
         let (n, p) = self.publish_secondary(id, options, &mut buff)?;
         Ok((n, buff, p))

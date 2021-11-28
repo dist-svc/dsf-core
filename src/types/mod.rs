@@ -29,6 +29,9 @@ pub trait MutableData: AsMut<[u8]> + ImmutableData {}
 /// Generic impl of MutableData trait (since we don't have trait aliasing)
 impl<T: AsMut<[u8]> + ImmutableData> MutableData for T {}
 
+/// Queryable trait for name resolution services
+pub trait Queryable: AsRef<[u8]> {}
+
 
 pub const ID_LEN: usize = 32;
 /// ID type

@@ -93,6 +93,27 @@ pub trait Encode {
 
         Ok(index)
     }
+
+    /// Encode into a fixed size buffer
+    fn encode_buff<const N: usize>(&self) -> Result<([u8; N], usize), Self::Error> {
+        let mut b = [0u8; N];
+        let n = self.encode(&mut b)?;
+        Ok((b, n))
+    }
+}
+
+impl <T: Encode> Encode for &[T] {
+    type Error = <T as Encode>::Error;
+
+    fn encode(&self, buff: &mut [u8]) -> Result<usize, Self::Error> {
+        let mut index = 0;
+
+        for i in *self {
+            index += i.encode(&mut buff[index..])?;
+        }
+
+        Ok(index)
+    }
 }
 
 /// Container for objects / collections that may be encrypted

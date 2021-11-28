@@ -47,7 +47,7 @@ pub enum RequestKind {
 
     Register(Id, Vec<Page>),
     Unregister(Id),
-    Discover,
+    Discover(Vec<u8>, Vec<Options>),
 }
 
 impl Request {
@@ -99,7 +99,7 @@ impl Request {
         };
 
         let remote_address = None;
-        let _public_options = base.public_options().to_vec();
+        let public_options = base.public_options().to_vec();
         //let _private_options = base.private_options().to_vec();
 
         let kind = match MessageKind::try_from(header.kind()) {
@@ -172,7 +172,10 @@ impl Request {
 
                 RequestKind::Unregister(id)
             }
-            MessageKind::Discover => RequestKind::Discover,
+            MessageKind::Discover => {
+                // TODO: pass through discover options
+                RequestKind::Discover(body.to_vec(), public_options)
+            },
             _ => {
                 error!(
                     "No handler for converting base object of kind {:?} to request message",
@@ -273,9 +276,10 @@ impl Into<Base> for Request {
                 kind = MessageKind::Unregister;
                 body = id.to_vec();
             }
-            RequestKind::Discover => {
+            RequestKind::Discover(filter_body, filter_options) => {
                 kind = MessageKind::Discover;
-                body = vec![];
+                body = filter_body.clone();
+                options.public_options = filter_options.clone();
             }
         }
 

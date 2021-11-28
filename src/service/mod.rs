@@ -21,6 +21,9 @@ pub use publisher::{Publisher, DataOptions, SecondaryOptions};
 mod subscriber;
 pub use subscriber::Subscriber;
 
+mod registry;
+pub use registry::Registry;
+
 mod net;
 pub use net::Net;
 

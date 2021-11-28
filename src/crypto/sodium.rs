@@ -12,6 +12,9 @@ use sodiumoxide::crypto::secretbox::xsalsa20poly1305::Nonce as SodiumSecretNonce
 use sodiumoxide::crypto::secretbox::xsalsa20poly1305::Tag as SodiumSecretTag;
 use sodiumoxide::crypto::secretbox::xsalsa20poly1305::{MACBYTES, NONCEBYTES};
 
+use crate::prelude::Keys;
+use crate::types::Array32;
+use crate::types::Id;
 use crate::types::{CryptoHash, PrivateKey, PublicKey, SecretKey, Signature, SecretMeta};
 
 /// new_pk creates a new public/private key pair
@@ -200,6 +203,42 @@ where
 pub fn hash(data: &[u8]) -> Result<CryptoHash, ()> {
     let digest = sha256::hash(data);
     Ok(digest.0.into())
+}
+
+/// Blake2b KDF context, randomly generated
+const DSF_NS_KDF_CTX: [u8; 8] = [208, 217, 2, 27, 15, 253, 70, 121];
+/// KDF derived key index, must not be reused for any other purpose
+const DSF_NS_KDF_IDX: u64 = 1;
+
+/// Hash function to generate tertiary IDs
+pub fn hash_tid(id: Id, keys: &Keys, buff: &[u8]) -> CryptoHash {
+    let seed: Array32 = match (&keys.sec_key, &keys.pub_key) {
+        // If we have a secret key, derive a new key for hashing
+        (Some(sk), _) => {
+            let mut seed: Array32 = Default::default();
+            // We use a KDF here to ensure that knowing the hashed data cannot leak the app secret key
+            let sk = sodiumoxide::crypto::kdf::Key(sk.clone().into());
+            let _ = sodiumoxide::crypto::kdf::derive_from_key(&mut seed, DSF_NS_KDF_IDX, DSF_NS_KDF_CTX, &sk);
+            seed
+        },
+        // Otherwise use the public key
+        (_, Some(pk)) => {
+            pk.clone()
+        },
+        _ => todo!(),
+    };
+
+
+    // Generate new identity hash
+    let mut h = sodiumoxide::crypto::hash::sha256::State::new();
+    h.update(&seed);
+    h.update(&buff);
+    let h = CryptoHash::from(h.finalize().0);
+
+    // XOR with ns ID to give new location
+    let tid = h ^ id;
+
+    tid
 }
 
 #[cfg(test)]
