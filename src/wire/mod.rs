@@ -57,11 +57,12 @@ fn validate(
 ) -> Result<bool, Error> {
     // Attempt to use secret key mode if available
     let valid = if flags.contains(Flags::SYMMETRIC_MODE) {
-        // TEnsure symmetric mode is only used for messages
+        // Ensure symmetric mode is only used for messages
         if !kind.is_message() {
             return Err(Error::UnsupportedSignatureMode);
         }
 
+        // Check for matching symmetric key
         let sk = match &keys.sym_keys {
             Some(s) if flags.contains(Flags::SYMMETRIC_DIR) => &s.0,
             Some(s) => &s.1,
@@ -70,10 +71,12 @@ fn validate(
             }
         };
 
+        // Validate signature
         crypto::sk_validate(&sk, sig, data).map_err(|_e| Error::CryptoError)?
 
     // Otherwise use public key
     } else {
+        // Check for matching public key
         let pub_key = match &keys.pub_key {
             Some(pk) => pk,
             None => return Err(Error::NoPublicKey),
@@ -85,7 +88,8 @@ fn validate(
             error!("Public key mismatch for object from {:?} ({})", id, h);
             return Err(Error::KeyIdMismatch);
         }
-        
+
+        // Validate signature
         crypto::pk_validate(pub_key, sig, data).map_err(|_e| Error::CryptoError)?
     };
 
@@ -93,8 +97,7 @@ fn validate(
 }
 
 impl<'a, T: AsRef<[u8]>> Container<T> {
-    /// Parses a data array into a base object using the pub_key and sec_key functions to locate
-    /// keys for validation and decyption
+    /// Parses a data array into a base object using the pub_key and sec_key functions to locate keys for validation and decryption
     pub fn parse<K>(data: T, key_source: &K) -> Result<(Base, usize), Error>
     where
         K: KeySource,
@@ -118,7 +121,8 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
         let signature: Signature = container.signature().into();
 
         // Validate primary types immediately if pubkey is known
-        match (!flags.contains(Flags::SECONDARY), key_source.keys(&id)) {
+        let is_primary = !flags.contains(Flags::SECONDARY) && !flags.contains(Flags::TERTIARY);
+        match (is_primary, key_source.keys(&id)) {
             (true, Some(keys)) if keys.pub_key.is_some() => {
                 let pub_key = keys.pub_key.as_ref().unwrap();
 
@@ -171,7 +175,7 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
 
 
         // Look for signing ID
-        let signing_id: Id = match (flags.contains(Flags::SECONDARY), &peer_id) {
+        let signing_id: Id = match (!is_primary, &peer_id) {
             (false, _) => Ok(container.id().into()),
             (true, Some(id)) => Ok(id.clone()),
             _ => Err(Error::NoPeerId),

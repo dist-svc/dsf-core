@@ -20,6 +20,10 @@ impl PageInfo {
         PageInfo::Secondary(Secondary { peer_id })
     }
 
+    pub fn tertiary(target_id: Id) -> Self {
+        PageInfo::Tertiary(Tertiary{ target_id })
+    }
+
     pub fn is_primary(&self) -> bool {
         match self {
             PageInfo::Primary(_) => true,
@@ -67,5 +71,5 @@ pub struct Secondary {
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct Tertiary {
-    pub service_id: Id,
+    pub target_id: Id,
 }

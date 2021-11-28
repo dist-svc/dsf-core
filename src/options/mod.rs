@@ -13,10 +13,7 @@ use byteorder::{ByteOrder, NetworkEndian};
 
 use crate::base::{Encode, Parse};
 use crate::error::Error;
-use crate::types::{
-    Address, AddressV4, AddressV6, DateTime, Id, Ip, PublicKey, Signature, ID_LEN,
-    PUBLIC_KEY_LEN, SIGNATURE_LEN,
-};
+use crate::types::{Address, AddressV4, AddressV6, DateTime, ID_LEN, Id, Ip, PUBLIC_KEY_LEN, PublicKey, Queryable, SIGNATURE_LEN, Signature};
 
 mod helpers;
 
@@ -491,6 +488,14 @@ impl Encode for Name {
             .copy_from_slice(&self.value.as_bytes());
 
         Ok(OPTION_HEADER_LEN + self.value.len())
+    }
+}
+
+impl Queryable for &Name {
+    fn hash<H: crate::types::CryptoHasher>(&self, h: &mut H) {
+        h.update(&option_kinds::NAME.to_le_bytes());
+        h.update(&(self.value.len() as u16).to_le_bytes());
+        h.update(self.value.as_bytes());
     }
 }
 

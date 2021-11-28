@@ -14,7 +14,9 @@ use sodiumoxide::crypto::secretbox::xsalsa20poly1305::{MACBYTES, NONCEBYTES};
 
 use crate::prelude::Keys;
 use crate::types::Array32;
+use crate::types::CryptoHasher;
 use crate::types::Id;
+use crate::types::Queryable;
 use crate::types::{CryptoHash, PrivateKey, PublicKey, SecretKey, Signature, SecretMeta};
 
 /// new_pk creates a new public/private key pair
@@ -211,7 +213,8 @@ const DSF_NS_KDF_CTX: [u8; 8] = [208, 217, 2, 27, 15, 253, 70, 121];
 const DSF_NS_KDF_IDX: u64 = 1;
 
 /// Hash function to generate tertiary IDs
-pub fn hash_tid(id: Id, keys: &Keys, buff: &[u8]) -> CryptoHash {
+pub fn hash_tid(id: Id, keys: &Keys, o: impl Queryable) -> CryptoHash {
+
     let seed: Array32 = match (&keys.sec_key, &keys.pub_key) {
         // If we have a secret key, derive a new key for hashing
         (Some(sk), _) => {
@@ -232,13 +235,19 @@ pub fn hash_tid(id: Id, keys: &Keys, buff: &[u8]) -> CryptoHash {
     // Generate new identity hash
     let mut h = sodiumoxide::crypto::hash::sha256::State::new();
     h.update(&seed);
-    h.update(&buff);
+    o.hash(&mut h);
     let h = CryptoHash::from(h.finalize().0);
 
     // XOR with ns ID to give new location
     let tid = h ^ id;
 
     tid
+}
+
+impl CryptoHasher for sodiumoxide::crypto::hash::sha256::State {
+    fn update(&mut self, buff: &[u8]) {
+        self.update(buff)
+    }
 }
 
 #[cfg(test)]

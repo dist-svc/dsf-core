@@ -1,4 +1,5 @@
 
+use crate::options::Options;
 use crate::page::{Page, PageOptions, Tertiary};
 use crate::error::Error;
 use crate::prelude::{Body, Header, PageInfo};
@@ -15,13 +16,14 @@ pub trait Registry<const N: usize = 512> {
         &mut self,
         id: Id,
         q: impl Queryable,
-    ) -> Result<(Page), Error>;
+    ) -> Result<Page, Error>;
 }
 
 impl <const N: usize> Registry<N> for Service {
     fn resolve(&self, q: impl Queryable) -> Result<Id, Error>{
         // Generate ID for page lookup using this registry
-        let tid = crate::crypto::hash_tid(self.id(), &self.keys(), q.as_ref());
+        let tid = crate::crypto::hash_tid(self.id(), &self.keys(), q);
+        // Return ID for page lookup
         Ok(tid)
     }
 
@@ -29,10 +31,10 @@ impl <const N: usize> Registry<N> for Service {
         &mut self,
         id: Id,
         q: impl Queryable,
-    ) -> Result<(Page), Error> {
+    ) -> Result<Page, Error> {
 
         // Generate TID
-        let tid = crate::crypto::hash_tid(self.id(), &self.keys(), q.as_ref());
+        let tid = crate::crypto::hash_tid(self.id(), &self.keys(), q);
 
         // Setup flags
         let mut flags = Flags::TERTIARY;
@@ -49,7 +51,9 @@ impl <const N: usize> Registry<N> for Service {
         };
     
         let opts = PageOptions {
-            public_options: &[],
+            public_options: &[
+                Options::peer_id(self.id()),
+            ],
             ..Default::default()
         };
     
@@ -57,7 +61,7 @@ impl <const N: usize> Registry<N> for Service {
             tid.clone(),
             header,
             // TODO: link ns and ts IDs
-            PageInfo::Tertiary(Tertiary{service_id: id}),
+            PageInfo::tertiary(id),
             Body::None,
             opts,
         );
@@ -74,20 +78,58 @@ impl <const N: usize> Registry<N> for Service {
 #[cfg(test)]
 mod test {
     use crate::{prelude::*, service::Publisher};
+    use crate::options::{self, Options, Name};
+
     use super::*;
 
-    #[test]
-    fn test_registry_publish() {
-        // Buld registry service
-        let mut r = ServiceBuilder::ns("test.com").build().unwrap();
-
+    fn registry_publish(mut r: Service) {
         // Build target service
-        let mut c = ServiceBuilder::generic().public_options(vec![Options::name("something")]).build().unwrap();
-         
+        let opt_name = options::Name::new("something");
+        let mut c = ServiceBuilder::generic().public_options(vec![Options::Name(opt_name.clone())]).build().unwrap();
+        
         let p = c.publish_primary_buff().unwrap();
 
-        // TODO: how to actually abstractly generate hashes..?
+        // Generate page for name entry
+        let p1 = Registry::<256>::publish_tertiary(&mut r, c.id(), &opt_name).unwrap();
 
+        // Lookup TID for name
+        let tid_name = Registry::<256>::resolve(&r, &opt_name).unwrap();
+        assert_eq!(p1.id(), &tid_name);
 
+        // Check link to registry
+        let pid = p1.public_options().iter().find_map(|o| {
+            match o {
+                Options::PeerId(p) => Some(p),
+                _ => None,
+            }
+        }).unwrap();
+        assert_eq!(pid.peer_id, r.id());
+
+        // Check link to service
+        let pi = match p1.info() {
+            PageInfo::Tertiary(t) => Some(t),
+            _ => None,
+        }.unwrap();
+        assert_eq!(pi.target_id, c.id());
+    }
+
+    #[test]
+    fn registry_publish_public() {
+        // Build registry service
+        let r = ServiceBuilder::ns("test.com")
+            .build().unwrap();
+
+        // Test publishing
+        registry_publish(r);
+    }
+
+    #[test]
+    fn registry_publish_private() {
+        // Build registry service
+        let r = ServiceBuilder::ns("test.com")
+            .encrypt().build().unwrap();
+
+        // Test publishing
+        registry_publish(r);
     }
 }

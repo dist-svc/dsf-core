@@ -30,12 +30,26 @@ pub trait MutableData: AsMut<[u8]> + ImmutableData {}
 impl<T: AsMut<[u8]> + ImmutableData> MutableData for T {}
 
 /// Queryable trait for name resolution services
-pub trait Queryable: AsRef<[u8]> {}
+pub trait Queryable {
+    fn hash<H: CryptoHasher>(&self, h: &mut H);
+}
+
+pub trait CryptoHasher {
+    fn update(&mut self, buff: &[u8]);
+}
 
 
 pub const ID_LEN: usize = 32;
 /// ID type
 pub type Id = Array<ID_LEN>;
+
+
+impl Queryable for Id {
+    fn hash<H: CryptoHasher>(&self, state: &mut H) {
+        state.update(&self.0);
+    }
+}
+
 
 pub const REQUEST_ID_LEN: usize = 2;
 /// Request ID type

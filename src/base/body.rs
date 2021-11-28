@@ -421,6 +421,42 @@ mod tests {
     }
 
     #[test]
+    fn encode_decode_tertiary_page() {
+        let (id, mut keys) = setup();
+        keys.sec_key = None;
+
+        let header = Header {
+            kind: PageKind::Tertiary.into(),
+            flags: Flags::TERTIARY,
+            ..Default::default()
+        };
+        let data = id.to_vec();
+
+        let mut page = Base::new(
+            id.clone(),
+            header,
+            Body::Cleartext(data),
+            BaseOptions {
+                peer_id: Some(id.clone()),
+                ..Default::default()
+            },
+        );
+
+        let mut buff = vec![0u8; 1024];
+        let n = page
+            .encode(Some(&keys), &mut buff)
+            .expect("Error encoding page");
+        page.raw = Some(buff[..n].to_vec());
+
+        let (mut decoded, m) =
+            Base::parse(&buff[..n], &keys).expect("Error decoding page with known public key");
+
+        decoded.clean();
+        assert_eq!(page, decoded);
+        assert_eq!(n, m);
+    }
+
+    #[test]
     fn encode_decode_encrypted_page() {
         let (id, keys) = setup();
 
