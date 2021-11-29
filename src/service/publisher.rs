@@ -12,6 +12,7 @@ use crate::options::Options;
 use crate::page::{Page, PageInfo, PageOptions};
 use crate::service::Service;
 use crate::types::*;
+use crate::wire::{Builder, Container};
 
 /// Publisher trait allows services to generate primary, data, and secondary pages
 /// as well as to encode (and sign and optionally encrypt) generated pages
@@ -49,18 +50,18 @@ pub trait Publisher<const N: usize = 512> {
         id: &Id,
         options: SecondaryOptions,
         buff: T,
-    ) -> Result<(usize, Page), Error>;
+    ) -> Result<(usize, Container<T>), Error>;
 
-    // Helper to publish secondary page fixed size buffer
-    fn publish_secondary_buff(&mut self, id: &Id, options: SecondaryOptions) -> Result<(usize, [u8; N], Page), Error> {
+    /// Helper to publish secondary page fixed size buffer
+    fn publish_secondary_buff(&mut self, id: &Id, options: SecondaryOptions) -> Result<(usize, Container<[u8; N]>), Error> {
         let mut buff = [0u8; N];
-        let (n, p) = self.publish_secondary(id, options, &mut buff)?;
-        Ok((n, buff, p))
+        let (n, c) = self.publish_secondary(id, options, buff)?;
+        Ok((n, c))
     }
 }
 
 #[derive(Clone)]
-pub struct SecondaryOptions<'a> {
+pub struct SecondaryOptions<'a, Body=&'a [u8]> {
     /// Application ID of primary service
     pub application_id: u16,
 
@@ -93,7 +94,7 @@ impl <'a>Default for SecondaryOptions<'a> {
             application_id: 0,
             page_kind: PageKind::Generic.into(),
             version: 0,
-            body: Body::None,
+            body: &[],
             issued: None,
             expiry: None,
             public_options: &[],
@@ -197,16 +198,17 @@ impl Publisher for Service {
         id: &Id,
         options: SecondaryOptions,
         buff: T,
-    ) -> Result<(usize, Page), Error> {
+    ) -> Result<(usize, Container<T>), Error> {
+        // Set secondary page flags
         let mut flags = Flags::SECONDARY;
         if self.encrypted {
             flags |= Flags::ENCRYPTED;
         }
 
-        flags |= Flags::SECONDARY;
-
+        // Check we are publishing a page
         assert!(options.page_kind.is_page());
 
+        // Setup header
         let header = Header {
             application_id: self.application_id,
             kind: options.page_kind,
@@ -215,25 +217,50 @@ impl Publisher for Service {
             ..Default::default()
         };
 
-        let page_options = PageOptions {
-            public_options: &options.public_options,
-            private_options: MaybeEncrypted::Cleartext(&options.private_options),
-            // TODO: Re-enable issued time
-            #[cfg(feature = "std")]
-            issued: Some(SystemTime::now().into()),
-            expiry: options.expiry,
-            ..Default::default()
+        // Build object
+        let b = Builder::new(buff)
+            .header(&header)
+            .id(id)
+            .body(&options.body)?
+            .private_options(&options.private_options)?;
+
+        // Apply internal encryption if enabled
+        let b = match (self.encrypted, &self.secret_key) {
+            (true, Some(sk)) => b.encrypt(sk)?,
+            (false, _) => b.public(),
+            _ => todo!(),
         };
 
-        let mut page = Page::new(
-            id.clone(),
-            header,
-            PageInfo::secondary(self.id.clone()),
-            options.body,
-            page_options,
-        );
+        // Generate and append public options
+        let mut b = b.public_options(&[
+            Options::peer_id(self.id.clone()),
+            Options::issued(SystemTime::now()),
+        ])?;
 
-        self.encode(&mut page, buff).map(|n| (n, page))
+        // Attach expiry if provided
+        if let Some(exp) = options.expiry {
+            b = b.public_options(&[Options::expiry(exp)])?;
+        }
+        // Attach last sig if available
+        if let Some(last) = &self.last_sig {
+            b = b.public_options(&[Options::prev_sig(last)])?;
+        }
+        // Then finally attach public options
+        let b = b.public_options(options.public_options)?;
+
+        // Sign generated object
+        let c = match &self.private_key {
+            Some(pk) => b.sign_pk(pk)?,
+            None => {
+                error!("No public key for object signing");
+                return Err(Error::NoPrivateKey);
+            }
+        };
+
+        // Update last signature
+        self.last_sig = Some(c.signature());
+        
+        Ok((c.len(), c))
     }
 
     fn publish_data<T: AsRef<[u8]> + AsMut<[u8]>>(
@@ -314,4 +341,9 @@ impl Service {
 
         Ok(n)
     }
+}
+
+#[cfg(test)]
+mod test {
+
 }

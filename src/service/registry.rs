@@ -1,9 +1,11 @@
 
+use std::ops::Add;
+
 use crate::options::Options;
 use crate::page::{Page, PageOptions, Tertiary};
 use crate::error::Error;
 use crate::prelude::{Body, Header, PageInfo};
-use crate::types::{Id, Kind, PageKind, Flags, Queryable};
+use crate::types::{Id, Kind, PageKind, Flags, Queryable, DateTime};
 
 use super::Service;
 
@@ -15,8 +17,29 @@ pub trait Registry<const N: usize = 512> {
     fn publish_tertiary(
         &mut self,
         id: Id,
+        opts: TertiaryOptions,
         q: impl Queryable,
     ) -> Result<Page, Error>;
+}
+
+/// Tertiary page configuration options
+#[derive(Clone, PartialEq, Debug)]
+pub struct TertiaryOptions {
+    pub issued: DateTime,
+    pub expiry: DateTime,
+}
+
+#[cfg(feature="std")]
+impl Default for TertiaryOptions {
+    /// Create a tertiary page with default 1 day expiry
+    fn default() -> Self {
+        let now = std::time::SystemTime::now();
+
+        Self { 
+            issued: now.into(), 
+            expiry: now.add(std::time::Duration::from_secs(24 * 60 * 60)).into(),
+        }
+    }
 }
 
 impl <const N: usize> Registry<N> for Service {
@@ -30,6 +53,7 @@ impl <const N: usize> Registry<N> for Service {
     fn publish_tertiary(
         &mut self,
         id: Id,
+        opts: TertiaryOptions,
         q: impl Queryable,
     ) -> Result<Page, Error> {
 
@@ -53,6 +77,8 @@ impl <const N: usize> Registry<N> for Service {
         let opts = PageOptions {
             public_options: &[
                 Options::peer_id(self.id()),
+                Options::issued(opts.issued),
+                Options::expiry(opts.expiry),
             ],
             ..Default::default()
         };
@@ -90,7 +116,7 @@ mod test {
         let p = c.publish_primary_buff().unwrap();
 
         // Generate page for name entry
-        let p1 = Registry::<256>::publish_tertiary(&mut r, c.id(), &opt_name).unwrap();
+        let p1 = Registry::<256>::publish_tertiary(&mut r, c.id(), TertiaryOptions::default(), &opt_name).unwrap();
 
         // Lookup TID for name
         let tid_name = Registry::<256>::resolve(&r, &opt_name).unwrap();

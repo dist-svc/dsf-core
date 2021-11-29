@@ -1,3 +1,4 @@
+use crate::prelude::{DsfError, KeySource};
 use crate::types::*;
 
 use crate::options::{Options, OptionsIter};
@@ -13,11 +14,14 @@ pub struct Container<T: ImmutableData> {
     pub(crate) buff: T,
     /// Length of object in container buffer
     pub(crate) len: usize,
+    // Signals data / private options are encrypted
+    //pub(crate) encrypted: bool,
+    // Signals container has been verified
+    //pub(crate) verified: bool,
 }
 
 impl<'a, T: ImmutableData> Container<T> {
-    /// Create a new container object from an existing buffer
-    /// This parses the header and splits the data into fields to simplify access
+    /// Create a new container object, providing field accessors over the provided buffer
     pub fn from(buff: T) -> (Self, usize) {
         let len = buff.as_ref().len();
         let c = Container { buff, len };
@@ -33,10 +37,15 @@ impl<'a, T: ImmutableData> Container<T> {
     }
 
     /// Fetch object ID
-    pub fn id(&self) -> &[u8] {
+    pub fn id_raw(&self) -> &[u8] {
         let data = self.buff.as_ref();
 
         &data[offsets::ID..offsets::BODY]
+    }
+
+    /// Fetch object ID
+    pub fn id(&self) -> Id {
+        Id::from(self.id_raw())
     }
 
     /// Return the body of data
@@ -47,13 +56,23 @@ impl<'a, T: ImmutableData> Container<T> {
         &data[offsets::BODY..][..s]
     }
 
-    /// Return the private options section data
+    /// Return the private options section data, note this may be encrypted
     pub fn private_options(&self) -> &[u8] {
         let data = self.buff.as_ref();
 
         let n = offsets::BODY + self.header().data_len();
         let s = self.header().private_options_len();
         &data[n..n + s]
+    }
+
+    /// Iterate over private options
+    /// NOTE: ONLY VALID FOR DECRYPTED OBJECTS
+    pub fn private_options_iter(&self) -> impl Iterator<Item = Options> + '_ {
+        let data = self.buff.as_ref();
+        let n = offsets::BODY + self.header().data_len();
+        let s = self.header().private_options_len();
+
+        OptionsIter::new(&data[n..n + s])
     }
 
     /// Return public options section data
@@ -122,13 +141,19 @@ impl<'a, T: ImmutableData> Container<T> {
     }
 
     /// Return the signature portion of the message for verification
-    pub fn signature(&self) -> &[u8] {
+    pub fn signature_raw(&self) -> &[u8] {
         let data = self.buff.as_ref();
 
         let n = self.len() - SIGNATURE_LEN;
         let s = SIGNATURE_LEN;
 
         &data[n..n + s]
+    }
+
+    /// Fetch the message signature
+    pub fn signature(&self) -> Signature {
+        let r = self.signature_raw();
+        Signature::from(r)
     }
 
     /// Return the total length of the object (from the header)

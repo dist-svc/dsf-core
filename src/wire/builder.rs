@@ -96,6 +96,10 @@ impl<T: MutableData> Builder<Init, T> {
         trace!("Set header: {:02?}", header);
         
         self.header_mut().encode(header);
+        self.header_mut().set_data_len(0);
+        self.header_mut().set_private_options_len(0);
+        self.header_mut().set_public_options_len(0);
+
         self
     }
 
@@ -148,8 +152,9 @@ impl<T: MutableData> Builder<SetPrivateOptions, T> {
 
         trace!("Encoded private options: {:02x?}", &b[self.n-n..][..n]);
 
-        self.header_mut().set_private_options_len(n);
-
+        let p = self.header_mut().private_options_offset();
+        let l = self.n - p;
+        self.header_mut().set_private_options_len(l);
 
         trace!("Add private options: {:02x?}, {} bytes, new index: {}", options, n, self.n);
 

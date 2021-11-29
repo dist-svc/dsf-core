@@ -166,13 +166,14 @@ impl Service {
 #[cfg(test)]
 mod test {
 
-    use core::convert::TryInto;
+    use core::convert::{TryInto, TryFrom};
     use std::net::{Ipv4Addr, SocketAddrV4};
 
     use crate::base::Base;
     use crate::page::Page;
     use crate::service::publisher::{DataOptions, Publisher, SecondaryOptions};
     use crate::service::subscriber::Subscriber;
+    use crate::wire::Container;
 
     use super::*;
 
@@ -242,12 +243,14 @@ mod test {
         println!("Generating a secondary page");
         let secondary_options = SecondaryOptions::default();
         let (_n, secondary) = service
-            .publish_secondary(&s.id(), secondary_options, &mut buff)
+            .publish_secondary_buff(&s.id(), secondary_options)
             .expect("Error publishing secondary page");
 
         println!("Validating secondary page");
+        // Convert secondary container to page
+        let (b, _n) = Container::parse(secondary.as_ref(), &s.keys()).unwrap();
         service
-            .validate_secondary(&secondary)
+            .validate_secondary(&Page::try_from(b).unwrap())
             .expect("Error validating secondary page against publisher");
 
         println!("Generating a data object");

@@ -96,16 +96,18 @@ impl Subscriber for Service {
         let header = page.header();
 
         if header.kind().is_page() {
-            if !header.flags().contains(Flags::SECONDARY) {
-                self.validate_primary(page)
-            } else {
-                self.validate_secondary(page)
+            if !header.flags().contains(Flags::SECONDARY) && !header.flags().contains(Flags::TERTIARY) {
+                self.validate_primary(page)?
+            } else if header.flags.contains(Flags::SECONDARY) {
+                self.validate_secondary(page)?
+            } else if header.flags.contains(Flags::TERTIARY) {
+                todo!("Tertiary page validation");
             }
         } else if header.kind().is_data() {
-            self.validate_data(page)
-        } else {
-            Err(Error::UnexpectedPageKind)
+            self.validate_data(page)?
         }
+        
+        Err(Error::UnexpectedPageKind)
     }
 }
 

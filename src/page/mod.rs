@@ -12,6 +12,7 @@ use crate::error::Error;
 use crate::options::Options;
 use crate::types::*;
 use crate::keys::{KeySource, Keys};
+use crate::wire::Container;
 
 
 mod info;
@@ -311,14 +312,12 @@ impl From<&Page> for Base {
         match &page.info {
             PageInfo::Primary(primary) => {
                 default_options.push(Options::public_key(primary.pub_key.clone()));
-            }
+            },
             PageInfo::Secondary(secondary) => {
                 default_options.push(Options::peer_id(secondary.peer_id.clone()));
-            }
-            PageInfo::Tertiary(tertiary) => {
-                // TODO?
-            }
-            PageInfo::Data(_data) => {}
+            },
+            PageInfo::Tertiary(_tertiary) => {},
+            PageInfo::Data(_data) => {},
         }
 
         // Add additional public options
@@ -397,7 +396,7 @@ impl TryFrom<Base> for Page {
         // TODO: parse out private options too?
         let _private_options = base.private_options();
 
-        let info = if kind.is_page() && !flags.contains(Flags::SECONDARY) {
+        let info = if kind.is_page() && !flags.contains(Flags::SECONDARY) && !flags.contains(Flags::TERTIARY) {
             // Handle primary page parsing
 
             // Fetch public key from options
@@ -421,6 +420,21 @@ impl TryFrom<Base> for Page {
             }?;
 
             PageInfo::secondary(peer_id)
+        
+        } else if kind.is_page() && flags.contains(Flags::TERTIARY) {
+            // Handle tertiary page parsing
+            let _peer_id = match peer_id {
+                Some(id) => Ok(id),
+                None => Err(Error::NoPeerId),
+            }?;
+
+            let target_id = match base.body() {
+                MaybeEncrypted::Cleartext(r) => Id::from(r.as_ref()),
+                _ => return Err(Error::Unknown)
+            };
+
+            PageInfo::tertiary(target_id)
+
         } else if kind.is_data() {
             PageInfo::Data(())
         } else {
@@ -452,6 +466,124 @@ impl TryFrom<Base> for Page {
         })
     }
 }
+
+
+impl <T: AsRef<[u8]>> TryFrom<Container<T>> for Page {
+    type Error = Error;
+
+    fn try_from(container: Container<T>) -> Result<Self, Error> {
+        let header = container.header();
+        let signature = container.signature();
+
+        let flags = header.flags();
+        let kind = header.kind();
+
+        if !kind.is_page() && !kind.is_data() {
+            return Err(Error::InvalidPageKind);
+        }
+
+        // Extract common option fields
+        let (mut issued, mut expiry, mut previous_sig, mut peer_id, mut pub_key) = (None, None, None, None, None);
+        let public_options = container
+            .public_options_iter()
+            .filter_map(|o| match &o {
+                Options::Issued(v) => {
+                    issued = Some(v.when);
+                    None
+                }
+                Options::Expiry(v) => {
+                    expiry = Some(v.when);
+                    None
+                }
+                Options::PrevSig(v) => {
+                    previous_sig = Some(v.sig.clone());
+                    None
+                }
+                Options::PeerId(v) => {
+                    peer_id = Some(v.peer_id.clone());
+                    None
+                }
+                Options::PubKey(v) => {
+                    pub_key = Some(v.public_key.clone());
+                    None
+                }
+                _ => Some(o),
+            })
+            .map(|o| o.clone())
+            .collect();
+
+
+        // TODO: parse out private options too?
+        //let private_options = container.private_options_iter().collect();
+
+        let info = if kind.is_page() && !flags.contains(Flags::SECONDARY) && !flags.contains(Flags::TERTIARY) {
+            // Handle primary page parsing
+
+            // Fetch public key from options
+            let public_key: PublicKey = match &pub_key {
+                Some(pk) => Ok(pk.clone()),
+                None => Err(Error::NoPublicKey),
+            }?;
+
+            // Check public key and ID match
+            let hash: Id = crypto::hash(&public_key).unwrap().into();
+            if &hash != &container.id() {
+                return Err(Error::KeyIdMismatch);
+            }
+
+            PageInfo::primary(public_key)
+        } else if kind.is_page() && flags.contains(Flags::SECONDARY) {
+            // Handle secondary page parsing
+            let peer_id = match peer_id {
+                Some(id) => Ok(id),
+                None => Err(Error::NoPeerId),
+            }?;
+
+            PageInfo::secondary(peer_id)
+        
+        } else if kind.is_page() && flags.contains(Flags::TERTIARY) {
+            // Handle tertiary page parsing
+            let _peer_id = match peer_id {
+                Some(id) => Ok(id),
+                None => Err(Error::NoPeerId),
+            }?;
+
+            let target_id = Id::from(container.body());
+
+            PageInfo::tertiary(target_id)
+
+        } else if kind.is_data() {
+            PageInfo::Data(())
+        } else {
+            error!(
+                "Attempted to convert non-page base object ({:?}) to page",
+                kind
+            );
+            return Err(Error::UnexpectedPageType);
+        };
+
+        Ok(Page {
+            id: container.id().clone(),
+            header: Header::from(&header),
+            info,
+            body: MaybeEncrypted::None, //base.body.clone(),
+            issued,
+            expiry,
+
+            previous_sig,
+
+            public_options,
+            private_options: MaybeEncrypted::None, //private_options,
+            tag: None,
+            signature: Some(container.signature()),
+            verified: false,// base.verified,
+
+            raw: Some(container.as_ref().to_vec()),
+            _extend: (),
+        })
+    }
+}
+
 
 #[cfg(test)]
 mod test {
