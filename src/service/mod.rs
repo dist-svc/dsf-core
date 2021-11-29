@@ -193,30 +193,25 @@ mod test {
         let keys = service.keys();
 
         println!("Generating and encoding service page");
-        let mut buff = vec![0u8; 1024];
         let (n, mut page1) = service
-            .publish_primary(&mut buff)
+            .publish_primary_buff(Default::default())
             .expect("Error creating page");
+
+        let (pp1, _n) = Container::parse(page1.as_ref(), &keys).unwrap();
 
         // Append sig to page1
         //page1.set_signature(base1.signature().clone().unwrap());
         assert_eq!(service.version, 0, "initial service version");
-
-        // Clear private data from encoded pages
-        page1.clean();
 
         println!("Encoded service to {} bytes", n);
 
         println!("Decoding service page");
         let s = service.clone();
 
-        let (base2, m) = Base::parse(&buff[..n], &keys).expect("Error parsing service page");
+        let (base2, m) = Base::parse(page1.as_ref(), &keys).expect("Error parsing service page");
         assert_eq!(n, m);
-        let mut page2: Page = base2
-            .try_into()
-            .expect("Error converting base message to page");
-        page2.raw = None;
-        assert_eq!(page1, page2);
+        let page2 = Page::try_from(base2).unwrap();
+        assert_eq!(Page::try_from(pp1).unwrap(), page2);
 
         println!("Generating service replica");
         let mut replica = Service::load(&page2).expect("Error generating service replica");
@@ -231,12 +226,14 @@ mod test {
 
         println!("Generating updated page");
         let (_n, page3) = service
-            .publish_primary(&mut buff)
+            .publish_primary_buff(Default::default())
             .expect("Error publishing primary page");
+
+        let (pp3, _n) = Container::parse(page3.as_ref(), &keys).unwrap();
 
         println!("Applying updated page to replica");
         replica
-            .apply_primary(&page3)
+            .apply_primary(&Page::try_from(pp3).unwrap())
             .expect("Error updating service replica");
         assert_eq!(replica.version, 1);
 
@@ -256,12 +253,13 @@ mod test {
         println!("Generating a data object");
         let data_options = DataOptions::default();
         let (_n, data) = service
-            .publish_data(data_options, &mut buff)
+            .publish_data_buff(data_options)
             .expect("Error publishing data object");
 
         println!("Validating data object");
+        let (b, _n) = Container::parse(data.as_ref(), &s.keys()).unwrap();
         replica
-            .validate_data(&data)
+            .validate_data(&Page::try_from(b).unwrap())
             .expect("Error validating data against replica");
     }
 }

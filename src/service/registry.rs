@@ -113,7 +113,7 @@ mod test {
         let opt_name = options::Name::new("something");
         let mut c = ServiceBuilder::generic().public_options(vec![Options::Name(opt_name.clone())]).build().unwrap();
         
-        let p = c.publish_primary_buff().unwrap();
+        let p = c.publish_primary_buff(Default::default()).unwrap();
 
         // Generate page for name entry
         let p1 = Registry::<256>::publish_tertiary(&mut r, c.id(), TertiaryOptions::default(), &opt_name).unwrap();
