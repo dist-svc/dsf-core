@@ -1,6 +1,5 @@
 
 
-use crate::options::PubKey;
 use crate::types::{Id, PrivateKey, PublicKey, SecretKey};
 use crate::crypto;
 

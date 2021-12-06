@@ -1,6 +1,7 @@
 use core::marker::PhantomData;
 use core::fmt::Debug;
 
+use chrono::offset;
 use log::trace;
 
 use pretty_hex::*;
@@ -53,6 +54,8 @@ pub struct Builder<S, T: MutableData> {
     n: usize,
     /// Local index count
     c: usize,
+    /// Encrypted flag
+    encrypted: bool,
 
     _s: PhantomData<S>,
 }
@@ -86,6 +89,7 @@ impl<T: MutableData> Builder<Init, T> {
             buf,
             n: offsets::BODY,
             c: 0,
+            encrypted: false,
             _s: PhantomData,
         }
     }
@@ -104,37 +108,59 @@ impl<T: MutableData> Builder<Init, T> {
     }
 
     /// Add body data, mutating the state of the builder
-    pub fn body<B: ImmutableData>(
+    pub fn body<B: Encode>(
         mut self,
-        body: &B,
-    ) -> Result<Builder<SetPrivateOptions, T>, Error> {
+        body: B,
+    ) -> Result<Builder<SetPrivateOptions, T>, <B as Encode>::Error> {
         let b = self.buf.as_mut();
-        let body = body.as_ref();
 
         self.n = offsets::BODY;
 
-        b[self.n..][..body.len()].copy_from_slice(body);
-        self.n += body.len();
+        let n = body.encode(&mut b[self.n..])?;
+        self.n += n;
 
-        self.header_mut().set_data_len(body.len());
+        self.header_mut().set_data_len(n);
 
-        trace!("Add {} byte body, new index: {}", body.len(), self.n);
+        trace!("Add {} byte body, new index: {}", n, self.n);
 
         Ok(Builder {
             buf: self.buf,
             n: self.n,
             c: 0,
+            encrypted: false,
             _s: PhantomData,
         })
     }
 
-    pub fn encrypted<B: ImmutableData, O: ImmutableData, P: ImmutableData>(
+    pub fn with_body(mut self, f: impl Fn(&mut [u8]) -> Result<usize, Error>) -> Result<Builder<SetPrivateOptions, T>, Error> {
+        let b = self.buf.as_mut();
+        self.n = offsets::BODY;
+
+        let n = f(&mut b[offsets::BODY..])?;
+        self.n += n;
+
+        self.header_mut().set_data_len(n);
+
+        trace!("Add {} byte body, new index: {}", n, self.n);
+
+        Ok(Builder {
+            buf: self.buf,
+            n: self.n,
+            c: 0,
+            encrypted: false,
+            _s: PhantomData,
+        })
+    }
+
+    pub fn encrypted(
         self,
-        body: &B,
-        private_options: &O,
-        tag: &P
+        body: &[u8],
+        private_options: &[u8],
+        tag: &[u8]
     ) -> Result<Builder<SetPublicOptions, T>, Error> {
-        self.body(body)?.private_options_raw(private_options)?.tag(tag)
+        self.body::<&[u8]>(body).unwrap()
+            .private_options_raw(private_options).unwrap()
+            .tag(tag)
     }
 }
 
@@ -162,15 +188,16 @@ impl<T: MutableData> Builder<SetPrivateOptions, T> {
             buf: self.buf,
             n: self.n,
             c: 0,
+            encrypted: false,
             _s: PhantomData,
         })
     }
 
-    /// Write raw public options
-    /// This must be done in one pass as the entire options block is encrypted
-    pub fn private_options_raw<C: ImmutableData>(
+    /// Write raw (encrypted) private options
+    /// This must be done in one pass as the entire body + private options block is encrypted
+    pub fn private_options_raw(
         mut self,
-        options: &C,
+        options: &[u8],
     ) -> Result<Builder<Encrypt, T>, Error> {
         let b = self.buf.as_mut();
         let o = options.as_ref();
@@ -186,6 +213,7 @@ impl<T: MutableData> Builder<SetPrivateOptions, T> {
             buf: self.buf,
             n: self.n,
             c: 0,
+            encrypted: true,
             _s: PhantomData,
         })
     }
@@ -224,6 +252,7 @@ impl<T: MutableData> Builder<Encrypt, T> {
             buf: self.buf,
             n: self.n,
             c: 0,
+            encrypted: true,
             _s: PhantomData,
         })
     }
@@ -256,6 +285,7 @@ impl<T: MutableData> Builder<Encrypt, T> {
             buf: self.buf,
             n: self.n,
             c: 0,
+            encrypted: true,
             _s: PhantomData,
         })
     }
@@ -282,6 +312,7 @@ impl<T: MutableData> Builder<Encrypt, T> {
             buf: self.buf,
             n: self.n,
             c: 0,
+            encrypted: true,
             _s: PhantomData,
         })
     }
@@ -295,6 +326,7 @@ impl<T: MutableData> Builder<Encrypt, T> {
             buf: self.buf,
             n: self.n,
             c: 0,
+            encrypted: false,
             _s: PhantomData,
         }
     }
@@ -339,7 +371,7 @@ impl<T: MutableData> Builder<SetPublicOptions, T> {
         Ok(())
     }
 
-    // Sign the builder object, returning a new base object
+    // Sign the builder object, returning a new signed container
     pub fn sign_pk(mut self, signing_key: &PrivateKey) -> Result<Container<T>, Error> {
         let b = self.buf.as_mut();
 
@@ -358,10 +390,12 @@ impl<T: MutableData> Builder<SetPublicOptions, T> {
         Ok(Container {
             buff: self.buf,
             len: self.n,
+            verified: true,
+            decrypted: false,
         })
     }
 
-    // Sign the builder object, returning a new base object
+    // Sign the builder object, returning a new signed container
     pub fn sign_sk(mut self, signing_key: &SecretKey) -> Result<Container<T>, Error> {
         let b = self.buf.as_mut();
 
@@ -376,6 +410,8 @@ impl<T: MutableData> Builder<SetPublicOptions, T> {
         Ok(Container {
             buff: self.buf,
             len: self.n,
+            verified: true,
+            decrypted: false,
         })
     }
 }

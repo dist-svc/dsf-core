@@ -9,6 +9,7 @@ use core::ops::{Deref, DerefMut};
 use core::str::FromStr;
 use core::marker::PhantomData;
 use core::ops::BitXor;
+use std::convert::Infallible;
 
 #[cfg(feature = "serde")]
 use serde::de::{self, Visitor};
@@ -50,6 +51,15 @@ impl Queryable for Id {
     }
 }
 
+/// Encode an ID directly into a buffer
+impl Encode for Id {
+    type Error = Infallible;
+
+    fn encode(&self, buff: &mut [u8]) -> Result<usize, Self::Error> {
+        buff[..ID_LEN].copy_from_slice(&self.0);
+        Ok(ID_LEN)
+    }
+}
 
 pub const REQUEST_ID_LEN: usize = 2;
 /// Request ID type
@@ -84,6 +94,7 @@ pub type CryptoHash = Array<HASH_LEN>;
 //#[derive(Clone, PartialEq, Debug)]
 //TODO: remove
 use crate::page::Page;
+use crate::prelude::Encode;
 pub type Data = Page;
 
 pub mod kinds;

@@ -166,8 +166,10 @@ impl Service {
 #[cfg(test)]
 mod test {
 
-    use core::convert::{TryInto, TryFrom};
+    use core::convert::{TryFrom};
     use std::net::{Ipv4Addr, SocketAddrV4};
+
+    use pretty_assertions::{assert_eq};
 
     use crate::base::Base;
     use crate::page::Page;
@@ -193,11 +195,15 @@ mod test {
         let keys = service.keys();
 
         println!("Generating and encoding service page");
-        let (n, mut page1) = service
+        let (n, page1) = service
             .publish_primary_buff(Default::default())
             .expect("Error creating page");
 
-        let (pp1, _n) = Container::parse(page1.as_ref(), &keys).unwrap();
+        debug!("page1: {:?}", page1);
+
+        let pp1 = Container::parse(page1.raw(), &keys).unwrap();
+
+        debug!("pp1: {:?}", pp1);
 
         // Append sig to page1
         //page1.set_signature(base1.signature().clone().unwrap());
@@ -229,7 +235,7 @@ mod test {
             .publish_primary_buff(Default::default())
             .expect("Error publishing primary page");
 
-        let (pp3, _n) = Container::parse(page3.as_ref(), &keys).unwrap();
+        let pp3 = Container::parse(page3.as_ref(), &keys).unwrap();
 
         println!("Applying updated page to replica");
         replica
@@ -245,7 +251,7 @@ mod test {
 
         println!("Validating secondary page");
         // Convert secondary container to page
-        let (b, _n) = Container::parse(secondary.as_ref(), &s.keys()).unwrap();
+        let b = Container::parse(secondary.as_ref(), &s.keys()).unwrap();
         service
             .validate_secondary(&Page::try_from(b).unwrap())
             .expect("Error validating secondary page against publisher");
@@ -257,7 +263,7 @@ mod test {
             .expect("Error publishing data object");
 
         println!("Validating data object");
-        let (b, _n) = Container::parse(data.as_ref(), &s.keys()).unwrap();
+        let b = Container::parse(data.as_ref(), &s.keys()).unwrap();
         replica
             .validate_data(&Page::try_from(b).unwrap())
             .expect("Error validating data against replica");

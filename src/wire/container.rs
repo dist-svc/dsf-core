@@ -1,30 +1,59 @@
-use crate::prelude::{DsfError, KeySource};
-use crate::types::*;
+use crate::{types::*, crypto};
 
 use crate::options::{Options, OptionsIter};
+use crate::error::Error;
 
 use super::header::WireHeader;
 use super::{offsets, HEADER_LEN};
 
 /// Container object provides base field accessors over an arbitrary (mutable or immutable) buffers
 /// See <https://lab.whitequark.org/notes/2016-12-13/abstracting-over-mutability-in-rust/> for details
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone)]
 pub struct Container<T: ImmutableData> {
     /// Internal data buffer
     pub(crate) buff: T,
     /// Length of object in container buffer
     pub(crate) len: usize,
-    // Signals data / private options are encrypted
-    //pub(crate) encrypted: bool,
+    // Signals data / private options are currently decrypted
+    pub(crate) decrypted: bool,
     // Signals container has been verified
-    //pub(crate) verified: bool,
+    pub(crate) verified: bool,
+}
+
+/// Override `core::compare::PartialEq` to compare `.raw()` instead of `.buff`
+impl <T: ImmutableData> PartialEq for Container<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.raw() == other.raw() 
+            && self.len == other.len
+            && self.decrypted == other.decrypted 
+            && self.verified == other.verified
+    }
+}
+
+/// Override `core::fmt::Debug` to show subfields
+impl <T: ImmutableData> core::fmt::Debug for Container<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Container")
+            .field("id", &self.id())
+            .field("header", &self.header())
+            .field("body", &self.body())
+            .field("private_opts", &self.private_options())
+            .field("public_opts", &self.public_options())
+            .field("tag", &self.tag())
+            .field("sig", &self.signature())
+            .field("len", &self.len())
+            .field("decrypted", &self.decrypted)
+            .field("verified", &self.verified)
+            .field("raw", &self.raw())
+            .finish()
+    }
 }
 
 impl<'a, T: ImmutableData> Container<T> {
     /// Create a new container object, providing field accessors over the provided buffer
     pub fn from(buff: T) -> (Self, usize) {
         let len = buff.as_ref().len();
-        let c = Container { buff, len };
+        let c = Container { buff, len, verified: false, decrypted: false };
         let n = c.len();
         (c, n)
     }
@@ -48,6 +77,10 @@ impl<'a, T: ImmutableData> Container<T> {
         Id::from(self.id_raw())
     }
 
+    pub fn encrypted(&self) -> bool {
+        self.header().flags().contains(Flags::ENCRYPTED) && !self.decrypted
+    }
+
     /// Return the body of data
     pub fn body(&self) -> &[u8] {
         let data = self.buff.as_ref();
@@ -67,7 +100,7 @@ impl<'a, T: ImmutableData> Container<T> {
 
     /// Iterate over private options
     /// NOTE: ONLY VALID FOR DECRYPTED OBJECTS
-    pub fn private_options_iter(&self) -> impl Iterator<Item = Options> + '_ {
+    pub fn private_options_iter(&self) -> impl Iterator<Item = Options> + Clone + '_ {
         let data = self.buff.as_ref();
         let n = offsets::BODY + self.header().data_len();
         let s = self.header().private_options_len();
@@ -102,22 +135,26 @@ impl<'a, T: ImmutableData> Container<T> {
     }
 
     /// Tag for secret key encryption
-    pub fn tag(&self) -> &[u8] {
+    pub fn tag_raw(&self) -> Option<&[u8]> {
         let h = self.header();
         let data = self.buff.as_ref();
 
         if !h.flags().contains(Flags::ENCRYPTED) {
-            return &[];
+            return None;
         }
 
         let n = HEADER_LEN + ID_LEN + h.data_len()
                 + h.private_options_len();
 
-        &data[n..n + SECRET_KEY_TAG_LEN]
+        Some(&data[n..n + SECRET_KEY_TAG_LEN])
+    }
+
+    pub fn tag(&self) -> Option<SecretMeta> {
+        self.tag_raw().map(SecretMeta::from)
     }
 
     /// Return the public options section data
-    pub fn public_options_iter(&self) -> impl Iterator<Item = Options> + '_ {
+    pub fn public_options_iter(&self) -> impl Iterator<Item = Options> + Clone + '_ {
         let data = self.buff.as_ref();
         let header = self.header();
 
@@ -196,6 +233,71 @@ impl<'a, T: ImmutableData> Container<T> {
         &data[0..len]
     }
 }
+
+impl<'a, T: MutableData> Container<T> {
+
+    pub fn cyphertext_mut(&mut self) -> &mut [u8] {
+        let s = self.header().data_len() + self.header().private_options_len();
+        let data = self.buff.as_mut();
+
+        &mut data[offsets::BODY..][..s]
+    }
+
+    // Decrypt an encrypted object, mutating the internal buffer
+    pub fn decrypt(&mut self, sk: &SecretKey) -> Result<(), Error> {
+        // Check we're encrypted
+        if !self.header().flags().contains(Flags::ENCRYPTED) || self.decrypted {
+            return Err(Error::InvalidSignature)
+        }
+
+        // Extract tag
+        let tag = match self.tag() {
+            Some(t) => t,
+            None => return Err(Error::InvalidSignature),
+        };
+
+        // Perform decryption
+        let c = self.cyphertext_mut();
+        crypto::sk_decrypt(sk, &tag, c)
+            .map_err(|_e| Error::InvalidSignature)?;
+
+        self.decrypted = true;
+
+        Ok(())
+    }
+}
+
+
+impl<'a, T: ImmutableData> Container<T> {
+
+    // Decrypt data and private options, mutating the internal buffer
+    pub fn decrypt_to<'b>(&self, sk: &SecretKey, buff: &'b mut [u8]) -> Result<(&'b [u8], &'b [u8]), Error> {
+        // Check we're encrypted
+        if !self.header().flags().contains(Flags::ENCRYPTED) || self.decrypted {
+            return Err(Error::InvalidSignature)
+        }
+
+        // Extract tag
+        let tag = match self.tag() {
+            Some(t) => t,
+            None => return Err(Error::InvalidSignature),
+        };
+
+        // Perform decryption
+        let c = self.cyphertext();
+        buff[..c.len()].copy_from_slice(c);
+
+        crypto::sk_decrypt(sk, &tag, &mut buff[..c.len()])
+            .map_err(|_e| Error::InvalidSignature)?;
+
+        Ok((
+            &buff[offsets::BODY..][..self.header().data_len()],
+            &buff[self.header().private_options_offset()..][..self.header().private_options_len()],
+        ))
+    }
+
+}
+
 
 impl<'a, T: ImmutableData> AsRef<[u8]> for  Container<T> {
     fn as_ref(&self) -> &[u8] {

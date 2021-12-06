@@ -37,14 +37,27 @@ pub enum ResponseKind {
     PullData(Id, Vec<Page>),
 }
 
+/// Convert response kind object to protocol message enumeration
+impl From<&ResponseKind> for MessageKind {
+    fn from(r: &ResponseKind) -> Self {
+        match r {
+            ResponseKind::Status(_) => MessageKind::Status,
+            ResponseKind::NodesFound(_, _) => MessageKind::NodesFound,
+            ResponseKind::ValuesFound(_, _) => MessageKind::ValuesFound,
+            ResponseKind::NoResult => MessageKind::NoResult,
+            ResponseKind::PullData(_, _) => MessageKind::PullData,
+        }
+    }
+}
+
 mod status {
-    pub const OK: u32 = 0x0000_0000;
-    pub const INVALID_REQUEST: u32 = 0x0000_0001;
-    pub const FAILED: u32 = 0x0000_0010;
+    pub const OK: u32 = 0x00;
+    pub const INVALID_REQUEST: u32 = 0x01;
+    pub const FAILED: u32 = 0x02;
 }
 
 /// Status response codes
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Status {
     Ok,
@@ -64,13 +77,13 @@ impl From<u32> for Status {
     }
 }
 
-impl Into<u32> for Status {
-    fn into(self) -> u32 {
-        match self {
+impl From<&Status> for u32 {
+    fn from(s: &Status) -> u32 {
+        match s {
             Status::Ok => status::OK,
             Status::InvalidRequest => status::INVALID_REQUEST,
             Status::Failed => status::FAILED,
-            Status::Unknown(v) => v,
+            Status::Unknown(v) => *v,
         }
     }
 }
@@ -112,37 +125,6 @@ impl Response {
     pub fn with_public_key(mut self, pk: PublicKey) -> Self {
         self.common.public_key = Some(pk);
         self
-    }
-}
-
-#[cfg(nope)]
-impl fmt::Debug for ResponseKind {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            ResponseKind::Status => write!(f, "status"),
-            ResponseKind::NodesFound(id, nodes) => {
-                write!(f, "NodesFound({:?}): [", id)?;
-                for n in nodes {
-                    write!(f, "\n    - {:?}", n)?;
-                }
-                writeln!(f, "]")
-            }
-            ResponseKind::ValuesFound(id, values) => {
-                write!(f, "ValuesFound({:?}): [", id)?;
-                for v in values {
-                    write!(f, "\n    - {:?}", v)?;
-                }
-                writeln!(f, "]")
-            }
-            ResponseKind::NoResult => write!(f, "NoResult"),
-            ResponseKind::PullData(id, values) => {
-                write!(f, "PullData({:?}): [", id)?;
-                for v in values {
-                    write!(f, "\n    - {:?}", v)?;
-                }
-                writeln!(f, "]")
-            }
-        }
     }
 }
 
@@ -249,84 +231,5 @@ impl Response {
             remote_address,
         };
         Ok(Response { common, data })
-    }
-}
-
-impl Into<Base> for Response {
-    fn into(self) -> Base {
-        let kind: MessageKind;
-        let body: Vec<u8>;
-
-        let mut buff = vec![0; BUFF_SIZE];
-
-        let mut base_options = BaseOptions::default();
-
-        match &self.data {
-            ResponseKind::Status(code) => {
-                kind = MessageKind::Status;
-                NetworkEndian::write_u32(&mut buff, code.clone().into());
-                body = (&buff[0..4]).to_vec();
-            }
-            ResponseKind::NoResult => {
-                kind = MessageKind::NoResult;
-                //TODO?: (&mut body[..ID_LEN]).copy_from_slice(&id);
-                body = vec![];
-            }
-            ResponseKind::NodesFound(id, nodes) => {
-                kind = MessageKind::NodesFound;
-                (&mut buff[..ID_LEN]).copy_from_slice(&id);
-
-                // Build options list from nodes
-                let mut options = Vec::with_capacity(nodes.len() * 3);
-                for n in nodes {
-                    options.push(Options::peer_id(n.0.clone()));
-                    options.push(Options::address(n.1));
-                    options.push(Options::pub_key(n.2.clone()));
-                }
-
-                // Encode options list to body
-                let n = Options::encode_iter(&options, &mut buff[ID_LEN..]).unwrap();
-
-                body = buff[..ID_LEN + n].to_vec();
-            }
-            ResponseKind::ValuesFound(id, pages) => {
-                kind = MessageKind::ValuesFound;
-                (&mut buff[..ID_LEN]).copy_from_slice(&id);
-
-                let n = Page::encode_pages(&pages, &mut buff[ID_LEN..]).unwrap();
-
-                body = buff[..ID_LEN + n].to_vec();
-            }
-            ResponseKind::PullData(id, pages) => {
-                kind = MessageKind::PullData;
-                (&mut buff[..ID_LEN]).copy_from_slice(&id);
-
-                let n = Page::encode_pages(&pages, &mut buff[ID_LEN..]).unwrap();
-
-                body = buff[..ID_LEN + n].to_vec();
-            }
-        }
-
-        // Create header
-        let header = Header {
-            kind: kind.into(),
-            index: self.common.id.clone(),
-            flags: self.common.flags,
-            ..Default::default()
-        };
-
-        // Write public key and address if provided
-        base_options.public_key = self.common.public_key.clone();
-        if let Some(a) = self.remote_address {
-            base_options.append_public_option(Options::address(a));
-        }
-
-        // Build base object
-        Base::new(
-            self.common.from.clone(),
-            header,
-            Body::from(body),
-            base_options,
-        )
     }
 }

@@ -39,6 +39,7 @@ pub enum Options {
     Coord(Coordinates),
 }
 
+#[derive(Clone, Debug)]
 pub struct OptionsIter<T> {
     index: usize,
     buff: T,
@@ -79,6 +80,61 @@ where
         self.index += n;
 
         Some(o)
+    }
+}
+
+/// Filter helpers for option iterators
+pub trait Filters {
+    fn pub_key(&self) -> Option<PublicKey>;
+    fn peer_id(&self) -> Option<Id>;
+    fn issued(&self) -> Option<DateTime>;
+    fn expiry(&self) -> Option<DateTime>;
+    fn prev_sig(&self) -> Option<Signature>;
+    fn address(&self) -> Option<Address>;
+}
+
+impl <T: Iterator<Item=Options> + Clone> Filters for T {
+    fn pub_key(&self) -> Option<PublicKey> {
+        self.clone().find_map(|o| match o {
+            Options::PubKey(pk) => Some(pk.public_key.clone()),
+            _ => None,
+        })
+    }
+
+    fn peer_id(&self) -> Option<Id> {
+        self.clone().find_map(|o| match o {
+            Options::PeerId(peer_id) => Some(peer_id.peer_id.clone()),
+            _ => None,
+        })
+    }
+
+    fn issued(&self) -> Option<DateTime> {
+        self.clone().find_map(|o| match o {
+            Options::Issued(t) => Some(t.when),
+            _ => None,
+        })
+    }
+
+    fn expiry(&self) -> Option<DateTime> {
+        self.clone().find_map(|o| match o {
+            Options::Expiry(t) => Some(t.when),
+            _ => None,
+        })
+    }
+
+    fn prev_sig(&self) -> Option<Signature> {
+        self.clone().find_map(|o| match o {
+            Options::PrevSig(s) => Some(s.sig.clone()),
+            _ => None,
+        })
+    }
+
+    fn address(&self) -> Option<Address> {
+        self.clone().find_map(|o| match o {
+            Options::IPv4(addr) => Some(addr.clone().into()),
+            Options::IPv6(addr) => Some(addr.clone().into()),
+            _ => None,
+        })
     }
 }
 

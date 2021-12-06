@@ -1,6 +1,8 @@
 //! Base object is a common owned object that is used to represent pages / messages / data
 //! and can be encoded and decoded for wire communication.
 
+use std::convert::TryFrom;
+
 #[cfg(feature = "alloc")]
 use alloc::vec::{Vec};
 
@@ -53,7 +55,7 @@ pub struct Base {
     pub(crate) peer_id: Option<Id>,
 
     /// Object tag (if encrypted)
-    pub(crate) tag: Option<Vec<u8>>,
+    pub(crate) tag: Option<SecretMeta>,
 
     /// Object signature
     pub(crate) signature: Option<Signature>,
@@ -159,6 +161,7 @@ pub enum Parent<'a, 'b, 'c> {
 
 impl Base {
     /// Create a new base object the provided options
+    #[deprecated]
     pub fn new(id: Id, header: Header, body: Body, options: BaseOptions) -> Self {
         Self {
             id,
@@ -220,7 +223,9 @@ impl Base {
         }
     }
 
-    pub fn clean(&mut self) {}
+    pub fn clean(&mut self) {
+        self.raw = None;
+    }
 
 }
 
@@ -280,18 +285,23 @@ impl Base {
 
 impl Base {
     /// Parses a data array into a base object using the pubkey_source to locate keys for validation and decryption
-    pub fn parse<'a, K, T: AsRef<[u8]>>(data: T, key_source: &K) -> Result<(Base, usize), Error>
+    pub fn parse<'a, K, T: ImmutableData>(data: T, key_source: &K) -> Result<(Base, usize), Error>
     where
         K: KeySource,
     {
-        Container::parse(data, key_source)
+        let c = Container::parse(data, key_source)?;
+        let n = c.len();
+
+        let b = Base::try_from(c)?;
+
+        Ok((b, n))
     }
 }
 
 impl Base {
     /// Writes a base object to the specified buffer using the provided keys for encryption and signing
     /// bypassing encoding if the raw object is available
-    pub fn encode<'a, T: AsRef<[u8]> + AsMut<[u8]>>(
+    pub fn encode<'a, T: MutableData>(
         &mut self,
         keys: Option<&Keys>,
         mut buff: T,
@@ -315,6 +325,21 @@ impl Base {
 
         // Update base object signature
         self.set_signature(container.signature().into());
+        
+        self.verified = true;
+
+        // Update fields if encrypted
+        // TODO: not sure this is the right place for this...
+        if container.encrypted() {
+            if container.header().data_len() > 0 {
+                self.body = MaybeEncrypted::Encrypted(container.body().to_vec());
+            }
+            if container.header().private_options_len() > 0 {
+                self.private_options = MaybeEncrypted::Encrypted(container.private_options().to_vec());
+            }
+            // TODO: no tag if no body / private opts
+            self.tag = container.tag();
+        }
 
         Ok(n)
     }
@@ -331,6 +356,8 @@ mod tests {
     use crate::crypto;
 
     fn setup() -> (Id, Keys) {
+        let _ = simplelog::SimpleLogger::init(simplelog::LevelFilter::Debug, simplelog::Config::default());
+
         let (pub_key, pri_key) =
             crypto::new_pk().expect("Error generating new public/private key pair");
         let id = crypto::hash(&pub_key)
@@ -368,8 +395,7 @@ mod tests {
             .encode(Some(&keys), &mut buff)
             .expect("Error encoding page");
 
-        let (mut decoded, m) = Base::parse(&buff[..n], &keys).expect("Error decoding page");
-
+        let (mut decoded, m) = Base::parse((&buff[..n]).to_vec(), &keys).expect("Error decoding page");
         decoded.clean();
 
         assert_eq!(page, decoded);
@@ -403,19 +429,19 @@ mod tests {
         let n = page
             .encode(Some(&keys), &mut buff)
             .expect("Error encoding page");
-        page.raw = Some(buff[..n].to_vec());
+        //page.raw = Some(buff[..n].to_vec());
 
         let (mut decoded, m) =
-            Base::parse(&buff[..n], &keys).expect("Error decoding page with known public key");
-
+            Base::parse((&buff[..n]).to_vec(), &keys).expect("Error decoding page with known public key");
         decoded.clean();
+
         assert_eq!(page, decoded);
         assert_eq!(n, m);
 
         let (mut decoded, m) =
-            Base::parse(&buff[..n], &NullKeySource).expect("Error decoding page with unknown public key");
-
+            Base::parse((&buff[..n]).to_vec(), &NullKeySource).expect("Error decoding page with unknown public key");
         decoded.clean();
+
         assert_eq!(page, decoded);
         assert_eq!(n, m);
     }
@@ -449,9 +475,9 @@ mod tests {
         page.raw = Some(buff[..n].to_vec());
 
         let (mut decoded, m) =
-            Base::parse(&buff[..n], &keys).expect("Error decoding page with known public key");
-
+            Base::parse((&buff[..n]).to_vec(), &keys).expect("Error decoding page with known public key");
         decoded.clean();
+
         assert_eq!(page, decoded);
         assert_eq!(n, m);
     }
@@ -474,8 +500,7 @@ mod tests {
             .encode(Some(&keys), &mut buff)
             .expect("Error encoding page");
 
-        let (mut decoded, m) = Base::parse(&buff[..n], &keys).expect("Error decoding page");
-
+        let (mut decoded, m) = Base::parse((&buff[..n]).to_vec(), &keys).expect("Error decoding page");
         decoded.clean();
 
         assert_eq!(page, decoded);

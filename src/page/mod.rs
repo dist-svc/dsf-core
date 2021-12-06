@@ -10,6 +10,7 @@ use crate::base::{Base, BaseOptions, Body, Header, MaybeEncrypted};
 use crate::crypto;
 use crate::error::Error;
 use crate::options::Options;
+use crate::prelude::Encode;
 use crate::types::*;
 use crate::keys::{KeySource, Keys};
 use crate::wire::Container;
@@ -235,7 +236,7 @@ impl Page {
 
         while i < buff.len() {
             // TODO: validate signatures against existing services!
-            let (b, n) = match Base::parse(&buff[i..], &key_source.cached(last_key.clone())){
+            let (b, n) = match Base::parse((&buff[i..]).to_vec(), &key_source.cached(last_key.clone())){
                 Ok(v) => v,
                 Err(e) => {
                     debug!("Error parsing base message: {:?}", e);
@@ -283,6 +284,40 @@ impl Page {
             let n = b.encode(None, &mut buff[i..])?;
 
             i += n;
+        }
+
+        Ok(i)
+    }
+}
+
+impl Encode for Page {
+    type Error = Error;
+
+    fn encode(&self, buff: &mut [u8]) -> Result<usize, Self::Error> {
+        // Check page has associated signature
+        match (&self.signature, &self.raw) {
+            (None, None) => {
+                return Err(Error::NoSignature)
+            }
+            _ => (),
+        };
+
+        // Convert and encode, note these must be pre-signed
+        let mut b = Base::from(self);
+        let n = b.encode(None,buff)?;
+        
+        Ok(n)
+    }
+}
+
+impl Encode for &[Page] {
+    type Error = Error;
+
+    fn encode(&self, buff: &mut [u8]) -> Result<usize, Self::Error> {
+        let mut i = 0;
+
+        for p in *self {
+            i += p.encode(&mut buff[i..])?;
         }
 
         Ok(i)
@@ -473,7 +508,7 @@ impl <T: AsRef<[u8]>> TryFrom<Container<T>> for Page {
 
     fn try_from(container: Container<T>) -> Result<Self, Error> {
         let header = container.header();
-        let signature = container.signature();
+        let _signature = container.signature();
 
         let flags = header.flags();
         let kind = header.kind();
@@ -512,9 +547,18 @@ impl <T: AsRef<[u8]>> TryFrom<Container<T>> for Page {
             .map(|o| o.clone())
             .collect();
 
+        // Map body and options depending on encryption state
+        let body = match (container.header().data_len(), container.encrypted()) {
+            (0, _) => MaybeEncrypted::None,
+            (_, false) => MaybeEncrypted::Cleartext(container.body().to_vec()),
+            (_, true) => MaybeEncrypted::Encrypted(container.body().to_vec()),
+        };
 
-        // TODO: parse out private options too?
-        //let private_options = container.private_options_iter().collect();
+        let private_options = match (container.header().private_options_len(), container.encrypted()) {
+            (0, _) => MaybeEncrypted::None,
+            (_, false) => MaybeEncrypted::Cleartext(container.private_options_iter().collect()),
+            (_, true) => MaybeEncrypted::Encrypted(container.private_options().to_vec())
+        };
 
         let info = if kind.is_page() && !flags.contains(Flags::SECONDARY) && !flags.contains(Flags::TERTIARY) {
             // Handle primary page parsing
@@ -566,18 +610,20 @@ impl <T: AsRef<[u8]>> TryFrom<Container<T>> for Page {
             id: container.id().clone(),
             header: Header::from(&header),
             info,
-            body: MaybeEncrypted::None, //base.body.clone(),
+            body, //base.body.clone(),
             issued,
             expiry,
 
             previous_sig,
 
             public_options,
-            private_options: MaybeEncrypted::None, //private_options,
+            // TODO: complete this
+            private_options, //private_options,
             tag: None,
             signature: Some(container.signature()),
-            verified: false,// base.verified,
+            verified: container.verified,
 
+            // TODO: revisit this
             raw: Some(container.as_ref().to_vec()),
             _extend: (),
         })

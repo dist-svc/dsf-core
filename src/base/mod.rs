@@ -2,6 +2,7 @@
 
 use core::marker::PhantomData;
 use core::fmt::Debug;
+use std::convert::Infallible;
 
 mod header;
 pub use header::*;
@@ -102,6 +103,8 @@ pub trait Encode {
     }
 }
 
+#[cfg(nope)]
+/// Encode for arrays of encodable types
 impl <T: Encode> Encode for &[T] {
     type Error = <T as Encode>::Error;
 
@@ -113,6 +116,25 @@ impl <T: Encode> Encode for &[T] {
         }
 
         Ok(index)
+    }
+}
+
+/// Encode for raw slices
+impl Encode for &[u8] {
+    type Error = Infallible;
+
+    fn encode(&self, buff: &mut [u8]) -> Result<usize, Self::Error> {
+        buff[..self.len()].copy_from_slice(*self);
+        Ok(self.len())
+    }
+}
+
+/// Encode for empty raw slices
+impl Encode for &[u8; 0] {
+    type Error = Infallible;
+
+    fn encode(&self, _buff: &mut [u8]) -> Result<usize, Self::Error> {
+        Ok(0)
     }
 }
 
@@ -152,6 +174,12 @@ impl <O: Encode + Debug, E: ImmutableData> Encode for MaybeEncrypted<O, E>
             Self::Cleartext(o) => o.encode(buff),
             _ => Ok(0)
         }
+    }
+}
+
+impl <O: Encode + Debug, E: ImmutableData> Default for MaybeEncrypted<O, E> {
+    fn default() -> Self {
+        MaybeEncrypted::None
     }
 }
 

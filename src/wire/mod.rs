@@ -4,15 +4,17 @@
 #[cfg(feature = "alloc")]
 use alloc::vec::{Vec};
 
-use core::ops::{Deref, DerefMut};
+use core::ops::{DerefMut};
+use std::convert::TryFrom;
 
 use pretty_hex::*;
 
 use crate::base::{Base, Body, Header, MaybeEncrypted};
 use crate::crypto;
 use crate::error::Error;
-use crate::options::{Options};
+use crate::options::{Options, Filters};
 use crate::types::*;
+use crate::wire::builder::Encrypt;
 /// Header provides a low-cost header abstraction for encoding/decoding
 pub mod header;
 
@@ -57,6 +59,8 @@ fn validate(
 ) -> Result<bool, Error> {
     // Attempt to use secret key mode if available
     let valid = if flags.contains(Flags::SYMMETRIC_MODE) {
+        debug!("Using symmetric mode");
+
         // Ensure symmetric mode is only used for messages
         if !kind.is_message() {
             return Err(Error::UnsupportedSignatureMode);
@@ -76,6 +80,8 @@ fn validate(
 
     // Otherwise use public key
     } else {
+        debug!("Using asymmetric mode");
+        
         // Check for matching public key
         let pub_key = match &keys.pub_key {
             Some(pk) => pk,
@@ -96,18 +102,16 @@ fn validate(
     Ok(valid)
 }
 
-impl<'a, T: AsRef<[u8]>> Container<T> {
+impl<'a, T: ImmutableData> Container<T> {
     /// Parses a data array into a base object using the pub_key and sec_key functions to locate keys for validation and decryption
-    pub fn parse<K>(data: T, key_source: &K) -> Result<(Base, usize), Error>
+    pub fn parse<K>(data: T, key_source: &K) -> Result<Container<T>, Error>
     where
         K: KeySource,
     {
-        let mut verified = false;
-
         // Build container over buffer
-        let (container, n) = Container::from(data);
+        let (mut container, n) = Container::from(data);
         let header = container.header();
-
+        
         trace!("Parsing object: {:02x?}", container.hex_dump());
 
         trace!("Parsed header: {:02x?}", header);
@@ -117,21 +121,20 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
         let kind = header.kind();
         let id: Id = container.id().into();
 
+        debug!("Container: {:?} Header: {:?}", container, header);
+
         // Fetch signature for page
+        let mut verified = false;
         let signature: Signature = container.signature().into();
 
         // Validate primary types immediately if pubkey is known
         let is_primary = !flags.contains(Flags::SECONDARY) && !flags.contains(Flags::TERTIARY);
+
         match (is_primary, key_source.keys(&id)) {
             (true, Some(keys)) if keys.pub_key.is_some() => {
                 let pub_key = keys.pub_key.as_ref().unwrap();
 
                 trace!("Early signature validate: {:02x?} using key: {:?}", signature.as_ref(), pub_key);
-
-                // Check ID matches key
-                if id != crypto::hash(&pub_key).unwrap() {
-                    return Err(Error::KeyIdMismatch);
-                }
 
                 // Perform verification
                 verified = validate(&keys, &id, kind, flags, &signature, container.signed())?;
@@ -154,25 +157,20 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
         let mut pub_key = None;
         let mut parent = None;
 
-        let public_options: Vec<_> = container
-            .public_options_iter()
-            .filter_map(|o| match &o {
+        for o in container.public_options_iter() {
+            match o {
                 Options::PeerId(v) => {
                     peer_id = Some(v.peer_id.clone());
-                    None
-                }
+                },
                 Options::PubKey(v) => {
                     pub_key = Some(v.public_key.clone());
-                    None
-                }
+                },
                 Options::PrevSig(v) => {
                     parent = Some(v.sig.clone());
-                    None
-                }
-                _ => Some(o),
-            })
-            .collect();
-
+                },
+                _ => (),
+            }
+        }
 
         // Look for signing ID
         let signing_id: Id = match (!is_primary, &peer_id) {
@@ -218,103 +216,75 @@ impl<'a, T: AsRef<[u8]>> Container<T> {
             _ => (),
         }
 
-        trace!("Starting decryption");
+        trace!("Parse OK! (verified: {:?})", verified);
+        container.verified = verified;
+        container.len = container.len();
 
-        let sk = key_source.sec_key(&id);
+        // Return verified container
+        Ok(container)
+    }
+}
 
-        let (body, private_options, tag) = match (flags.contains(Flags::ENCRYPTED), sk) {
-            // If we're encrypted _and_ we have keys, attempt decryption
-            (true, Some(sk)) => {
-                let mut cyphertext = container.cyphertext().to_vec();
-                let tag = container.tag();
+// Temporary patch to build base object for container while refactoring out base
+impl <T: ImmutableData> TryFrom<Container<T>> for Base {
+    type Error = Error;
 
-                trace!("Decrypting block: {:?}", cyphertext.hex_dump());
-                trace!("Decryption tag: {:?}", tag.hex_dump());
+    fn try_from(c: Container<T>) -> Result<Self, Self::Error> {
+        // Fetch public options
+        let mut peer_id = None;
+        let mut pub_key = None;
+        let mut prev_sig = None;
 
-                let _n = crypto::sk_decrypt(&sk, tag, &mut cyphertext)
-                    .map_err(|_e| Error::InvalidSignature);
+        let public_options: Vec<_> = c
+            .public_options_iter()
+            .filter_map(|o| match &o {
+                Options::PeerId(v) => {
+                    peer_id = Some(v.peer_id.clone());
+                    None
+                }
+                Options::PubKey(v) => {
+                    pub_key = Some(v.public_key.clone());
+                    None
+                }
+                Options::PrevSig(v) => {
+                    prev_sig = Some(v.sig.clone());
+                    None
+                }
+                _ => Some(o),
+            })
+            .collect();
 
-                trace!("Decrypted: {:?}", cyphertext.hex_dump());
-
-                let (opts, _n) = Options::parse_vec(&cyphertext[header.data_len()..])?;
-
-                let body = match header.data_len() {
-                    0 => Body::None,
-                    _ => Body::Cleartext(cyphertext[..header.data_len()].to_vec()),
-                };
-
-                let opts = match opts.len() {
-                    0 => MaybeEncrypted::None,
-                    _ => MaybeEncrypted::Cleartext(opts)
-                };
-
-                (body, opts, Some(tag.to_vec()))
-            },
-            // If we're encrypted and _don't_ have keys, return cyphertexts
-            (true, None) => {
-                debug!("No secret key found for object from: {}", id);
-
-                let tag = container.tag();
-
-                let body = match header.data_len() {
-                    0 => Body::None,
-                    _ => Body::Encrypted(container.body().to_vec()),
-                };
-
-                let opts = match container.private_options().len() {
-                    0 => MaybeEncrypted::None,
-                    _ => MaybeEncrypted::Encrypted(container.private_options().to_vec())
-                };
-
-                (body, opts, Some(tag.to_vec()))
-            },
-            // If we're not encrypted, return data directly
-            _ => {
-                let (opts, _n) = Options::parse_vec(container.private_options())?;
-
-                let body = match header.data_len() {
-                    0 => Body::None,
-                    _ => Body::Cleartext(container.body().to_vec()),
-                };
-
-                let opts = match opts.len() {
-                    0 => MaybeEncrypted::None,
-                    _ => MaybeEncrypted::Cleartext(opts)
-                };
-
-                (body, opts, None)
-            }
+        // Map body and options depending on encryption state
+        let body = match (c.header().data_len(), c.encrypted()) {
+            (0, _) => MaybeEncrypted::None,
+            (_, false) => MaybeEncrypted::Cleartext(c.body().to_vec()),
+            (_, true) => MaybeEncrypted::Encrypted(c.body().to_vec()),
         };
 
-        trace!("Parse OK!");
+        let private_opts = match (c.header().private_options_len(), c.encrypted()) {
+            (0, _) => MaybeEncrypted::None,
+            (_, false) => MaybeEncrypted::Cleartext(c.private_options_iter().collect()),
+            (_, true) => MaybeEncrypted::Encrypted(c.private_options().to_vec())
+        };
 
-        // Return page and options
-        Ok((
-            Base {
-                id,
-                header: Header::new(
-                    header.application_id(),
-                    header.kind(),
-                    header.index(),
-                    header.flags(),
-                ),
-                body,
+        Ok(Base {
+            id: c.id(),
+            header: Header::from(&c.header()),
+            body: body,
 
-                private_options,
-                public_options,
+            private_options: private_opts,
+            public_options: public_options,
 
-                parent,
-                peer_id: peer_id.clone(),
-                public_key: pub_key.clone(),
+            parent: prev_sig,
+            peer_id: peer_id,
+            public_key: pub_key,
 
-                tag,
-                signature: Some(signature),
-                verified,
+            tag: c.tag(),
+            signature: Some(c.signature()),
+            verified: c.verified,
 
-                raw: Some(container.raw().to_vec()),
-            },
-            n,
-        ))
+            raw: Some(c.raw().to_vec()),
+        })
     }
 }
 
@@ -344,8 +314,8 @@ impl<'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
 
         // Append body
         let bb = match &base.body {
-            MaybeEncrypted::Cleartext(c) => bb.body(c)?,
-            MaybeEncrypted::Encrypted(e) => bb.body(e)?,
+            MaybeEncrypted::Cleartext(c) => bb.body(&c[..])?,
+            MaybeEncrypted::Encrypted(e) => bb.body(&e[..])?,
             MaybeEncrypted::None => bb.body(&[])?,
         };
         
@@ -423,7 +393,6 @@ impl<'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
     }
 }
 
-
 /// Helper to decrypt optionally encrypted fields
 pub(crate) fn decrypt(sk: &SecretKey, body: &mut MaybeEncrypted, private_opts: &mut MaybeEncrypted<Vec<Options>>, tag: Option<&SecretMeta>) -> Result<(), Error> {
     
@@ -473,8 +442,60 @@ pub(crate) fn decrypt(sk: &SecretKey, body: &mut MaybeEncrypted, private_opts: &
 
 #[cfg(test)]
 mod test {
+    use std::convert::TryFrom;
+
+    use super::*;
+
+    use crate::crypto;
+
+    fn setup() -> (Id, Keys) {
+        let (pub_key, pri_key) =
+            crypto::new_pk().expect("Error generating new public/private key pair");
+        let id = crypto::hash(&pub_key)
+            .expect("Error generating new ID")
+            .into();
+        let sec_key = crypto::new_sk().expect("Error generating new secret key");
+        (
+            id,
+            Keys {
+                pub_key: Some(pub_key),
+                pri_key: Some(pri_key),
+                sec_key: Some(sec_key),
+                sym_keys: None,
+            },
+        )
+    }
+
+    #[test]
+    fn encode_decode_primary_page() {
+        let (id, mut keys) = setup();
+        keys.sec_key = None;
+
+        let header = Header {
+            kind: PageKind::Generic.into(),
+            application_id: 10,
+            index: 12,
+            ..Default::default()
+        };
+        let data = vec![1, 2, 3, 4, 5, 6, 7];
+
+        // Encode using builder
+        let c = Builder::new(vec![0u8; 1024])
+            .id(&id)
+            .header(&header)
+            .body(data).unwrap()
+            .private_options(&[]).unwrap()
+            .public()
+            .sign_pk(keys.pri_key.as_ref().unwrap())
+            .expect("Error encoding page");
 
 
+        // Decode into container
+        let d = Container::parse(c.buff.clone(), &keys)
+            .expect("Error decoding page");
 
-    
+        // TODO: convert to pages and compare
+
+        assert_eq!(c, d);
+    }
 }

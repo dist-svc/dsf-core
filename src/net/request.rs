@@ -50,6 +50,27 @@ pub enum RequestKind {
     Discover(Vec<u8>, Vec<Options>),
 }
 
+/// Convert request kind containers to protocol message enumerations
+impl From<&RequestKind> for MessageKind {
+    fn from(r: &RequestKind) -> Self {
+        match r {
+            RequestKind::Hello => MessageKind::Hello,
+            RequestKind::Ping => MessageKind::Ping,
+            RequestKind::FindNode(_) => MessageKind::FindNodes,
+            RequestKind::FindValue(_) => MessageKind::FindValues,
+            RequestKind::Store(_, _) => MessageKind::Store,
+            RequestKind::Locate(_) => MessageKind::Locate,
+            RequestKind::Subscribe(_) => MessageKind::Subscribe,
+            RequestKind::Unsubscribe(_) => MessageKind::Unsubscribe,
+            RequestKind::Query(_) => MessageKind::Query,
+            RequestKind::PushData(_, _) => MessageKind::PushData,
+            RequestKind::Register(_, _) => MessageKind::Register,
+            RequestKind::Unregister(_) => MessageKind::Unregister,
+            RequestKind::Discover(_, _) => MessageKind::Discover,
+        }
+    }
+}
+
 impl Request {
     pub fn new(from: Id, request_id: u16, data: RequestKind, flags: Flags) -> Request {
         let common = Common {
@@ -197,126 +218,5 @@ impl Request {
             remote_address,
         };
         Ok(Request { common, data })
-    }
-}
-
-// TODO: this is duplicated in the service module
-// where should it be?
-impl Into<Base> for Request {
-    fn into(self) -> Base {
-        let kind: MessageKind;
-        let body;
-
-        let mut options = BaseOptions::default();
-
-        match &self.data {
-            RequestKind::Hello => {
-                kind = MessageKind::Hello;
-                body = vec![];
-            }
-            RequestKind::Ping => {
-                kind = MessageKind::Ping;
-                body = vec![];
-            }
-            RequestKind::FindNode(id) => {
-                kind = MessageKind::FindNodes;
-                body = id.to_vec();
-            }
-            RequestKind::FindValue(id) => {
-                kind = MessageKind::FindValues;
-                body = id.to_vec();
-            }
-            RequestKind::Store(id, pages) => {
-                kind = MessageKind::Store;
-
-                let mut buff = vec![0u8; BUFF_SIZE];
-                (&mut buff[..ID_LEN]).copy_from_slice(id);
-
-                let i = Page::encode_pages(pages, &mut buff[ID_LEN..]).unwrap();
-
-                body = buff[..ID_LEN + i].to_vec();
-            }
-            RequestKind::Subscribe(id) => {
-                kind = MessageKind::Subscribe;
-                body = id.to_vec();
-            }
-            RequestKind::Unsubscribe(id) => {
-                kind = MessageKind::Unsubscribe;
-                body = id.to_vec();
-            }
-            RequestKind::Query(id) => {
-                kind = MessageKind::Query;
-                body = id.to_vec();
-            }
-            RequestKind::Locate(id) => {
-                kind = MessageKind::Locate;
-                body = id.to_vec();
-            }
-            RequestKind::PushData(id, pages) => {
-                kind = MessageKind::PushData;
-
-                let mut buff = vec![0u8; BUFF_SIZE];
-                (&mut buff[..ID_LEN]).copy_from_slice(id);
-
-                let i = Page::encode_pages(pages, &mut buff[ID_LEN..]).unwrap();
-
-                body = buff[..ID_LEN + i].to_vec();
-            }
-            RequestKind::Register(id, pages) => {
-                kind = MessageKind::Register;
-
-                let mut buff = vec![0u8; BUFF_SIZE];
-                (&mut buff[..ID_LEN]).copy_from_slice(id);
-
-                let i = Page::encode_pages(pages, &mut buff[ID_LEN..]).unwrap();
-
-                body = buff[..ID_LEN + i].to_vec();
-            }
-            RequestKind::Unregister(id) => {
-                kind = MessageKind::Unregister;
-                body = id.to_vec();
-            }
-            RequestKind::Discover(filter_body, filter_options) => {
-                kind = MessageKind::Discover;
-                body = filter_body.clone();
-                options.public_options = filter_options.clone();
-            }
-        }
-
-        // Create object header
-        let header = Header {
-            kind: kind.into(),
-            flags: self.flags,
-            index: self.id,
-            ..Default::default()
-        };
-
-        // Attach public key and address options if supplied
-        options.public_key = self.public_key.clone();
-        if let Some(a) = self.remote_address {
-            options.append_public_option(Options::address(a));
-        }
-
-        // Build base object
-        Base::new(self.from.clone(), header, Body::from(body), options)
-    }
-}
-
-#[cfg(nope)]
-impl fmt::Debug for RequestKind {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            RequestKind::Hello => write!(f, "status"),
-            RequestKind::Ping => write!(f, "Ping"),
-            RequestKind::FindNode(id) => write!(f, "FindNode ({:?})", id),
-            RequestKind::FindValue(id) => write!(f, "FindValue ({:?})", id),
-            RequestKind::Store(id, values) => {
-                write!(f, "Store({:?}): [", id)?;
-                for v in values {
-                    write!(f, "\n    - {:?}", v)?;
-                }
-                writeln!(f, "]")
-            }
-        }
     }
 }

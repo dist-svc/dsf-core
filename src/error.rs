@@ -1,5 +1,6 @@
 //! Error types for DSF Core
 
+use std::convert::Infallible;
 #[cfg(feature = "std")]
 use std::io::Error as IoError;
 #[cfg(feature = "std")]
@@ -69,5 +70,11 @@ impl From<IoError> for Error {
 impl From<SystemTimeError> for Error {
     fn from(_e: SystemTimeError) -> Error {
         Error::Time
+    }
+}
+
+impl From<Infallible> for Error {
+    fn from(_: Infallible) -> Self {
+        unreachable!()
     }
 }

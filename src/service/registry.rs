@@ -2,7 +2,7 @@
 use std::ops::Add;
 
 use crate::options::Options;
-use crate::page::{Page, PageOptions, Tertiary};
+use crate::page::{Page, PageOptions};
 use crate::error::Error;
 use crate::prelude::{Body, Header, PageInfo};
 use crate::types::{Id, Kind, PageKind, Flags, Queryable, DateTime};
@@ -104,16 +104,16 @@ impl <const N: usize> Registry<N> for Service {
 #[cfg(test)]
 mod test {
     use crate::{prelude::*, service::Publisher};
-    use crate::options::{self, Options, Name};
+    use crate::options::{Options, Name};
 
     use super::*;
 
     fn registry_publish(mut r: Service) {
         // Build target service
-        let opt_name = options::Name::new("something");
+        let opt_name = Name::new("something");
         let mut c = ServiceBuilder::generic().public_options(vec![Options::Name(opt_name.clone())]).build().unwrap();
         
-        let p = c.publish_primary_buff(Default::default()).unwrap();
+        let (_n, _c) = c.publish_primary_buff(Default::default()).unwrap();
 
         // Generate page for name entry
         let p1 = Registry::<256>::publish_tertiary(&mut r, c.id(), TertiaryOptions::default(), &opt_name).unwrap();

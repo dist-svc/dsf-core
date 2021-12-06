@@ -1,15 +1,13 @@
 use core::ops::Add;
 
-#[cfg(feature = "std")]
-use std::time::{Duration, SystemTime};
-
 #[cfg(feature = "alloc")]
 use alloc::vec::{Vec};
 
 use crate::base::{Header, MaybeEncrypted};
 use crate::error::Error;
 use crate::options::Options;
-use crate::page::{Page, PageInfo, PageOptions};
+use crate::page::{Page};
+use crate::prelude::Encode;
 use crate::service::Service;
 use crate::types::*;
 use crate::wire::builder::{Encrypt, SetPublicOptions};
@@ -19,7 +17,7 @@ use crate::wire::{Builder, Container};
 /// as well as to encode (and sign and optionally encrypt) generated pages
 pub trait Publisher<const N: usize = 512> {
     /// Generates a primary page to publish for the given service and encodes it into the provided buffer
-    fn publish_primary<T: AsRef<[u8]> + AsMut<[u8]>>(
+    fn publish_primary<T: MutableData>(
         &mut self,
         options: PrimaryOptions,
         buff: T,
@@ -33,7 +31,7 @@ pub trait Publisher<const N: usize = 512> {
     }
 
     /// Create a data object for publishing with the provided options and encodes it into the provided buffer
-    fn publish_data<T: AsRef<[u8]> + AsMut<[u8]>>(
+    fn publish_data<T: MutableData>(
         &mut self,
         options: DataOptions,
         buff: T,
@@ -47,7 +45,7 @@ pub trait Publisher<const N: usize = 512> {
     }
 
     /// Create a secondary page for publishing with the provided options and encodes it into the provided buffer
-    fn publish_secondary<T: AsRef<[u8]> + AsMut<[u8]>>(
+    fn publish_secondary<T: MutableData>(
         &mut self,
         id: &Id,
         options: SecondaryOptions,
@@ -140,8 +138,8 @@ impl <'a>Default for SecondaryOptions<'a> {
     }
 }
 
-#[derive(Clone)]
-pub struct DataOptions<'a, Body=&'a [u8]> {
+#[derive(Clone, Debug)]
+pub struct DataOptions<'a, Body: Encode + Default = &'a [u8]> {
     /// Data object kind
     pub data_kind: Kind,
 
@@ -164,11 +162,11 @@ pub struct DataOptions<'a, Body=&'a [u8]> {
     pub no_last_sig: bool,
 }
 
-impl<'a> Default for DataOptions<'a> {
+impl<'a, Body: Encode + Default> Default for DataOptions<'a, Body> {
     fn default() -> Self {
         Self {
             data_kind: DataKind::Generic.into(),
-            body: &[],
+            body: Default::default(),
             issued: default_issued(),
             expiry: default_expiry(),
             public_options: &[],
@@ -180,7 +178,7 @@ impl<'a> Default for DataOptions<'a> {
 
 impl Publisher for Service {
     /// Publish generates a page to publishing for the given service.
-    fn publish_primary<T: AsRef<[u8]> + AsMut<[u8]>>(
+    fn publish_primary<T: MutableData>(
         &mut self,
         options: PrimaryOptions,
         buff: T,
@@ -189,6 +187,8 @@ impl Publisher for Service {
         if self.encrypted {
             flags |= Flags::ENCRYPTED;
         }
+
+        debug!("Primary options: {:?}", options);
 
         // Setup header
         let header = Header {
@@ -215,9 +215,8 @@ impl Publisher for Service {
         let b = Builder::new(buff)
            .header(&header)
            .id(&self.id())
-           .body(&body)?
+           .body(body)?
            .private_options(&private_opts)?;
-
         
         // Apply internal encryption if enabled
         let mut b = self.encrypt(b)?;
@@ -254,7 +253,7 @@ impl Publisher for Service {
     }
 
     /// Secondary generates a secondary page using this service to be attached to / stored at the provided service ID
-    fn publish_secondary<T: AsRef<[u8]> + AsMut<[u8]>>(
+    fn publish_secondary<T: MutableData>(
         &mut self,
         id: &Id,
         options: SecondaryOptions,
@@ -282,7 +281,7 @@ impl Publisher for Service {
         let b = Builder::new(buff)
             .header(&header)
             .id(id)
-            .body(&options.body)?
+            .body(options.body)?
             .private_options(&options.private_options)?;
 
         // Apply internal encryption if enabled
@@ -314,7 +313,7 @@ impl Publisher for Service {
         Ok((c.len(), c))
     }
 
-    fn publish_data<T: AsRef<[u8]> + AsMut<[u8]>>(
+    fn publish_data<T: MutableData>(
         &mut self,
         options: DataOptions,
         buff: T,
@@ -340,7 +339,7 @@ impl Publisher for Service {
         let b = Builder::new(buff)
             .header(&header)
             .id(&self.id())
-            .body(&options.body)?
+            .body(options.body)?
             .private_options(&options.private_options)?;
 
         // Apply internal encryption if enabled
@@ -372,7 +371,7 @@ impl Publisher for Service {
 impl Service {
     // Encode a page to the provided buffer, updating the internal signature state
     #[deprecated]
-    pub fn encode<T: AsRef<[u8]> + AsMut<[u8]>>(
+    pub fn encode<T: MutableData>(
         &mut self,
         page: &mut Page,
         buff: T,
@@ -398,7 +397,7 @@ impl Service {
         Ok(n)
     }
 
-    fn encrypt<T: MutableData>(&mut self, b: Builder<Encrypt, T>) -> Result<Builder<SetPublicOptions, T>, Error> {
+    pub(super) fn encrypt<T: MutableData>(&mut self, b: Builder<Encrypt, T>) -> Result<Builder<SetPublicOptions, T>, Error> {
 
         // Apply internal encryption if enabled
         let b = match (self.encrypted, &self.secret_key) {
@@ -410,7 +409,7 @@ impl Service {
         Ok(b)
     }
 
-    fn sign<T: MutableData>(&mut self, b: Builder<SetPublicOptions, T> ) -> Result<Container<T>, Error> {
+    pub(super) fn sign<T: MutableData>(&mut self, b: Builder<SetPublicOptions, T> ) -> Result<Container<T>, Error> {
 
         // Sign generated object
         let c = match &self.private_key {
