@@ -4,7 +4,7 @@ use core::ops::Deref;
 #[cfg(feature = "alloc")]
 use alloc::vec::{Vec};
 
-use crate::base::{Base, BaseOptions, Body, Header};
+use crate::base::{Base, Body};
 use crate::error::Error;
 use crate::options::Options;
 use crate::page::Page;
@@ -12,7 +12,6 @@ use crate::types::*;
 use crate::keys::KeySource;
 
 use super::Common;
-use super::BUFF_SIZE;
 
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]

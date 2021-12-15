@@ -314,11 +314,6 @@ mod test {
 
             println!("Encoding: {:?}", r);
 
-            let opts = MessageOptions{
-                peer_keys: source_keys.clone(),
-                ..Default::default()
-            };
-
             // Encode request
             let enc = source.encode_request( &r, &source_keys, &mut buff)
                 .expect("Error encoding request");
@@ -433,11 +428,6 @@ mod test {
             let mut buff = vec![0u8; 1024];
 
             println!("Encoding: {:?}", r);
-
-            let opts = MessageOptions{
-                peer_keys: source_keys.clone(),
-                ..Default::default()
-            };
 
             // Encode request
             let enc = source.encode_response( &r, &source_keys, &mut buff)

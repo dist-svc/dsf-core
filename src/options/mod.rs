@@ -91,9 +91,10 @@ pub trait Filters {
     fn expiry(&self) -> Option<DateTime>;
     fn prev_sig(&self) -> Option<Signature>;
     fn address(&self) -> Option<Address>;
+    fn name(&self) -> Option<Name>;
 }
 
-impl <T: Iterator<Item=Options> + Clone> Filters for T {
+impl <'a, T: Iterator<Item=&'a Options> + Clone> Filters for T {
     fn pub_key(&self) -> Option<PublicKey> {
         self.clone().find_map(|o| match o {
             Options::PubKey(pk) => Some(pk.public_key.clone()),
@@ -125,6 +126,13 @@ impl <T: Iterator<Item=Options> + Clone> Filters for T {
     fn prev_sig(&self) -> Option<Signature> {
         self.clone().find_map(|o| match o {
             Options::PrevSig(s) => Some(s.sig.clone()),
+            _ => None,
+        })
+    }
+
+    fn name(&self) -> Option<Name> {
+        self.clone().find_map(|o| match o {
+            Options::Name(name) => Some(name.clone()),
             _ => None,
         })
     }

@@ -16,8 +16,11 @@ pub trait Subscriber {
     /// Apply an updated primary page to an existing service instance
     fn apply_primary(&mut self, primary: &Page) -> Result<bool, Error>;
 
-    /// Validate a given secondary page published by this service
+    /// Validate a given secondary (or tertiary) page published by this service
     fn validate_page(&mut self, page: &Page) -> Result<(), Error>;
+
+    /// Validate data published by this service
+    fn validate_block(&mut self, _block: &Page) -> Result<(), Error> { todo!() }
 }
 
 impl Subscriber for Service {

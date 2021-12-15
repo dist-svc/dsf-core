@@ -9,16 +9,16 @@ use crate::types::{Id, Kind, PageKind, Flags, Queryable, DateTime};
 
 use super::Service;
 
-pub trait Registry<const N: usize = 512> {
+pub trait Registry{
     /// Generate ID for registry lookup
     fn resolve(&self, q: impl Queryable) -> Result<Id, Error>;
 
     /// Generates a tertiary page for the provided service ID and options
-    fn publish_tertiary(
+    fn publish_tertiary<const N: usize, Q: Queryable> (
         &mut self,
         id: Id,
         opts: TertiaryOptions,
-        q: impl Queryable,
+        q: Q,
     ) -> Result<Page, Error>;
 }
 
@@ -42,7 +42,7 @@ impl Default for TertiaryOptions {
     }
 }
 
-impl <const N: usize> Registry<N> for Service {
+impl Registry for Service {
     fn resolve(&self, q: impl Queryable) -> Result<Id, Error>{
         // Generate ID for page lookup using this registry
         let tid = crate::crypto::hash_tid(self.id(), &self.keys(), q);
@@ -50,11 +50,11 @@ impl <const N: usize> Registry<N> for Service {
         Ok(tid)
     }
 
-    fn publish_tertiary(
+    fn publish_tertiary<const N: usize, Q: Queryable>(
         &mut self,
         id: Id,
         opts: TertiaryOptions,
-        q: impl Queryable,
+        q: Q,
     ) -> Result<Page, Error> {
 
         // Generate TID
@@ -116,10 +116,10 @@ mod test {
         let (_n, _c) = c.publish_primary_buff(Default::default()).unwrap();
 
         // Generate page for name entry
-        let p1 = Registry::<256>::publish_tertiary(&mut r, c.id(), TertiaryOptions::default(), &opt_name).unwrap();
+        let p1 = Registry::publish_tertiary::<512, _>(&mut r, c.id(), TertiaryOptions::default(), &opt_name).unwrap();
 
         // Lookup TID for name
-        let tid_name = Registry::<256>::resolve(&r, &opt_name).unwrap();
+        let tid_name = Registry::resolve(&r, &opt_name).unwrap();
         assert_eq!(p1.id(), &tid_name);
 
         // Check link to registry
