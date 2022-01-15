@@ -3,11 +3,11 @@ use core::ops::Add;
 #[cfg(feature = "alloc")]
 use alloc::vec::{Vec};
 
-use crate::base::{Header, MaybeEncrypted};
+use crate::base::{Header, MaybeEncrypted, DataBody};
 use crate::error::Error;
 use crate::options::Options;
 use crate::page::{Page};
-use crate::prelude::Encode;
+use crate::prelude::{Encode, Parse};
 use crate::service::Service;
 use crate::types::*;
 use crate::wire::builder::{Encrypt, SetPublicOptions};
@@ -31,14 +31,14 @@ pub trait Publisher<const N: usize = 512> {
     }
 
     /// Create a data object for publishing with the provided options and encodes it into the provided buffer
-    fn publish_data<T: MutableData>(
+    fn publish_data<B: DataBody, T: MutableData>(
         &mut self,
-        options: DataOptions,
+        options: DataOptions<B>,
         buff: T,
     ) -> Result<(usize, Container<T>), Error>;
 
     // Helper to publish data block using fixed size buffer
-    fn publish_data_buff(&mut self, options: DataOptions) -> Result<(usize, Container<[u8; N]>), Error> {
+    fn publish_data_buff<B: DataBody>(&mut self, options: DataOptions<B>) -> Result<(usize, Container<[u8; N]>), Error> {
         let buff = [0u8; N];
         let (n, c) = self.publish_data(options, buff)?;
         Ok((n, c))
@@ -108,7 +108,7 @@ pub struct SecondaryOptions<'a, Body=&'a [u8]> {
     pub version: u16,
 
     /// Page body
-    pub body: Body,
+    pub body: Option<Body>,
 
     /// Page publish time
     pub issued: Option<DateTime>,
@@ -129,7 +129,7 @@ impl <'a>Default for SecondaryOptions<'a> {
             application_id: 0,
             page_kind: PageKind::Generic.into(),
             version: 0,
-            body: &[],
+            body: None,
             issued: default_issued(),
             expiry: default_expiry(),
             public_options: &[],
@@ -138,13 +138,14 @@ impl <'a>Default for SecondaryOptions<'a> {
     }
 }
 
+
 #[derive(Clone, Debug)]
-pub struct DataOptions<'a, Body: Encode + Default = &'a [u8]> {
+pub struct DataOptions<'a, Body: DataBody = &'a [u8]> {
     /// Data object kind
     pub data_kind: Kind,
 
     /// Data object body
-    pub body: Body,
+    pub body: Option<Body>,
 
     /// Data publish time
     pub issued: Option<DateTime>,
@@ -162,11 +163,11 @@ pub struct DataOptions<'a, Body: Encode + Default = &'a [u8]> {
     pub no_last_sig: bool,
 }
 
-impl<'a, Body: Encode + Default> Default for DataOptions<'a, Body> {
+impl<'a, Body: DataBody> Default for DataOptions<'a, Body> {
     fn default() -> Self {
         Self {
             data_kind: DataKind::Generic.into(),
-            body: Default::default(),
+            body: None,
             issued: default_issued(),
             expiry: default_expiry(),
             public_options: &[],
@@ -280,9 +281,14 @@ impl Publisher for Service {
         // Build object
         let b = Builder::new(buff)
             .header(&header)
-            .id(id)
-            .body(options.body)?
-            .private_options(&options.private_options)?;
+            .id(id);
+
+        let b = match options.body {
+            Some(body) => b.body(body)?,
+            None => b.with_body(|_b| Ok(0) )?,
+        };
+
+        let b = b.private_options(&options.private_options)?;
 
         // Apply internal encryption if enabled
         let b = self.encrypt(b)?;
@@ -313,9 +319,9 @@ impl Publisher for Service {
         Ok((c.len(), c))
     }
 
-    fn publish_data<T: MutableData>(
+    fn publish_data<B: DataBody, T: MutableData>(
         &mut self,
-        options: DataOptions,
+        options: DataOptions<B>,
         buff: T,
     ) -> Result<(usize, Container<T>), Error> {
         let mut flags = Flags::default();
@@ -338,9 +344,17 @@ impl Publisher for Service {
         // Build object
         let b = Builder::new(buff)
             .header(&header)
-            .id(&self.id())
-            .body(options.body)?
-            .private_options(&options.private_options)?;
+            .id(&self.id());
+
+        let b = match options.body {
+            Some(body) => b.body(body).map_err(|e| {
+                error!("Failed to encode data body: {:?}", e);
+                Error::EncodeFailed
+            })?,
+            None => b.with_body(|_b| Ok(0) )?,
+        };
+    
+        let b = b.private_options(&options.private_options)?;
 
         // Apply internal encryption if enabled
         let mut b = self.encrypt(b)?;

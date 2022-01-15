@@ -6,7 +6,7 @@ use core::convert::TryFrom;
 #[cfg(feature = "alloc")]
 use alloc::vec::{Vec};
 
-use crate::base::{Base, BaseOptions, Body, Header, MaybeEncrypted};
+use crate::base::{Body, Header, MaybeEncrypted};
 use crate::crypto;
 use crate::error::Error;
 use crate::options::Options;
@@ -236,7 +236,7 @@ impl Page {
 
         while i < buff.len() {
             // TODO: validate signatures against existing services!
-            let (b, n) = match Base::parse((&buff[i..]).to_vec(), &key_source.cached(last_key.clone())){
+            let c = match Container::parse((&buff[i..]).to_vec(), &key_source.cached(last_key.clone())){
                 Ok(v) => v,
                 Err(e) => {
                     debug!("Error parsing base message: {:?}", e);
@@ -244,9 +244,9 @@ impl Page {
                 }
             };
 
-            i += n;
+            i += c.len();
 
-            let page = match Page::try_from(b) {
+            let page = match Page::try_from(c) {
                 Ok(p) => p,
                 Err(e) => {
                     error!("Error loading page from message: {:?}", e);
@@ -279,9 +279,8 @@ impl Page {
                 _ => (),
             };
 
-            // Convert and encode, note these must be pre-signed
-            let mut b = Base::from(p);
-            let n = b.encode(None, &mut buff[i..])?;
+            // Convert and encode, note these must be pre-signed / encrypted
+            let n = p.encode(&mut buff[i..])?;
 
             i += n;
         }
@@ -295,35 +294,74 @@ impl Encode for Page {
 
     fn encode(&self, buff: &mut [u8]) -> Result<usize, Self::Error> {
         // Check page has associated signature
-        match (&self.signature, &self.raw) {
-            (None, None) => {
-                return Err(Error::NoSignature)
-            }
-            _ => (),
+        let sig = match (&self.signature, &self.raw) {
+            // Short circuit if we have a raw copy
+            (_, Some(r)) => {
+                buff[..r.len()].copy_from_slice(r);
+                return Ok(r.len())
+            },
+            // Return signature if available
+            (Some(sig), _) => sig,
+            // Otherwise fail re-encoding
+            _ => return Err(Error::NoSignature),
         };
 
-        // Convert and encode, note these must be pre-signed
-        let mut b = Base::from(self);
-        let n = b.encode(None,buff)?;
+        // TODO: check body is or can be encrypted
+        let encrypted = self.header.flags.contains(Flags::ENCRYPTED);
         
-        Ok(n)
-    }
-}
+        // Convert and encode page, note this _must_ be pre-signed (and encrypted)
+        let b = Container::builder(buff)
+            .id(&self.id)
+            .header(&self.header)
+            .body(self.body)?;
 
-impl Encode for &[Page] {
-    type Error = Error;
+        let b = match self.private_options {
+            MaybeEncrypted::Cleartext(o) => b.private_options(&o)?,
+            MaybeEncrypted::Encrypted(r) => b.private_options_raw(&r)?,
+            MaybeEncrypted::None => b.private_options(&[])?,
+        };
 
-    fn encode(&self, buff: &mut [u8]) -> Result<usize, Self::Error> {
-        let mut i = 0;
+        let mut b = match (encrypted, self.tag, self.private_options, self.body) {
+            (true, Some(tag), MaybeEncrypted::Cleartext(_), MaybeEncrypted::Cleartext(_)) => {
+                panic!("Cannot re-encrypt without secret keys")
+            },
+            (true, Some(tag), MaybeEncrypted::Encrypted(_), MaybeEncrypted::Encrypted(_)) => {
+                b.tag(tag)?
+            },
+            (true, _, _, _) => return Err(Error::CryptoError),
+            (false, _, _, _) => b.public(),
+        };
 
-        for p in *self {
-            i += p.encode(&mut buff[i..])?;
+        if let Some(issued) = self.issued {
+            b.public_option(&Options::issued(issued));
         }
 
-        Ok(i)
+        if let Some(expiry) = self.expiry {
+            b.public_option(&Options::expiry(expiry));
+        }
+
+        if let Some(prev_sig) = &self.previous_sig {
+            b.public_option(&Options::prev_sig(prev_sig));
+        }
+
+        match &self.info {
+            PageInfo::Primary(primary) => {
+                b.public_option(&Options::public_key(primary.pub_key.clone()));
+            },
+            PageInfo::Secondary(secondary) => {
+                b.public_option(&Options::peer_id(secondary.peer_id.clone()));
+            },
+            PageInfo::Tertiary(_tertiary) => {},
+            PageInfo::Data(_data) => {},
+        }
+
+        let c = b.sign_raw(sig)?;
+        
+        Ok(c.len())
     }
 }
 
+#[cfg(remove)]
 impl From<&Page> for Base {
     fn from(page: &Page) -> Base {
         let sig = page.signature().clone();
@@ -386,124 +424,9 @@ impl From<&Page> for Base {
     }
 }
 
-impl TryFrom<Base> for Page {
-    type Error = Error;
 
-    fn try_from(base: Base) -> Result<Self, Error> {
-        let header = base.header();
-        let signature = base.signature();
-
-        let flags = header.flags();
-        let kind = header.kind();
-
-        if !kind.is_page() && !kind.is_data() {
-            return Err(Error::InvalidPageKind);
-        }
-
-        let (mut issued, mut expiry, mut previous_sig, mut peer_id) = (None, None, None, None);
-        let public_options = base
-            .public_options()
-            .iter()
-            .filter_map(|o| match &o {
-                Options::Issued(v) => {
-                    issued = Some(v.when);
-                    None
-                }
-                Options::Expiry(v) => {
-                    expiry = Some(v.when);
-                    None
-                }
-                Options::PrevSig(v) => {
-                    previous_sig = Some(v.sig.clone());
-                    None
-                }
-                Options::PeerId(v) => {
-                    peer_id = Some(v.peer_id.clone());
-                    None
-                }
-                _ => Some(o),
-            })
-            .map(|o| o.clone())
-            .collect();
-
-        let peer_id = base.peer_id.clone();
-
-        // TODO: parse out private options too?
-        let _private_options = base.private_options();
-
-        let info = if kind.is_page() && !flags.contains(Flags::SECONDARY) && !flags.contains(Flags::TERTIARY) {
-            // Handle primary page parsing
-
-            // Fetch public key from options
-            let public_key: PublicKey = match &base.public_key {
-                Some(pk) => Ok(pk.clone()),
-                None => Err(Error::NoPublicKey),
-            }?;
-
-            // Check public key and ID match
-            let hash: Id = crypto::hash(&public_key).unwrap().into();
-            if &hash != base.id() {
-                return Err(Error::KeyIdMismatch);
-            }
-
-            PageInfo::primary(public_key)
-        } else if kind.is_page() && flags.contains(Flags::SECONDARY) {
-            // Handle secondary page parsing
-            let peer_id = match peer_id {
-                Some(id) => Ok(id),
-                None => Err(Error::NoPeerId),
-            }?;
-
-            PageInfo::secondary(peer_id)
-        
-        } else if kind.is_page() && flags.contains(Flags::TERTIARY) {
-            // Handle tertiary page parsing
-            let _peer_id = match peer_id {
-                Some(id) => Ok(id),
-                None => Err(Error::NoPeerId),
-            }?;
-
-            let target_id = match base.body() {
-                MaybeEncrypted::Cleartext(r) => Id::from(r.as_ref()),
-                _ => return Err(Error::Unknown)
-            };
-
-            PageInfo::tertiary(target_id)
-
-        } else if kind.is_data() {
-            PageInfo::Data(())
-        } else {
-            error!(
-                "Attempted to convert non-page base object ({:?}) to page",
-                kind
-            );
-            return Err(Error::UnexpectedPageType);
-        };
-
-        Ok(Page {
-            id: base.id().clone(),
-            header: header.clone(),
-            info,
-            body: base.body.clone(),
-            issued,
-            expiry,
-
-            previous_sig,
-
-            public_options,
-            private_options: base.private_options.clone(),
-            tag: None,
-            signature: signature.clone(),
-            verified: base.verified,
-
-            raw: base.raw().clone(),
-            _extend: (),
-        })
-    }
-}
-
-
-impl <T: AsRef<[u8]>> TryFrom<Container<T>> for Page {
+/// Convert a Container<T> into a Page object
+impl <T: ImmutableData> TryFrom<Container<T>> for Page {
     type Error = Error;
 
     fn try_from(container: Container<T>) -> Result<Self, Error> {
@@ -576,6 +499,7 @@ impl <T: AsRef<[u8]>> TryFrom<Container<T>> for Page {
             }
 
             PageInfo::primary(public_key)
+
         } else if kind.is_page() && flags.contains(Flags::SECONDARY) {
             // Handle secondary page parsing
             let peer_id = match peer_id {

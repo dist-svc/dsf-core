@@ -4,7 +4,7 @@ use core::ops::Deref;
 #[cfg(feature = "alloc")]
 use alloc::vec::{Vec};
 
-use crate::base::{Base, Body};
+use crate::base::{Body};
 use crate::error::Error;
 use crate::options::Options;
 use crate::page::Page;

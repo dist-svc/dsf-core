@@ -9,7 +9,7 @@ use std::convert::TryFrom;
 
 use pretty_hex::*;
 
-use crate::base::{Base, Body, Header, MaybeEncrypted};
+use crate::base::{Body, Header, MaybeEncrypted};
 use crate::crypto;
 use crate::error::Error;
 use crate::options::{Options, Filters};
@@ -121,7 +121,7 @@ impl<'a, T: ImmutableData> Container<T> {
         let kind = header.kind();
         let id: Id = container.id().into();
 
-        debug!("Container: {:?} Header: {:?}", container, header);
+        debug!("Parse container: {:?} Header: {:?}", container, header);
 
         // Fetch signature for page
         let mut verified = false;
@@ -225,69 +225,7 @@ impl<'a, T: ImmutableData> Container<T> {
     }
 }
 
-// Temporary patch to build base object for container while refactoring out base
-impl <T: ImmutableData> TryFrom<Container<T>> for Base {
-    type Error = Error;
-
-    fn try_from(c: Container<T>) -> Result<Self, Self::Error> {
-        // Fetch public options
-        let mut peer_id = None;
-        let mut pub_key = None;
-        let mut prev_sig = None;
-
-        let public_options: Vec<_> = c
-            .public_options_iter()
-            .filter_map(|o| match &o {
-                Options::PeerId(v) => {
-                    peer_id = Some(v.peer_id.clone());
-                    None
-                }
-                Options::PubKey(v) => {
-                    pub_key = Some(v.public_key.clone());
-                    None
-                }
-                Options::PrevSig(v) => {
-                    prev_sig = Some(v.sig.clone());
-                    None
-                }
-                _ => Some(o),
-            })
-            .collect();
-
-        // Map body and options depending on encryption state
-        let body = match (c.header().data_len(), c.encrypted()) {
-            (0, _) => MaybeEncrypted::None,
-            (_, false) => MaybeEncrypted::Cleartext(c.body().to_vec()),
-            (_, true) => MaybeEncrypted::Encrypted(c.body().to_vec()),
-        };
-
-        let private_opts = match (c.header().private_options_len(), c.encrypted()) {
-            (0, _) => MaybeEncrypted::None,
-            (_, false) => MaybeEncrypted::Cleartext(c.private_options_iter().collect()),
-            (_, true) => MaybeEncrypted::Encrypted(c.private_options().to_vec())
-        };
-
-        Ok(Base {
-            id: c.id(),
-            header: Header::from(&c.header()),
-            body: body,
-
-            private_options: private_opts,
-            public_options: public_options,
-
-            parent: prev_sig,
-            peer_id: peer_id,
-            public_key: pub_key,
-
-            tag: c.tag(),
-            signature: Some(c.signature()),
-            verified: c.verified,
-
-            raw: Some(c.raw().to_vec()),
-        })
-    }
-}
-
+#[cfg(remove)]
 impl<'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
     pub fn encode(buff: T, base: &Base, keys: &Keys) -> Result<(Self, usize), Error> {
         trace!("Encode for object: {:?}", base);
@@ -442,18 +380,20 @@ pub(crate) fn decrypt(sk: &SecretKey, body: &mut MaybeEncrypted, private_opts: &
 
 #[cfg(test)]
 mod test {
-    use std::convert::TryFrom;
-
     use super::*;
 
-    use crate::crypto;
+    use crate::{crypto, keys::NullKeySource};
 
     fn setup() -> (Id, Keys) {
+        let _ = simplelog::SimpleLogger::init(simplelog::LevelFilter::Trace, simplelog::Config::default());
+
         let (pub_key, pri_key) =
             crypto::new_pk().expect("Error generating new public/private key pair");
+
         let id = crypto::hash(&pub_key)
             .expect("Error generating new ID")
             .into();
+
         let sec_key = crypto::new_sk().expect("Error generating new secret key");
         (
             id,
@@ -497,5 +437,111 @@ mod test {
         // TODO: convert to pages and compare
 
         assert_eq!(c, d);
+    }
+
+
+    #[test]
+    fn encode_decode_secondary_page() {
+        let (id, mut keys) = setup();
+        keys.sec_key = None;
+
+        let header = Header {
+            kind: PageKind::Replica.into(),
+            flags: Flags::SECONDARY,
+            ..Default::default()
+        };
+        let data = vec![1, 2, 3, 4, 5, 6, 7];
+
+        let encoded = Builder::new(vec![0u8; 1024])
+            .id(&id)
+            .header(&header)
+            .body(Body::Cleartext(data)).unwrap()
+            .private_options(&[]).unwrap()
+            .public()
+            .public_options(&[
+                Options::peer_id(id.clone()),
+                Options::pub_key(keys.pub_key.as_ref().unwrap().clone())
+            ]).unwrap()
+            .sign_pk(keys.pri_key.as_ref().unwrap())
+            .expect("Error encoding page");
+            
+
+        let decoded =
+            Container::parse(encoded.raw().to_vec(), &keys).expect("Error decoding page with known public key");
+
+        assert_eq!(encoded, decoded);
+        assert_eq!(encoded.raw(), decoded.raw());
+
+        let decoded2 =
+            Container::parse(encoded.raw().to_vec(), &NullKeySource).expect("Error decoding page with unknown public key");
+
+        assert_eq!(encoded, decoded2);
+        assert_eq!(encoded.raw(), decoded.raw().to_vec());
+    }
+
+    #[test]
+    fn encode_decode_tertiary_page() {
+        let (id, mut keys) = setup();
+        keys.sec_key = None;
+
+        let header = Header {
+            kind: PageKind::Tertiary.into(),
+            flags: Flags::TERTIARY,
+            ..Default::default()
+        };
+        let data = id.to_vec();
+
+        let encoded = Builder::new(vec![0u8; 1024])
+            .id(&id)
+            .header(&header)
+            .body(Body::Cleartext(data)).unwrap()
+            .private_options(&[]).unwrap()
+            .public()
+            .public_options(&[
+                Options::peer_id(id.clone()),
+            ]).unwrap()
+            .sign_pk(keys.pri_key.as_ref().unwrap())
+            .expect("Error encoding page");
+
+        let decoded =
+            Container::parse(encoded.raw().to_vec(), &keys).expect("Error decoding page with known public key");
+
+        assert_eq!(encoded, decoded);
+        assert_eq!(encoded.raw(), decoded.raw().to_vec());
+    }
+
+    #[test]
+    fn encode_decode_encrypted_page() {
+        let (id, keys) = setup();
+
+        let header = Header {
+            kind: PageKind::Generic.into(),
+            flags: Flags::ENCRYPTED,
+            ..Default::default()
+        };
+        let data = vec![1, 2, 3, 4, 5, 6, 7];
+
+        let encoded = Builder::new(vec![0u8; 1024])
+            .id(&id)
+            .header(&header)
+            .body(Body::Cleartext(data.clone())).unwrap()
+            .private_options(&[]).unwrap()
+            .encrypt(keys.sec_key.as_ref().unwrap()).unwrap()
+            .public_options(&[
+                Options::peer_id(id.clone()),
+            ]).unwrap()
+            .sign_pk(keys.pri_key.as_ref().unwrap())
+            .expect("Error encoding page");
+
+        let mut decoded = Container::parse(encoded.raw().to_vec(), &keys).expect("Error decoding page");
+        assert_eq!(encoded, decoded);
+
+        // Check we're encrypted
+        assert_eq!(decoded.encrypted(), true);
+        assert_ne!(decoded.body(), &data);
+
+        // Perform decryption
+        decoded.decrypt(keys.sec_key.as_ref().unwrap()).unwrap();
+        assert_eq!(decoded.body(), &data);
     }
 }

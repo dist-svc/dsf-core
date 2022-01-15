@@ -121,7 +121,7 @@ impl<T: MutableData> Builder<Init, T> {
 
         self.header_mut().set_data_len(n);
 
-        trace!("Add {} byte body, new index: {}", n, self.n);
+        trace!("Add {} byte body: {:02x?}, new index: {}", n, body, self.n);
 
         Ok(Builder {
             buf: self.buf,
@@ -414,6 +414,23 @@ impl<T: MutableData> Builder<SetPublicOptions, T> {
             decrypted: false,
         })
     }
+
+    // Provide an existing signature to the builder object
+    pub fn sign_raw(mut self, sig: &Signature) -> Result<Container<T>, Error> {
+        let b = self.buf.as_mut();
+
+        (&mut b[self.n..self.n + SIGNATURE_LEN]).copy_from_slice(&sig);
+        self.n += SIGNATURE_LEN;
+
+        // Return base object
+        Ok(Container {
+            buff: self.buf,
+            len: self.n,
+            verified: true,
+            decrypted: false,
+        })
+    }
+
 }
 
 impl<S, T: MutableData> AsRef<[u8]> for Builder<S, T>   {

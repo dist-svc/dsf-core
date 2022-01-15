@@ -34,29 +34,6 @@ impl Encode for String {
     }
 }
 
-impl Parse for Vec<u8> {
-    type Output = Vec<u8>;
-    type Error = Error;
-
-    fn parse<'a>(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
-        let length = NetworkEndian::read_u16(&data) as usize;
-        let value = Vec::from(&data[2..2 + length]);
-
-        Ok((value, length + 2))
-    }
-}
-
-impl Encode for Vec<u8> {
-    type Error = Error;
-
-    fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
-        NetworkEndian::write_u16(&mut data[..], self.len() as u16);
-        data[2..self.len() + 2].copy_from_slice(self);
-
-        Ok(self.len() + 2)
-    }
-}
-
 impl Parse for DateTime {
     type Output = DateTime;
     type Error = Error;

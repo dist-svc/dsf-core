@@ -3,8 +3,11 @@ use crate::{types::*, crypto};
 use crate::options::{Options, OptionsIter};
 use crate::error::Error;
 
+use super::builder::Init;
 use super::header::WireHeader;
 use super::{offsets, HEADER_LEN};
+
+use super::Builder;
 
 /// Container object provides base field accessors over an arbitrary (mutable or immutable) buffers
 /// See <https://lab.whitequark.org/notes/2016-12-13/abstracting-over-mutability-in-rust/> for details
@@ -235,6 +238,10 @@ impl<'a, T: ImmutableData> Container<T> {
 }
 
 impl<'a, T: MutableData> Container<T> {
+    /// Create a new container builder
+    pub fn builder(buff: T) -> Builder<Init, T> {
+        Builder::new(buff)
+    }
 
     pub fn cyphertext_mut(&mut self) -> &mut [u8] {
         let s = self.header().data_len() + self.header().private_options_len();
@@ -270,7 +277,7 @@ impl<'a, T: MutableData> Container<T> {
 
 impl<'a, T: ImmutableData> Container<T> {
 
-    // Decrypt data and private options, mutating the internal buffer
+    // Decrypt data and private options into the provided buffer
     pub fn decrypt_to<'b>(&self, sk: &SecretKey, buff: &'b mut [u8]) -> Result<(&'b [u8], &'b [u8]), Error> {
         // Check we're encrypted
         if !self.header().flags().contains(Flags::ENCRYPTED) || self.decrypted {
@@ -291,7 +298,7 @@ impl<'a, T: ImmutableData> Container<T> {
             .map_err(|_e| Error::InvalidSignature)?;
 
         Ok((
-            &buff[offsets::BODY..][..self.header().data_len()],
+            &buff[..self.header().data_len()],
             &buff[self.header().private_options_offset()..][..self.header().private_options_len()],
         ))
     }

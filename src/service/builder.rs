@@ -1,7 +1,7 @@
 #[cfg(feature = "alloc")]
 use alloc::vec::{Vec};
 
-use crate::base::{Body, MaybeEncrypted};
+use crate::base::{Body, MaybeEncrypted, PageBody};
 use crate::crypto;
 use crate::error::Error;
 use crate::options::Options;
@@ -11,14 +11,14 @@ use crate::keys::Keys;
 use super::Service;
 
 /// Service builder to assist in the construction of service instances
-pub struct ServiceBuilder {
+pub struct ServiceBuilder<B: PageBody = Body> {
     id: Option<Id>,
     public_key: Option<PublicKey>,
 
     kind: PageKind,
     application_id: u16,
     index: u16,
-    body: Body,
+    body: B,
 
     private_key: Option<PrivateKey>,
     secret_key: Option<SecretKey>,
@@ -31,7 +31,7 @@ pub struct ServiceBuilder {
     last_sig: Option<Signature>,
 }
 
-impl Default for ServiceBuilder {
+impl <B: PageBody + Default> Default for ServiceBuilder<B> {
     /// Create a default service builder instance
     fn default() -> Self {
         Self {
@@ -41,7 +41,7 @@ impl Default for ServiceBuilder {
             application_id: 0,
             index: 0,
             kind: PageKind::Generic,
-            body: Body::None,
+            body: B::default(),
 
             private_key: None,
             secret_key: None,
@@ -55,7 +55,6 @@ impl Default for ServiceBuilder {
     }
 }
 
-/// ServiceBuilder provides helpers for constructing service instances
 impl ServiceBuilder {
     /// Setup a peer service.
     /// This is equivalent to .kind(Kind::Peer)
@@ -97,7 +96,10 @@ impl ServiceBuilder {
 
         s
     }
+}
 
+/// ServiceBuilder provides helpers for constructing service instances
+impl <B: PageBody + Default> ServiceBuilder<B> {
     /// Set the ID and public key for the service
     pub fn id(mut self, id: Id, public_key: PublicKey) -> Self {
         self.id = Some(id);
@@ -115,7 +117,7 @@ impl ServiceBuilder {
         self
     }
 
-    pub fn body(mut self, body: Body) -> Self {
+    pub fn body(mut self, body: B) -> Self {
         self.body = body;
         self
     }
@@ -173,7 +175,7 @@ impl ServiceBuilder {
         self
     }
 
-    pub fn build(self) -> Result<Service, Error> {
+    pub fn build(self) -> Result<Service<B>, Error> {
         // TODO: perform any validation (no private options without secret key etc.)
 
         // Generate new keys if required

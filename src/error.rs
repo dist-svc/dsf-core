@@ -56,6 +56,7 @@ pub enum Error {
     UnsupportedSignatureMode,
     Timeout,
     Unknown,
+    EncodeFailed,
 }
 
 #[cfg(feature = "std")]

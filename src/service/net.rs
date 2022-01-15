@@ -1,6 +1,6 @@
 use byteorder::{NetworkEndian, ByteOrder};
 
-use crate::base::{Base, Encode};
+use crate::base::{Encode};
 use crate::error::Error;
 use crate::net::{Message, Request, RequestKind, Response, ResponseKind, Common};
 use crate::options::Options;
@@ -283,10 +283,9 @@ mod test {
                 .expect("Error encoding request");
 
             // Parse back and check objects match
-            let (mut dec, m) = Base::parse(enc.raw().to_vec(), &source.keys())
+            let dec = Container::parse(enc.raw().to_vec(), &source.keys())
                 .expect("error parsing message");
-            dec.clean();
-
+                
             println!("Decoded: {:?}", dec);
 
             // Cast to message and check instances match

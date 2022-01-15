@@ -3,7 +3,7 @@
 //! `Publisher`, `Subscriber`, and `Net` traits provide functionality for publishing services,
 //! subscribing to services, and sending messages respectively.
 
-use crate::base::{Body, MaybeEncrypted};
+use crate::base::{Body, MaybeEncrypted, PageBody};
 use crate::crypto;
 use crate::error::Error;
 use crate::options::Options;
@@ -39,7 +39,7 @@ use crate::keys::Keys;
 #[derive(PartialEq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "diesel", derive(diesel::Queryable))]
-pub struct Service {
+pub struct Service<B: PageBody = Body> {
     id: Id,
 
     application_id: u16,
@@ -48,7 +48,7 @@ pub struct Service {
     version: u16,
     data_index: u16,
 
-    body: Body,
+    body: B,
 
     public_options: Vec<Options>,
     private_options: MaybeEncrypted<Vec<Options>>,
@@ -62,9 +62,9 @@ pub struct Service {
     last_sig: Option<Signature>,
 }
 
-impl Default for Service {
+impl <B: PageBody + Default> Default for Service<B> {
     /// Create a default / blank Service for further initialisation.
-    fn default() -> Service {
+    fn default() -> Self {
         // Generate service key-pair
         let (public_key, private_key) = crypto::new_pk().unwrap();
 
@@ -78,7 +78,7 @@ impl Default for Service {
             kind: PageKind::Generic,
             version: 0,
             data_index: 0,
-            body: Body::None,
+            body: B::default(),
             public_options: vec![],
             private_options: MaybeEncrypted::None,
             public_key,
@@ -90,7 +90,7 @@ impl Default for Service {
     }
 }
 
-impl Service {
+impl <B: PageBody + Default> Service<B> {
     pub fn id(&self) -> Id {
         self.id.clone()
     }
@@ -100,7 +100,7 @@ impl Service {
     /// as well as a reset of the data_index.
     pub fn update<U>(&mut self, update_fn: U) -> Result<(), Error>
     where
-        U: Fn(&mut Body, &mut Vec<Options>, &mut MaybeEncrypted<Vec<Options>>),
+        U: Fn(&mut B, &mut Vec<Options>, &mut MaybeEncrypted<Vec<Options>>),
     {
         if self.private_key().is_none() {
             return Err(Error::NoPrivateKey);
@@ -171,7 +171,7 @@ mod test {
 
     use pretty_assertions::{assert_eq};
 
-    use crate::base::Base;
+    use crate::base::{Body};
     use crate::page::Page;
     use crate::service::publisher::{DataOptions, Publisher, SecondaryOptions};
     use crate::service::subscriber::Subscriber;
@@ -186,7 +186,7 @@ mod test {
         let socket = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8080);
 
         println!("Creating new service");
-        let service_builder = ServiceBuilder::default()
+        let service_builder = ServiceBuilder::<Body>::default()
             .kind(PageKind::Generic.into())
             .public_options(vec![Options::name("Test Service")])
             .private_options(vec![Options::address_v4(socket)].into())
@@ -214,8 +214,8 @@ mod test {
         println!("Decoding service page");
         let s = service.clone();
 
-        let (base2, m) = Base::parse(page1.as_ref(), &keys).expect("Error parsing service page");
-        assert_eq!(n, m);
+        let base2 = Container::parse(page1.as_ref(), &keys).expect("Error parsing service page");
+        assert_eq!(n, base2.len());
         let page2 = Page::try_from(base2).unwrap();
         assert_eq!(Page::try_from(pp1).unwrap(), page2);
 
@@ -257,7 +257,7 @@ mod test {
             .expect("Error validating secondary page against publisher");
 
         println!("Generating a data object");
-        let data_options = DataOptions::default();
+        let data_options = DataOptions::<'static, &[u8]>::default();
         let (_n, data) = service
             .publish_data_buff(data_options)
             .expect("Error publishing data object");

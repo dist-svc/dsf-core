@@ -7,11 +7,11 @@ use std::convert::Infallible;
 mod header;
 pub use header::*;
 
-mod body;
-pub use body::*;
-
 use crate::options::Options;
 use crate::types::ImmutableData;
+use crate::error::Error;
+
+pub type Body = MaybeEncrypted;
 
 /// Parse trait for building parse-able objects
 pub trait Parse {
@@ -66,9 +66,9 @@ where
 }
 
 /// Encode trait for building encodable objects
-pub trait Encode {
+pub trait Encode: Debug {
     /// Error type returned on parse error
-    type Error;
+    type Error: Debug;
 
     /// Encode method writes object data to the provided writer
     fn encode(&self, buff: &mut [u8]) -> Result<usize, Self::Error>;
@@ -103,7 +103,6 @@ pub trait Encode {
     }
 }
 
-#[cfg(nope)]
 /// Encode for arrays of encodable types
 impl <T: Encode> Encode for &[T] {
     type Error = <T as Encode>::Error;
@@ -138,6 +137,44 @@ impl Encode for &[u8; 0] {
     }
 }
 
+
+impl Parse for Vec<u8> {
+    type Output = Vec<u8>;
+    type Error = Error;
+
+    fn parse<'a>(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
+        let value = Vec::from(data);
+
+        Ok((value, data.len()))
+    }
+}
+
+impl Encode for Vec<u8> {
+    type Error = Error;
+
+    fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
+        data[..self.len()].copy_from_slice(self);
+
+        Ok(self.len())
+    }
+}
+
+
+/// Marker trait for page body types
+pub trait PageBody: Encode {}
+
+impl PageBody for &[u8] {}
+
+//TODO: impl PageBody for Vec<u8> {}
+
+/// Marker trait for data body types
+pub trait DataBody: Encode {}
+
+impl DataBody for &[u8] {}
+
+//TODO: impl DataBody for Vec<u8> {}
+
+
 /// Container for objects / collections that may be encrypted
 #[derive(PartialEq, Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
@@ -158,22 +195,27 @@ impl <O: Debug, E: ImmutableData> MaybeEncrypted<O, E> {
     }
 }
 
-impl <O: Encode + Debug, E: ImmutableData> Encode for MaybeEncrypted<O, E> 
+impl <O: Encode + Debug, E: ImmutableData + Debug> Encode for MaybeEncrypted<O, E> 
 {
     type Error = <O as Encode>::Error;
 
     /// Encode a MaybeEncrypted object, writing data directly if encrypted or
     /// calling the inner .encode function for decrypted objects
     fn encode(&self, buff: &mut [u8]) -> Result<usize, Self::Error> {
-        match self {
+        
+        let n = match self {
             Self::Encrypted(e) if e.as_ref().len() > 0 => {
                 let l = e.as_ref();
                 buff[..l.len()].copy_from_slice(l);
-                Ok(l.len())
+                l.len()
             },
-            Self::Cleartext(o) => o.encode(buff),
-            _ => Ok(0)
-        }
+            Self::Cleartext(o) => { o.encode(buff)? },
+            _ => 0
+        };
+
+        debug!("Encoded: {:02x?} ({} bytes)", self, n);
+
+        Ok(n)
     }
 }
 
@@ -225,3 +267,6 @@ impl From<Option<MaybeEncrypted>> for MaybeEncrypted {
         }
     }
 }
+
+/// Allow MaybeEncrypted type to be used for page and block data
+impl <O: Encode + Debug, E: ImmutableData + Debug> PageBody for MaybeEncrypted<O, E> {}
