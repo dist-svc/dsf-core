@@ -6,10 +6,11 @@ use alloc::vec::{Vec};
 
 use crate::base::{Body};
 use crate::error::Error;
-use crate::options::Options;
+use crate::options::{Options, Filters};
 use crate::page::Page;
 use crate::types::*;
 use crate::keys::KeySource;
+use crate::wire::Container;
 
 use super::Common;
 
@@ -103,23 +104,21 @@ impl PartialEq for Request {
 }
 
 impl Request {
-    pub fn convert<K>(base: Base, key_source: &K) -> Result<Request, Error>
-    where
-        K: KeySource,
+    pub fn convert<T: ImmutableData, K: KeySource>(base: Container<T>, key_source: &K) -> Result<Request, Error>
     {
         let header = base.header();
 
-        let empty_body = vec![];
-        let body = match base.body() {
-            Body::Cleartext(d) => d,
-            Body::None => &empty_body,
-            Body::Encrypted(_e) => {
-                panic!("Attempting to convert encrypted object to response message")
-            }
-        };
+        if base.encrypted() {
+            error!("Attempted to convert encrypted container to request");
+            return Err(Error::CryptoError);
+        }
+
+        let body = base.body_raw();
 
         let remote_address = None;
-        let public_options = base.public_options().to_vec();
+        let public_options: Vec<_> = base.public_options_iter().collect();
+
+        let public_key = Filters::pub_key(&public_options.iter());
         //let _private_options = base.private_options().to_vec();
 
         let kind = match MessageKind::try_from(header.kind()) {
@@ -205,8 +204,7 @@ impl Request {
             }
         };
 
-        // Fetch other key options
-        let public_key = base.public_key.clone();
+        // TODO: fetch message specific options
         //let remote_address = Base::filter_address_option(&mut public_options);
 
         let common = Common {

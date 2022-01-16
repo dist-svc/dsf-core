@@ -3,7 +3,7 @@
 //! These messages are used to maintain the network, publish and subscribe to services, and exchange data,
 //! and can be converted to and from base objects for encoding/decoding.
 
-use crate::base::Base;
+use crate::wire::Container;
 use crate::error::Error;
 use crate::types::*;
 
@@ -96,19 +96,17 @@ impl Message {
     where
         K: KeySource,
     {
-        let (b, n) = Base::parse(data, key_source)?;
+        let c = Container::parse(data, key_source)?;
+        let n = c.len();
 
-        let m = Message::convert(b, key_source)?;
+        let m = Message::convert(c, key_source)?;
 
         Ok((m, n))
     }
 }
 
 impl Message {
-    pub fn convert<K>(base: Base, key_source: &K) -> Result<Message, Error>
-    where
-        K: KeySource,
-    {
+    pub fn convert<T: ImmutableData, K: KeySource>(base: Container<T>, key_source: &K) -> Result<Message, Error> {
         let header = base.header();
         let app_id = header.application_id();
         let kind = header.kind();

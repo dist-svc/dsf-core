@@ -320,9 +320,8 @@ mod test {
             println!("Decoding: {:?}", enc);
 
             // Parse back and check objects match
-            let (mut dec, _m) = Base::parse(enc.raw().to_vec(), &target_keys)
+            let dec = Container::parse(enc.raw().to_vec(), &target_keys)
                 .expect("error parsing message");
-            dec.clean();
 
             println!("Decoded: {:?}", dec);
 
@@ -398,9 +397,8 @@ mod test {
                 .expect("Error encoding response");
 
             // Parse back and check objects match
-            let (mut dec, m) = Base::parse(enc.raw().to_vec(), &source.keys())
+            let dec = Container::parse(enc.raw().to_vec(), &source.keys())
                 .expect("error parsing message");
-            dec.clean();
 
             println!("Decoded: {:?}", dec);
 
@@ -435,9 +433,8 @@ mod test {
             println!("Decoding: {:?}", enc);
 
             // Parse back and check objects match
-            let (mut dec, _m) = Base::parse(enc.raw().to_vec(), &target_keys)
+            let dec = Container::parse(enc.raw().to_vec(), &target_keys)
                 .expect("error parsing message");
-            dec.clean();
 
             println!("Decoded: {:?}", dec);
 

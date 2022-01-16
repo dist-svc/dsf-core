@@ -383,34 +383,8 @@ impl Publisher for Service {
 }
 
 impl Service {
-    // Encode a page to the provided buffer, updating the internal signature state
-    #[deprecated]
-    pub fn encode<T: MutableData>(
-        &mut self,
-        page: &mut Page,
-        buff: T,
-    ) -> Result<usize, Error> {
-        // Map page to base object
-        let mut b = crate::base::Base::from(&*page);
 
-        // Attach previous signature
-        b.parent = self.last_sig.clone();
-
-        // Encode and sign object
-        let keys = self.keys();
-        let n = b.encode(Some(&keys), buff)?;
-
-        // Update service last_sig
-        self.last_sig = b.signature;
-
-        // Attach page sig
-        page.signature = self.last_sig.clone();
-
-        // TODO: should we attach the raw object here..?
-
-        Ok(n)
-    }
-
+    /// Encrypt the data and private options in the provided container builder
     pub(super) fn encrypt<T: MutableData>(&mut self, b: Builder<Encrypt, T>) -> Result<Builder<SetPublicOptions, T>, Error> {
 
         // Apply internal encryption if enabled
@@ -423,6 +397,7 @@ impl Service {
         Ok(b)
     }
 
+    /// Sign and finalise a container builder
     pub(super) fn sign<T: MutableData>(&mut self, b: Builder<SetPublicOptions, T> ) -> Result<Container<T>, Error> {
 
         // Sign generated object

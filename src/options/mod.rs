@@ -13,7 +13,7 @@ use byteorder::{ByteOrder, NetworkEndian};
 
 use crate::base::{Encode, Parse};
 use crate::error::Error;
-use crate::types::{Address, AddressV4, AddressV6, DateTime, ID_LEN, Id, Ip, PUBLIC_KEY_LEN, PublicKey, Queryable, SIGNATURE_LEN, Signature};
+use crate::types::{Address, AddressV4, AddressV6, DateTime, ID_LEN, Id, Ip, PUBLIC_KEY_LEN, PublicKey, Queryable, SIGNATURE_LEN, Signature, ImmutableData};
 
 mod helpers;
 
@@ -39,10 +39,22 @@ pub enum Options {
     Coord(Coordinates),
 }
 
-#[derive(Clone, Debug)]
 pub struct OptionsIter<T> {
     index: usize,
     buff: T,
+}
+
+impl <T: ImmutableData> core::fmt::Debug for OptionsIter<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let i = OptionsIter::new(&self.buff);
+        f.debug_list().entries(i).finish()
+    }
+}
+
+impl <T: ImmutableData + Clone> Clone for OptionsIter<T> {
+    fn clone(&self) -> Self {
+        Self { index: 0, buff: self.buff.clone() }
+    }
 }
 
 impl<T> OptionsIter<T>

@@ -7,12 +7,13 @@ use alloc::vec::{Vec};
 use byteorder::{ByteOrder, NetworkEndian};
 use slice_ext::SplitBefore;
 
-use crate::base::{Base, BaseOptions, Body, Header};
+use crate::base::{Body, Header};
 use crate::error::Error;
-use crate::options::Options;
+use crate::options::{Options, Filters};
 use crate::page::Page;
 use crate::types::*;
 use crate::keys::KeySource;
+use crate::wire::Container;
 
 use super::Common;
 use super::BUFF_SIZE;
@@ -135,25 +136,21 @@ impl PartialEq for Response {
 }
 
 impl Response {
-    pub fn convert<K>(base: Base, key_source: &K) -> Result<Response, Error>
-    where
-        K: KeySource,
-    {
+    pub fn convert<T: ImmutableData, K: KeySource>(base: Container<T>, key_source: &K) -> Result<Response, Error>{
         let header = base.header();
 
-        let empty_body = vec![];
-        let body = match base.body() {
-            Body::Cleartext(d) => d,
-            Body::None => &empty_body,
-            Body::Encrypted(_e) => {
-                panic!("Attempting to convert encrypted object to response message")
-            }
-        };
+        if base.encrypted() {
+            error!("Attempted to convert encrypted container to request");
+            return Err(Error::CryptoError);
+        }
+
+        let body = base.body_raw();
 
         let remote_address = None;
 
-        let _public_options = base.public_options().to_vec();
+        let public_options: Vec<_> = base.public_options_iter().collect();
         //let _private_options = base.private_options().to_vec();
+        let public_key = Filters::pub_key(&public_options.iter());
 
         let kind = match MessageKind::try_from(header.kind()) {
             Ok(k) => k,
@@ -179,9 +176,9 @@ impl Response {
                         _ => false,
                     })
                     .filter_map(|opts| {
-                        let id = Base::peer_id_option(&opts);
-                        let addr = Base::address_option(&opts);
-                        let key = Base::pub_key_option(&opts);
+                        let id = Filters::peer_id(&opts.iter());
+                        let addr = Filters::address(&opts.iter());
+                        let key = Filters::pub_key(&opts.iter());
 
                         match (id, addr, key) {
                             (Some(id), Some(addr), Some(key)) => Some((id, addr, key)),
@@ -218,11 +215,7 @@ impl Response {
             }
         };
 
-        // Fetch other key options
-        let public_key = base.public_key.clone();
-
-        //let remote_address = Base::filter_address_option(&mut public_options);
-
+        // Fetch other message specific options
         let common = Common {
             from: base.id().clone(),
             id: header.index(),

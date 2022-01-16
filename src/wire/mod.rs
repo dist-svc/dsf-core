@@ -538,10 +538,10 @@ mod test {
 
         // Check we're encrypted
         assert_eq!(decoded.encrypted(), true);
-        assert_ne!(decoded.body(), &data);
+        assert_ne!(decoded.body_raw(), &data);
 
         // Perform decryption
         decoded.decrypt(keys.sec_key.as_ref().unwrap()).unwrap();
-        assert_eq!(decoded.body(), &data);
+        assert_eq!(decoded.body_raw(), &data);
     }
 }

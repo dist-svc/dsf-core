@@ -313,16 +313,16 @@ impl Encode for Page {
         let b = Container::builder(buff)
             .id(&self.id)
             .header(&self.header)
-            .body(self.body)?;
+            .body(&self.body)?;
 
-        let b = match self.private_options {
+        let b = match &self.private_options {
             MaybeEncrypted::Cleartext(o) => b.private_options(&o)?,
             MaybeEncrypted::Encrypted(r) => b.private_options_raw(&r)?,
             MaybeEncrypted::None => b.private_options(&[])?,
         };
 
-        let mut b = match (encrypted, self.tag, self.private_options, self.body) {
-            (true, Some(tag), MaybeEncrypted::Cleartext(_), MaybeEncrypted::Cleartext(_)) => {
+        let mut b = match (encrypted, &self.tag, &self.private_options, &self.body) {
+            (true, Some(_), MaybeEncrypted::Cleartext(_), MaybeEncrypted::Cleartext(_)) => {
                 panic!("Cannot re-encrypt without secret keys")
             },
             (true, Some(tag), MaybeEncrypted::Encrypted(_), MaybeEncrypted::Encrypted(_)) => {
@@ -360,70 +360,6 @@ impl Encode for Page {
         Ok(c.len())
     }
 }
-
-#[cfg(remove)]
-impl From<&Page> for Base {
-    fn from(page: &Page) -> Base {
-        let sig = page.signature().clone();
-
-        // Insert default options
-        let mut default_options = vec![];
-
-        if let Some(issued) = page.issued {
-            default_options.push(Options::issued(issued));
-        }
-
-        if let Some(expiry) = page.expiry {
-            default_options.push(Options::expiry(expiry));
-        }
-
-        if let Some(prev_sig) = &page.previous_sig {
-            default_options.push(Options::prev_sig(prev_sig));
-        }
-
-        // Add public fields for different object types
-        match &page.info {
-            PageInfo::Primary(primary) => {
-                default_options.push(Options::public_key(primary.pub_key.clone()));
-            },
-            PageInfo::Secondary(secondary) => {
-                default_options.push(Options::peer_id(secondary.peer_id.clone()));
-            },
-            PageInfo::Tertiary(_tertiary) => {},
-            PageInfo::Data(_data) => {},
-        }
-
-        // Add additional public options
-        // TODO: ideally these should be specified by type rather than an arbitrary list
-        let mut public_options = page.public_options.clone();
-        public_options.append(&mut default_options);
-
-        // Generate base object
-        let mut b = Base::new(
-            page.id.clone(),
-            page.header.clone(),
-            page.body.clone(),
-            BaseOptions {
-                public_options,
-                private_options: page.private_options.clone(),
-                ..Default::default()
-            },
-        );
-
-        if let Some(sig) = sig {
-            b.set_signature(sig);
-        }
-
-        if let Some(raw) = &page.raw {
-            b.set_raw(raw.clone());
-        }
-
-        b.verified = page.verified;
-
-        b
-    }
-}
-
 
 /// Convert a Container<T> into a Page object
 impl <T: ImmutableData> TryFrom<Container<T>> for Page {
@@ -473,14 +409,14 @@ impl <T: ImmutableData> TryFrom<Container<T>> for Page {
         // Map body and options depending on encryption state
         let body = match (container.header().data_len(), container.encrypted()) {
             (0, _) => MaybeEncrypted::None,
-            (_, false) => MaybeEncrypted::Cleartext(container.body().to_vec()),
-            (_, true) => MaybeEncrypted::Encrypted(container.body().to_vec()),
+            (_, false) => MaybeEncrypted::Cleartext(container.body_raw().to_vec()),
+            (_, true) => MaybeEncrypted::Encrypted(container.body_raw().to_vec()),
         };
 
         let private_options = match (container.header().private_options_len(), container.encrypted()) {
             (0, _) => MaybeEncrypted::None,
             (_, false) => MaybeEncrypted::Cleartext(container.private_options_iter().collect()),
-            (_, true) => MaybeEncrypted::Encrypted(container.private_options().to_vec())
+            (_, true) => MaybeEncrypted::Encrypted(container.private_options_raw().to_vec())
         };
 
         let info = if kind.is_page() && !flags.contains(Flags::SECONDARY) && !flags.contains(Flags::TERTIARY) {
@@ -516,7 +452,7 @@ impl <T: ImmutableData> TryFrom<Container<T>> for Page {
                 None => Err(Error::NoPeerId),
             }?;
 
-            let target_id = Id::from(container.body());
+            let target_id = Id::from(container.body_raw());
 
             PageInfo::tertiary(target_id)
 

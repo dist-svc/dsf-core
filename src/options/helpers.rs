@@ -58,3 +58,4 @@ impl Encode for DateTime {
         Ok(10)
     }
 }
+

@@ -103,6 +103,15 @@ pub trait Encode: Debug {
     }
 }
 
+/// Encode for pointers to encodable types
+impl <T: Encode> Encode for &T {
+    type Error = <T as Encode>::Error;
+
+    fn encode(&self, buff: &mut [u8]) -> Result<usize, Self::Error> {
+        T::encode(self, buff)
+    }
+}
+
 /// Encode for arrays of encodable types
 impl <T: Encode> Encode for &[T] {
     type Error = <T as Encode>::Error;

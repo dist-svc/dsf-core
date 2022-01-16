@@ -1,3 +1,7 @@
+
+use core::fmt::Debug;
+
+use crate::base::PageBody;
 use crate::{types::*, crypto};
 
 use crate::options::{Options, OptionsIter};
@@ -36,19 +40,30 @@ impl <T: ImmutableData> PartialEq for Container<T> {
 /// Override `core::fmt::Debug` to show subfields
 impl <T: ImmutableData> core::fmt::Debug for Container<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Container")
-            .field("id", &self.id())
-            .field("header", &self.header())
-            .field("body", &self.body())
-            .field("private_opts", &self.private_options())
-            .field("public_opts", &self.public_options())
-            .field("tag", &self.tag())
-            .field("sig", &self.signature())
-            .field("len", &self.len())
-            .field("decrypted", &self.decrypted)
-            .field("verified", &self.verified)
-            .field("raw", &self.raw())
-            .finish()
+        let mut d = f.debug_struct("Container");
+
+        d.field("id", &self.id())
+            .field("header", &self.header());
+
+
+        match self.encrypted() {
+            true => d.field("body (encrypted)", &self.body_raw()),
+            false => d.field("body (cleartext)", &self.body_raw()),
+        };
+        
+        match self.encrypted() {
+            true => d.field("private_opts", &self.private_options_raw()),
+            false => d.field("private_opts", &self.private_options_iter()),
+        };
+
+        d.field("public_opts", &self.public_options_iter())
+        .field("tag", &self.tag())
+        .field("sig", &self.signature())
+        .field("len", &self.len())
+        .field("decrypted", &self.decrypted)
+        .field("verified", &self.verified)
+        .field("raw", &self.raw())
+        .finish()
     }
 }
 
@@ -85,15 +100,19 @@ impl<'a, T: ImmutableData> Container<T> {
     }
 
     /// Return the body of data
-    pub fn body(&self) -> &[u8] {
+    pub fn body_raw(&self) -> &[u8] {
         let data = self.buff.as_ref();
 
         let s = self.header().data_len();
         &data[offsets::BODY..][..s]
     }
 
+    pub fn body<B: PageBody>(&self) -> Result<B, Error> {
+        todo!()
+    }
+
     /// Return the private options section data, note this may be encrypted
-    pub fn private_options(&self) -> &[u8] {
+    pub fn private_options_raw(&self) -> &[u8] {
         let data = self.buff.as_ref();
 
         let n = offsets::BODY + self.header().data_len();
@@ -103,7 +122,7 @@ impl<'a, T: ImmutableData> Container<T> {
 
     /// Iterate over private options
     /// NOTE: ONLY VALID FOR DECRYPTED OBJECTS
-    pub fn private_options_iter(&self) -> impl Iterator<Item = Options> + Clone + '_ {
+    pub fn private_options_iter(&self) -> impl Iterator<Item = Options> + Clone + Debug + '_ {
         let data = self.buff.as_ref();
         let n = offsets::BODY + self.header().data_len();
         let s = self.header().private_options_len();
@@ -112,7 +131,7 @@ impl<'a, T: ImmutableData> Container<T> {
     }
 
     /// Return public options section data
-    pub fn public_options(&self) -> &[u8] {
+    pub fn public_options_raw(&self) -> &[u8] {
         let h = self.header();
         let data = self.buff.as_ref();
 
@@ -157,7 +176,7 @@ impl<'a, T: ImmutableData> Container<T> {
     }
 
     /// Return the public options section data
-    pub fn public_options_iter(&self) -> impl Iterator<Item = Options> + Clone + '_ {
+    pub fn public_options_iter(&self) -> impl Iterator<Item = Options> + Clone + Debug + '_ {
         let data = self.buff.as_ref();
         let header = self.header();
 
