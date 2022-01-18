@@ -4,7 +4,6 @@ use core::ops::Deref;
 #[cfg(feature = "alloc")]
 use alloc::vec::{Vec};
 
-use crate::base::{Body};
 use crate::error::Error;
 use crate::options::{Options, Filters};
 use crate::page::Page;
@@ -208,7 +207,7 @@ impl Request {
         //let remote_address = Base::filter_address_option(&mut public_options);
 
         let common = Common {
-            from: base.id().clone(),
+            from: base.id(),
             id: header.index(),
             flags: header.flags(),
             public_key,

@@ -1,13 +1,8 @@
 use core::ops::Add;
 
-#[cfg(feature = "alloc")]
-use alloc::vec::{Vec};
-
 use crate::base::{Header, MaybeEncrypted, DataBody};
 use crate::error::Error;
 use crate::options::Options;
-use crate::page::{Page};
-use crate::prelude::{Encode, Parse};
 use crate::service::Service;
 use crate::types::*;
 use crate::wire::builder::{Encrypt, SetPublicOptions};
@@ -250,7 +245,7 @@ impl Publisher for Service {
         let c = self.sign(b)?;
         
         // Return container and encode
-        return Ok((c.len(), c))
+        Ok((c.len(), c))
     }
 
     /// Secondary generates a secondary page using this service to be attached to / stored at the provided service ID

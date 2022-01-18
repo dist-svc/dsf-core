@@ -92,7 +92,7 @@ pub fn new_sk() -> Result<SecretKey, ()> {
 }
 
 pub fn sk_sign(secret_key: &SecretKey, message: &[u8]) -> Result<Signature, ()> {
-    let secret_key = auth::Key::from_slice(&secret_key).unwrap();
+    let secret_key = auth::Key::from_slice(secret_key).unwrap();
 
     let tag = auth::authenticate(message, &secret_key);
 
@@ -104,7 +104,7 @@ pub fn sk_sign(secret_key: &SecretKey, message: &[u8]) -> Result<Signature, ()> 
 }
 
 pub fn sk_validate(secret_key: &PublicKey, signature: &Signature, data: &[u8]) -> Result<bool, ()> {
-    let secret_key = auth::Key::from_slice(&secret_key).unwrap();
+    let secret_key = auth::Key::from_slice(secret_key).unwrap();
     let tag = auth::Tag::from_slice(&signature[..32]).unwrap();
 
     Ok(auth::verify(&tag, data, &secret_key))
@@ -239,9 +239,9 @@ pub fn hash_tid(id: Id, keys: &Keys, o: impl Queryable) -> CryptoHash {
     let h = CryptoHash::from(h.finalize().0);
 
     // XOR with ns ID to give new location
-    let tid = h ^ id;
+    
 
-    tid
+    h ^ id
 }
 
 impl CryptoHasher for sodiumoxide::crypto::hash::sha256::State {

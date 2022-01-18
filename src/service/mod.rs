@@ -69,7 +69,7 @@ impl <B: PageBody + Default> Default for Service<B> {
         let (public_key, private_key) = crypto::new_pk().unwrap();
 
         // Generate service ID from public key
-        let id = crypto::hash(&public_key).unwrap().into();
+        let id = crypto::hash(&public_key).unwrap();
 
         // Create service object
         Service {
@@ -156,8 +156,8 @@ impl <B: PageBody + Default> Service<B> {
     pub fn keys(&self) -> Keys {
         Keys {
             pub_key: Some(self.public_key.clone()),
-            pri_key: self.private_key.as_ref().map(|v| v.clone()),
-            sec_key: self.secret_key.as_ref().map(|v| v.clone()),
+            pri_key: self.private_key.as_ref().cloned(),
+            sec_key: self.secret_key.as_ref().cloned(),
             sym_keys: None,
         }
     }

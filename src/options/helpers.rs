@@ -1,8 +1,5 @@
 use core::str;
 
-#[cfg(feature = "alloc")]
-use alloc::vec::{Vec};
-
 use byteorder::{ByteOrder, NetworkEndian};
 
 use crate::base::{Encode, Parse};
@@ -50,7 +47,7 @@ impl Encode for DateTime {
     type Error = Error;
 
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
-        NetworkEndian::write_u16(&mut data[..], 8);
+        NetworkEndian::write_u16(&mut *data, 8);
         let time_s = self.as_secs();
 
         NetworkEndian::write_u64(&mut data[2..], time_s);

@@ -1,7 +1,6 @@
 use core::marker::PhantomData;
 use core::fmt::Debug;
 
-use chrono::offset;
 use log::trace;
 
 use pretty_hex::*;
@@ -430,7 +429,6 @@ impl<T: MutableData> Builder<SetPublicOptions, T> {
             decrypted: false,
         })
     }
-
 }
 
 impl<S, T: MutableData> AsRef<[u8]> for Builder<S, T>   {

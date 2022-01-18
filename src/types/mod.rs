@@ -202,7 +202,7 @@ impl <const N: usize> BitXor for Array<N> {
     type Output = Array<N>;
 
     fn bitxor(self, rhs: Array<N>) -> Self::Output {
-        let mut s = self.clone();
+        let mut s = self;
         for i in 0..N {
             s[i] ^= rhs[i]
         }

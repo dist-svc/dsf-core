@@ -2,11 +2,11 @@ use byteorder::{NetworkEndian, ByteOrder};
 
 use crate::base::{Encode};
 use crate::error::Error;
-use crate::net::{Message, Request, RequestKind, Response, ResponseKind, Common};
+use crate::net::{Request, RequestKind, Response, ResponseKind, Common};
 use crate::options::Options;
-use crate::prelude::{Body, Header, Keys, Page, KeySource};
+use crate::prelude::{Header, Keys, Page};
 use crate::service::Service;
-use crate::types::{MutableData, MessageKind, PublicKey, Address, Flags};
+use crate::types::{MutableData, MessageKind, Address, Flags};
 use crate::wire::builder::SetPublicOptions;
 use crate::wire::{Container, Builder};
 
@@ -80,7 +80,7 @@ impl Net for Service {
             RequestKind::Store(id, pages) | RequestKind::PushData(id, pages) | RequestKind::Register(id, pages) => {
                 b.with_body(|buff| {
                     let mut n = id.encode(buff)?;
-                    n += Page::encode_pages(&pages, &mut buff[n..])?;
+                    n += Page::encode_pages(pages, &mut buff[n..])?;
                     Ok(n)
                 })?
             },
@@ -132,7 +132,7 @@ impl Net for Service {
             ResponseKind::ValuesFound(id, pages) | ResponseKind::PullData(id, pages) => {
                 b.with_body(|buff| {
                     let mut i = id.encode(buff)?;
-                    i += Page::encode_pages(&pages, &mut buff[i..])?;
+                    i += Page::encode_pages(pages, &mut buff[i..])?;
                     Ok(i)
                 })?
             },
@@ -163,7 +163,7 @@ impl Service {
 
         // Append remote address if provided
         if let Some(addr) = &common.remote_address {
-            b.public_option(&Options::address(addr.clone()))?;
+            b.public_option(&Options::address(*addr))?;
         }
 
         // TODO: messages should be encrypted not just signed..?
@@ -193,7 +193,7 @@ impl Service {
             };
 
             // Sign using secret key
-            b.sign_sk(&sec_key)?
+            b.sign_sk(sec_key)?
         };
 
         Ok(c)

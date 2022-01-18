@@ -15,7 +15,7 @@ pub use response::{Response, ResponseKind, Status};
 
 pub const BUFF_SIZE: usize = 10 * 1024;
 
-use crate::keys::{KeySource, Keys};
+use crate::keys::{KeySource};
 
 
 /// Message is a network request or response message

@@ -7,7 +7,6 @@ use alloc::vec::{Vec};
 use byteorder::{ByteOrder, NetworkEndian};
 use slice_ext::SplitBefore;
 
-use crate::base::{Body, Header};
 use crate::error::Error;
 use crate::options::{Options, Filters};
 use crate::page::Page;
@@ -16,7 +15,6 @@ use crate::keys::KeySource;
 use crate::wire::Container;
 
 use super::Common;
-use super::BUFF_SIZE;
 
 /// Generic Response message
 #[derive(Clone, Debug)]
@@ -159,7 +157,7 @@ impl Response {
 
         let data = match kind {
             MessageKind::Status => {
-                let status = NetworkEndian::read_u32(&body);
+                let status = NetworkEndian::read_u32(body);
                 ResponseKind::Status(status.into())
             }
             MessageKind::NoResult => ResponseKind::NoResult,
@@ -217,7 +215,7 @@ impl Response {
 
         // Fetch other message specific options
         let common = Common {
-            from: base.id().clone(),
+            from: base.id(),
             id: header.index(),
             flags: header.flags(),
             public_key,

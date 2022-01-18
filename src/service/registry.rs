@@ -2,9 +2,9 @@
 use std::ops::Add;
 
 use crate::options::Options;
-use crate::page::{Page, PageOptions};
+
 use crate::error::Error;
-use crate::prelude::{Body, Header, PageInfo};
+use crate::prelude::{Header};
 use crate::types::{Id, Kind, PageKind, Flags, Queryable, DateTime};
 use crate::wire::{Builder, Container};
 
@@ -75,6 +75,7 @@ impl Registry for Service {
             ..Default::default()
         };
 
+        // TODO: should service link be in private options..?
         let b = Builder::new([0u8; N])
             .header(&header)
             .id(&tid)

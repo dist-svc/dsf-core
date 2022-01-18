@@ -317,7 +317,7 @@ impl Encode for Page {
 
         let b = match &self.private_options {
             MaybeEncrypted::Cleartext(o) => b.private_options(&o)?,
-            MaybeEncrypted::Encrypted(r) => b.private_options_raw(&r)?,
+            MaybeEncrypted::Encrypted(r) => b.private_options_raw(r)?,
             MaybeEncrypted::None => b.private_options(&[])?,
         };
 
@@ -333,23 +333,23 @@ impl Encode for Page {
         };
 
         if let Some(issued) = self.issued {
-            b.public_option(&Options::issued(issued));
+            b.public_option(&Options::issued(issued))?;
         }
 
         if let Some(expiry) = self.expiry {
-            b.public_option(&Options::expiry(expiry));
+            b.public_option(&Options::expiry(expiry))?;
         }
 
         if let Some(prev_sig) = &self.previous_sig {
-            b.public_option(&Options::prev_sig(prev_sig));
+            b.public_option(&Options::prev_sig(prev_sig))?;
         }
 
         match &self.info {
             PageInfo::Primary(primary) => {
-                b.public_option(&Options::public_key(primary.pub_key.clone()));
+                b.public_option(&Options::public_key(primary.pub_key.clone()))?;
             },
             PageInfo::Secondary(secondary) => {
-                b.public_option(&Options::peer_id(secondary.peer_id.clone()));
+                b.public_option(&Options::peer_id(secondary.peer_id.clone()))?;
             },
             PageInfo::Tertiary(_tertiary) => {},
             PageInfo::Data(_data) => {},
@@ -403,7 +403,6 @@ impl <T: ImmutableData> TryFrom<Container<T>> for Page {
                 }
                 _ => Some(o),
             })
-            .map(|o| o.clone())
             .collect();
 
         // Map body and options depending on encryption state
@@ -429,7 +428,7 @@ impl <T: ImmutableData> TryFrom<Container<T>> for Page {
             }?;
 
             // Check public key and ID match
-            let hash: Id = crypto::hash(&public_key).unwrap().into();
+            let hash: Id = crypto::hash(&public_key).unwrap();
             if &hash != &container.id() {
                 return Err(Error::KeyIdMismatch);
             }
@@ -467,7 +466,7 @@ impl <T: ImmutableData> TryFrom<Container<T>> for Page {
         };
 
         Ok(Page {
-            id: container.id().clone(),
+            id: container.id(),
             header: Header::from(&header),
             info,
             body, //base.body.clone(),

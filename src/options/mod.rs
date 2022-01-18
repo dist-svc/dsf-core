@@ -81,7 +81,7 @@ where
             return None;
         }
 
-        let (o, n) = match Options::parse(&rem) {
+        let (o, n) = match Options::parse(rem) {
             Ok(v) => v,
             Err(e) => {
                 error!("Option parsing error: {:?}", e);
@@ -151,8 +151,8 @@ impl <'a, T: Iterator<Item=&'a Options> + Clone> Filters for T {
 
     fn address(&self) -> Option<Address> {
         self.clone().find_map(|o| match o {
-            Options::IPv4(addr) => Some(addr.clone().into()),
-            Options::IPv6(addr) => Some(addr.clone().into()),
+            Options::IPv4(addr) => Some((*addr).into()),
+            Options::IPv6(addr) => Some((*addr).into()),
             _ => None,
         })
     }
@@ -207,13 +207,13 @@ impl Options {
     /// Parse a bounded list of options into a vector
     pub fn parse_vec(data: &[u8]) -> Result<(Vec<Options>, usize), Error> {
         let mut options = Vec::new();
-        let mut rem = &data[..];
+        let mut rem = data;
         let mut i = 0;
 
         while rem.len() >= OPTION_HEADER_LEN {
             trace!("Parse option {} at offset {}", options.len(), i);
 
-            let (o, n) = Options::parse(&rem)?;
+            let (o, n) = Options::parse(rem)?;
             i += n;
 
             options.push(o);
@@ -506,7 +506,7 @@ impl Parse for Kind {
     type Error = Error;
 
     fn parse(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
-        let value = core::str::from_utf8(&data).unwrap().to_owned();
+        let value = core::str::from_utf8(data).unwrap().to_owned();
 
         Ok((Kind { value }, data.len()))
     }
@@ -521,7 +521,7 @@ impl Encode for Kind {
         NetworkEndian::write_u16(&mut data[0..2], option_kinds::KIND);
         NetworkEndian::write_u16(&mut data[2..4], value.len() as u16);
 
-        data[OPTION_HEADER_LEN..OPTION_HEADER_LEN + value.len()].copy_from_slice(&value);
+        data[OPTION_HEADER_LEN..OPTION_HEADER_LEN + value.len()].copy_from_slice(value);
 
         Ok(OPTION_HEADER_LEN + value.len())
     }
@@ -547,7 +547,7 @@ impl Parse for Name {
     type Error = Error;
 
     fn parse(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
-        let value = core::str::from_utf8(&data).unwrap().to_owned();
+        let value = core::str::from_utf8(data).unwrap().to_owned();
 
         Ok((Name { value }, data.len()))
     }
@@ -561,7 +561,7 @@ impl Encode for Name {
         NetworkEndian::write_u16(&mut data[2..4], self.value.len() as u16);
 
         data[OPTION_HEADER_LEN..][..self.value.len()]
-            .copy_from_slice(&self.value.as_bytes());
+            .copy_from_slice(self.value.as_bytes());
 
         Ok(OPTION_HEADER_LEN + self.value.len())
     }
@@ -653,8 +653,8 @@ impl Parse for Metadata {
     type Error = Error;
 
     fn parse(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
-        let kv = core::str::from_utf8(&data).unwrap().to_owned();
-        let split: Vec<_> = kv.split("|").collect();
+        let kv = core::str::from_utf8(data).unwrap().to_owned();
+        let split: Vec<_> = kv.split('|').collect();
         if split.len() != 2 {
             return Err(Error::InvalidOption);
         }

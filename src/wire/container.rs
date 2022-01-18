@@ -240,11 +240,11 @@ impl<'a, T: ImmutableData> Container<T> {
     where
         V: FnMut(&Id, &Signature, &[u8]) -> Result<bool, E>,
     {
-        let id: Id = self.id().into();
+        let id: Id = self.id();
         let data = self.signed();
-        let sig: Signature = self.signature().into();
+        let sig: Signature = self.signature();
 
-        (verifier)(&id, &sig, &data)
+        (verifier)(&id, &sig, data)
     }
 
     /// Fetch the raw data using internal header length

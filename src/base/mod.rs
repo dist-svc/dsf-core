@@ -213,7 +213,7 @@ impl <O: Encode + Debug, E: ImmutableData + Debug> Encode for MaybeEncrypted<O, 
     fn encode(&self, buff: &mut [u8]) -> Result<usize, Self::Error> {
         
         let n = match self {
-            Self::Encrypted(e) if e.as_ref().len() > 0 => {
+            Self::Encrypted(e) if !e.as_ref().is_empty() => {
                 let l = e.as_ref();
                 buff[..l.len()].copy_from_slice(l);
                 l.len()
@@ -260,7 +260,7 @@ where
 
 impl From<Vec<u8>> for MaybeEncrypted<Vec<u8>, Vec<u8>> {
     fn from(o: Vec<u8>) -> Self {
-        if o.len() > 0 {
+        if !o.is_empty() {
             MaybeEncrypted::Cleartext(o)
         } else {
             MaybeEncrypted::None

@@ -111,7 +111,7 @@ pub trait KeySource: Sized {
     }
 
     /// Update keys for the specified ID (optional)
-    fn update<F: FnMut(&mut Keys) -> ()>(&mut self, _id: &Id, _f: F) -> bool {
+    fn update<F: FnMut(&mut Keys)>(&mut self, _id: &Id, _f: F) -> bool {
         false
     }
 
@@ -153,7 +153,7 @@ impl KeySource for Option<SecretKey> {
     }
 
     fn sec_key(&self, _id: &Id) -> Option<SecretKey> {
-        self.as_ref().map(|v| v.clone() )
+        self.as_ref().cloned()
     }
 }
 
@@ -189,6 +189,6 @@ impl KeySource for NullKeySource {
 #[cfg(feature = "std")]
 impl KeySource for std::collections::HashMap<Id, Keys> {
     fn keys(&self, id: &Id) -> Option<Keys> {
-        self.get(id).map(|v| v.clone())
+        self.get(id).cloned()
     }
 }

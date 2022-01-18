@@ -5,16 +5,16 @@
 use alloc::vec::{Vec};
 
 use core::ops::{DerefMut};
-use std::convert::TryFrom;
+
 
 use pretty_hex::*;
 
-use crate::base::{Body, Header, MaybeEncrypted};
+use crate::base::{MaybeEncrypted};
 use crate::crypto;
 use crate::error::Error;
-use crate::options::{Options, Filters};
+use crate::options::{Options};
 use crate::types::*;
-use crate::wire::builder::Encrypt;
+
 /// Header provides a low-cost header abstraction for encoding/decoding
 pub mod header;
 
@@ -76,7 +76,7 @@ fn validate(
         };
 
         // Validate signature
-        crypto::sk_validate(&sk, sig, data).map_err(|_e| Error::CryptoError)?
+        crypto::sk_validate(sk, sig, data).map_err(|_e| Error::CryptoError)?
 
     // Otherwise use public key
     } else {
@@ -109,7 +109,7 @@ impl<'a, T: ImmutableData> Container<T> {
         K: KeySource,
     {
         // Build container over buffer
-        let (mut container, n) = Container::from(data);
+        let (mut container, _n) = Container::from(data);
         let header = container.header();
         
         trace!("Parsing object: {:02x?}", container.hex_dump());
@@ -119,13 +119,13 @@ impl<'a, T: ImmutableData> Container<T> {
         // Fetch required fields
         let flags = header.flags();
         let kind = header.kind();
-        let id: Id = container.id().into();
+        let id: Id = container.id();
 
         debug!("Parse container: {:?} Header: {:?}", container, header);
 
         // Fetch signature for page
         let mut verified = false;
-        let signature: Signature = container.signature().into();
+        let signature: Signature = container.signature();
 
         // Validate primary types immediately if pubkey is known
         let is_primary = !flags.contains(Flags::SECONDARY) && !flags.contains(Flags::TERTIARY);
@@ -174,7 +174,7 @@ impl<'a, T: ImmutableData> Container<T> {
 
         // Look for signing ID
         let signing_id: Id = match (!is_primary, &peer_id) {
-            (false, _) => Ok(container.id().into()),
+            (false, _) => Ok(container.id()),
             (true, Some(id)) => Ok(id.clone()),
             _ => Err(Error::NoPeerId),
         }?;
@@ -362,7 +362,7 @@ pub(crate) fn decrypt(sk: &SecretKey, body: &mut MaybeEncrypted, private_opts: &
     };
 
     // Perform decryption
-    let _n = crypto::sk_decrypt(&sk, tag, cyphertext.deref_mut())
+    let _n = crypto::sk_decrypt(sk, tag, cyphertext.deref_mut())
             .map_err(|_e| Error::InvalidSignature)?;
 
     // Write-back decrypted data
@@ -375,14 +375,14 @@ pub(crate) fn decrypt(sk: &SecretKey, body: &mut MaybeEncrypted, private_opts: &
         *private_opts = MaybeEncrypted::Cleartext(opts);
     }
 
-    return Ok(())
+    Ok(())
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
 
-    use crate::{crypto, keys::NullKeySource};
+    use crate::{crypto, keys::NullKeySource, prelude::{Header, Body}};
 
     fn setup() -> (Id, Keys) {
         let _ = simplelog::SimpleLogger::init(simplelog::LevelFilter::Trace, simplelog::Config::default());
