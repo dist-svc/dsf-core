@@ -84,7 +84,10 @@ impl Net for Service {
                     Ok(n)
                 })?
             },
-            RequestKind::Discover(_, _) => todo!("Implement discover encoding"),
+            // TODO: filter on options here too
+            RequestKind::Discover(body, _opts) => {
+                b.body(body)?
+            },
         };
 
         // Attach options
