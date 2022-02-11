@@ -225,112 +225,6 @@ impl<'a, T: ImmutableData> Container<T> {
     }
 }
 
-#[cfg(remove)]
-impl<'a, T: AsRef<[u8]> + AsMut<[u8]>> Container<T> {
-    pub fn encode(buff: T, base: &Base, keys: &Keys) -> Result<(Self, usize), Error> {
-        trace!("Encode for object: {:?}", base);
-
-        // Setup base builder with header and ID
-        let bb = Builder::new(buff).id(base.id()).header(base.header());
-        let flags = base.flags();
-
-        // Check private key exists
-        let private_key = match &keys.pri_key {
-            Some(k) => k,
-            None => panic!("Attempted to sign object with no private key"),
-        };
-
-        // Check encryption key exists if required
-        let _encryption_key = match (flags.contains(Flags::ENCRYPTED), keys.sec_key.as_ref()) {
-            (true, Some(k)) => Some(k),
-            (true, None) => return Err(Error::NoSecretKey),
-            _ => None,
-        };
-
-        let encrypted = flags.contains(Flags::ENCRYPTED);
-        let sec_key = keys.sec_key.as_ref();
-
-        // Append body
-        let bb = match &base.body {
-            MaybeEncrypted::Cleartext(c) => bb.body(&c[..])?,
-            MaybeEncrypted::Encrypted(e) => bb.body(&e[..])?,
-            MaybeEncrypted::None => bb.body(&[])?,
-        };
-        
-        // Append private options
-        let bb = match &base.private_options {
-            MaybeEncrypted::Cleartext(c) => bb.private_options(c)?,
-            MaybeEncrypted::Encrypted(e) => bb.private_options_raw(e)?,
-            MaybeEncrypted::None => bb.private_options(&[])?,
-        };
-
-
-        // Ensure state is valid and apply encryption
-        // TODO: it'd be great to enforce this better via the builder
-        let mut bb = match (encrypted, sec_key, &base.body, &base.private_options, &base.tag) {
-            // If we're not encrypted, bypass
-            (false, _, _, _, _) => bb.public(),
-            // If we're holding encrypted data, just re-encode it
-            (true, _, Body::Encrypted(_) | Body::None, MaybeEncrypted::Encrypted(_) | MaybeEncrypted::None, Some(t)) => {
-                bb.tag(t)?
-            },
-            // If we have keys and a tag, re-encrypt
-            (true, Some(sk), Body::Cleartext(_) | Body::None, MaybeEncrypted::Cleartext(_) | MaybeEncrypted::None, Some(t)) => {
-                bb.re_encrypt(sk, t)?
-            },
-            // If we have keys but no tag, new encryption
-            (true, Some(sk), Body::Cleartext(_) | Body::None, MaybeEncrypted::Cleartext(_) | MaybeEncrypted::None , None) => {
-                bb.encrypt(sk)?
-            },
-            // If we have no keys, fail
-            (true, _, _, _, _) => {
-                error!("Encrypt failed, no secret key or mismatched clear/cyphertexts");
-                return Err(Error::NoSecretKey);
-            },
-        };
-
-        // Write public options
-        // Add public key option if specified
-        if let Some(k) = &base.public_key {
-            bb.public_option(&Options::pub_key(k.clone()))?;
-        }
-
-        if let Some(s) = &base.parent {
-            bb.public_option(&Options::prev_sig(s))?;
-        }
-
-        if let Some(i) = &base.peer_id {
-            bb.public_option(&Options::peer_id(i.clone()))?;
-        }
-
-        let bb = bb.public_options(&base.public_options())?;
-
-        // Sign object
-        let c = if !flags.contains(Flags::SYMMETRIC_MODE) {
-            bb.sign_pk(&private_key)?
-        } else {
-            // Ensure this can only be used for req/resp messages
-            if !base.header().kind().is_message() {
-                panic!("Attempted to sign non-message type with symmetric keys");
-            }
-
-            let sec_key = match &keys.sym_keys {
-                Some(k) if flags.contains(Flags::SYMMETRIC_DIR) => &k.1,
-                Some(k) => &k.0,
-                _ => panic!("Attempted to sign object with no secret key"),
-            };
-
-            bb.sign_sk(&sec_key)?
-        };
-
-        // Update length
-        let len = c.len;
-
-        // Return signed container and length
-        Ok((c, len))
-    }
-}
-
 /// Helper to decrypt optionally encrypted fields
 pub(crate) fn decrypt(sk: &SecretKey, body: &mut MaybeEncrypted, private_opts: &mut MaybeEncrypted<Vec<Options>>, tag: Option<&SecretMeta>) -> Result<(), Error> {
     
@@ -378,14 +272,73 @@ pub(crate) fn decrypt(sk: &SecretKey, body: &mut MaybeEncrypted, private_opts: &
     Ok(())
 }
 
+impl<T: ImmutableData> Container<T> {
+    pub fn encode_pages(pages: &[Container<T>], buff: &mut [u8]) -> Result<usize, Error> {
+        let mut i = 0;
+    
+        for p in pages {
+            // TODO: is there any way to have an invalid (non-signed/verified) container here?
+            // if so, handle this case
+            let b = p.raw();
+    
+            // Convert and encode, note these must be pre-signed / encrypted
+            buff[i..b.len()].copy_from_slice(b);
+    
+            i += b.len();
+        }
+    
+        Ok(i)
+    }
+    
+}
+
+impl Container {
+    pub fn decode_pages<V>(buff: &[u8], key_source: &V) -> Result<Vec<Container>, Error>
+    where
+        V: KeySource,
+    {
+        let mut pages = vec![];
+        let mut i = 0;
+    
+        // Last key used to cache the previous primary key to decode secondary pages published by a service in a single message.
+        let mut last_key: Option<(Id, Keys)> = None;
+    
+        while i < buff.len() {
+            // TODO: validate signatures against existing services!
+            let c = match Container::parse((&buff[i..]).to_vec(), &key_source.cached(last_key.clone())){
+                Ok(v) => v,
+                Err(e) => {
+                    debug!("Error parsing base message: {:?}", e);
+                    return Err(e);
+                }
+            };
+    
+            i += c.len();
+    
+            // Cache key for next run
+            if let Some(key) = c.info()?.pub_key() {
+                last_key = Some((c.id().clone(), Keys::new(key)));
+            }
+    
+            // Push page to parsed list
+            pages.push(c);
+        }
+    
+        Ok(pages)
+    }
+}
+
 #[cfg(test)]
 mod test {
+    extern crate test;
+    use test::Bencher;
+
     use super::*;
 
     use crate::{crypto, keys::NullKeySource, prelude::{Header, Body}};
 
     fn setup() -> (Id, Keys) {
-        let _ = simplelog::SimpleLogger::init(simplelog::LevelFilter::Trace, simplelog::Config::default());
+        let _ = simplelog::SimpleLogger::init(simplelog::LevelFilter::Debug, simplelog::Config::default());
 
         let (pub_key, pri_key) =
             crypto::new_pk().expect("Error generating new public/private key pair");
@@ -439,6 +392,31 @@ mod test {
         assert_eq!(c, d);
     }
 
+    #[bench]
+    fn bench_encode_primary(b: &mut Bencher) {
+        let (id, mut keys) = setup();
+        keys.sec_key = None;
+
+        let header = Header {
+            kind: PageKind::Generic.into(),
+            application_id: 10,
+            index: 12,
+            ..Default::default()
+        };
+        let data = vec![1, 2, 3, 4, 5, 6, 7];
+
+        b.iter(|| {
+            // Encode using builder
+            let _c = Builder::new([0u8; 1024])
+                .id(&id)
+                .header(&header)
+                .body(&data).unwrap()
+                .private_options(&[]).unwrap()
+                .public()
+                .sign_pk(keys.pri_key.as_ref().unwrap())
+                .expect("Error encoding page");
+        });
+    }
 
     #[test]
     fn encode_decode_secondary_page() {
@@ -543,5 +521,34 @@ mod test {
         // Perform decryption
         decoded.decrypt(keys.sec_key.as_ref().unwrap()).unwrap();
         assert_eq!(decoded.body_raw(), &data);
+    }
+
+    #[bench]
+    fn bench_encode_primary_encrypted(b: &mut Bencher) {
+        let (id, keys) = setup();
+
+        let header = Header {
+            kind: PageKind::Generic.into(),
+            application_id: 10,
+            index: 12,
+            flags: Flags::ENCRYPTED,
+            ..Default::default()
+        };
+        let data = vec![1, 2, 3, 4, 5, 6, 7];
+
+        b.iter(|| {
+            // Encode using builder
+            let _c = Builder::new([0u8; 1024])
+                .id(&id)
+                .header(&header)
+                .body(&data).unwrap()
+                .private_options(&[]).unwrap()
+                .encrypt(keys.sec_key.as_ref().unwrap()).unwrap()
+                .public_options(&[
+                    Options::peer_id(id.clone()),
+                ]).unwrap()
+                .sign_pk(keys.pri_key.as_ref().unwrap())
+                .expect("Error encoding page");
+        });
     }
 }

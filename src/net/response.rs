@@ -9,7 +9,6 @@ use slice_ext::SplitBefore;
 
 use crate::error::Error;
 use crate::options::{Options, Filters};
-use crate::page::Page;
 use crate::types::*;
 use crate::keys::KeySource;
 use crate::wire::Container;
@@ -31,9 +30,9 @@ pub struct Response {
 pub enum ResponseKind {
     Status(Status),
     NodesFound(Id, Vec<(Id, Address, PublicKey)>),
-    ValuesFound(Id, Vec<Page>),
+    ValuesFound(Id, Vec<Container>),
     NoResult,
-    PullData(Id, Vec<Page>),
+    PullData(Id, Vec<Container>),
 }
 
 /// Convert response kind object to protocol message enumeration
@@ -192,7 +191,7 @@ impl Response {
                 let mut id = Id::default();
                 id.copy_from_slice(&body[0..ID_LEN]);
 
-                let pages = Page::decode_pages(&body[ID_LEN..], key_source)?;
+                let pages = Container::decode_pages(&body[ID_LEN..], key_source)?;
 
                 ResponseKind::ValuesFound(id, pages)
             }
@@ -200,7 +199,7 @@ impl Response {
                 let mut id = Id::default();
                 id.copy_from_slice(&body[0..ID_LEN]);
 
-                let pages = Page::decode_pages(&body[ID_LEN..], key_source)?;
+                let pages = Container::decode_pages(&body[ID_LEN..], key_source)?;
 
                 ResponseKind::PullData(id, pages)
             }

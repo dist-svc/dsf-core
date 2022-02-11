@@ -106,6 +106,65 @@ pub trait Filters {
     fn name(&self) -> Option<Name>;
 }
 
+impl <T: AsRef<[u8]>> Filters for OptionsIter<T> {
+    fn pub_key(&self) -> Option<PublicKey> {
+        let mut s = OptionsIter{ index: 0, buff: self.buff.as_ref() };
+        s.find_map(|o| match o {
+            Options::PubKey(pk) => Some(pk.public_key.clone()),
+            _ => None,
+        })
+    }
+
+    fn peer_id(&self) -> Option<Id> {
+        let mut s = OptionsIter{ index: 0, buff: self.buff.as_ref() };
+        s.find_map(|o| match o {
+            Options::PeerId(peer_id) => Some(peer_id.peer_id.clone()),
+            _ => None,
+        })
+    }
+
+    fn issued(&self) -> Option<DateTime> {
+        let mut s = OptionsIter{ index: 0, buff: self.buff.as_ref() };
+        s.find_map(|o| match o {
+            Options::Issued(t) => Some(t.when),
+            _ => None,
+        })
+    }
+
+    fn expiry(&self) -> Option<DateTime> {
+        let mut s = OptionsIter{ index: 0, buff: self.buff.as_ref() };
+        s.find_map(|o| match o {
+            Options::Expiry(t) => Some(t.when),
+            _ => None,
+        })
+    }
+
+    fn prev_sig(&self) -> Option<Signature> {
+        let mut s = OptionsIter{ index: 0, buff: self.buff.as_ref() };
+        s.find_map(|o| match o {
+            Options::PrevSig(s) => Some(s.sig.clone()),
+            _ => None,
+        })
+    }
+
+    fn name(&self) -> Option<Name> {
+        let mut s = OptionsIter{ index: 0, buff: self.buff.as_ref() };
+        s.find_map(|o| match o {
+            Options::Name(name) => Some(name.clone()),
+            _ => None,
+        })
+    }
+
+    fn address(&self) -> Option<Address> {
+        let mut s = OptionsIter{ index: 0, buff: self.buff.as_ref() };
+        s.find_map(|o| match o {
+            Options::IPv4(addr) => Some((addr).into()),
+            Options::IPv6(addr) => Some((addr).into()),
+            _ => None,
+        })
+    }
+}
+
 impl <'a, T: Iterator<Item=&'a Options> + Clone> Filters for T {
     fn pub_key(&self) -> Option<PublicKey> {
         self.clone().find_map(|o| match o {
@@ -157,6 +216,7 @@ impl <'a, T: Iterator<Item=&'a Options> + Clone> Filters for T {
         })
     }
 }
+
 
 /// D-IoT Option kind identifiers
 pub mod option_kinds {

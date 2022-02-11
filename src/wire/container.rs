@@ -1,10 +1,15 @@
 
 use core::fmt::Debug;
+use std::convert::TryFrom;
+use std::marker::PhantomData;
+
+use serde::Serialize;
 
 use crate::base::PageBody;
+use crate::page::PageInfo;
 use crate::{types::*, crypto};
 
-use crate::options::{Options, OptionsIter};
+use crate::options::{Options, OptionsIter, Filters};
 use crate::error::Error;
 
 use super::builder::Init;
@@ -16,7 +21,7 @@ use super::Builder;
 /// Container object provides base field accessors over an arbitrary (mutable or immutable) buffers
 /// See <https://lab.whitequark.org/notes/2016-12-13/abstracting-over-mutability-in-rust/> for details
 #[derive(Clone)]
-pub struct Container<T: ImmutableData> {
+pub struct Container<T: ImmutableData = Vec<u8>> {
     /// Internal data buffer
     pub(crate) buff: T,
     /// Length of object in container buffer
@@ -62,18 +67,81 @@ impl <T: ImmutableData> core::fmt::Debug for Container<T> {
         .field("len", &self.len())
         .field("decrypted", &self.decrypted)
         .field("verified", &self.verified)
+        // TODO: work out how to force this to format as hex?
         .field("raw", &self.raw())
         .finish()
     }
 }
 
+
+#[cfg(feature = "serde")]
+impl <T: ImmutableData> serde::Serialize for Container<T> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_bytes(self.raw())
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de: 'a, 'a> serde::Deserialize<'de> for Container {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct Visitor;
+
+        impl<'de> serde::de::Visitor<'de> for Visitor {
+            type Value = Container;
+
+            fn expecting(&self, formatter: &mut core::fmt::Formatter) -> core::fmt::Result {
+                formatter.write_str("raw container object bytes")
+            }
+
+            fn visit_bytes<E>(self, buff: &[u8]) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                // TODO: parsing errors here?
+                // .map_err(|_e| de::Error::custom("decoding b64"))
+                Container::try_from(buff)
+                    .map(|c| c.to_owned())
+                    .map_err(|_e| serde::de::Error::custom("decoding container"))
+            }
+        }
+
+        deserializer.deserialize_bytes(Visitor)
+    }
+}
+
+impl <'a> TryFrom<&'a [u8]> for Container<&'a [u8]> {
+    // TODO: check basic container info
+    type Error = ();
+
+    fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
+        let c = Container::from(value);
+        Ok(c.0)
+    }
+}
+
 impl<'a, T: ImmutableData> Container<T> {
     /// Create a new container object, providing field accessors over the provided buffer
+    // TODO: this should validate the container on creation to avoid invalid containers ever existing
     pub fn from(buff: T) -> (Self, usize) {
         let len = buff.as_ref().len();
         let c = Container { buff, len, verified: false, decrypted: false };
         let n = c.len();
         (c, n)
+    }
+
+    /// Convert to a Vec<u8> based owned container
+    pub fn to_owned(&self) -> Container<Vec<u8>> {
+        let buff = self.raw().to_vec();
+        let len = buff.len();
+        Container{
+            buff, len, decrypted: self.decrypted, verified: self.verified
+        }
     }
 
     /// Fetch wire header
@@ -107,6 +175,7 @@ impl<'a, T: ImmutableData> Container<T> {
         &data[offsets::BODY..][..s]
     }
 
+    /// Fetch page body type as appropriate
     pub fn body<B: PageBody>(&self) -> Result<B, Error> {
         todo!()
     }
@@ -176,7 +245,7 @@ impl<'a, T: ImmutableData> Container<T> {
     }
 
     /// Return the public options section data
-    pub fn public_options_iter(&self) -> impl Iterator<Item = Options> + Clone + Debug + '_ {
+    pub fn public_options_iter(&self) -> OptionsIter<&[u8]> {
         let data = self.buff.as_ref();
         let header = self.header();
 
@@ -253,6 +322,99 @@ impl<'a, T: ImmutableData> Container<T> {
         let len = self.len();
 
         &data[0..len]
+    }
+
+    /// Fetch page info from a container (filters body and options as required)
+    pub fn info(&self) -> Result<PageInfo, Error> {
+        let (kind, flags) = (self.header().kind(), self.header().flags());
+
+        let info = if kind.is_page() && !flags.contains(Flags::SECONDARY) && !flags.contains(Flags::TERTIARY) {
+            // Handle primary page parsing
+
+            // Fetch public key from options
+            let public_key = self.public_options_iter().find_map(|o| match o {
+                Options::PubKey(pub_key) => Some(pub_key.public_key.clone()),
+                _ => None,
+            });
+
+            let public_key = match public_key {
+                Some(pk) => Ok(pk.clone()),
+                None => Err(Error::NoPublicKey),
+            }?;
+
+            // Check public key and ID match
+            let hash: Id = crypto::hash(&public_key).unwrap();
+            if &hash != &self.id() {
+                return Err(Error::KeyIdMismatch);
+            }
+
+            PageInfo::primary(public_key)
+
+        } else if kind.is_page() && flags.contains(Flags::SECONDARY) {
+            // Handle secondary page parsing
+
+            let peer_id = self.public_options_iter().find_map(|o| match o {
+                Options::PeerId(peer_id) => Some(peer_id.peer_id.clone()),
+                _ => None,
+            });
+
+            let peer_id = match peer_id {
+                Some(id) => Ok(id),
+                None => Err(Error::NoPeerId),
+            }?;
+
+            PageInfo::secondary(peer_id)
+        
+        } else if kind.is_page() && flags.contains(Flags::TERTIARY) {
+            // Handle tertiary page parsing
+
+            let peer_id = self.public_options_iter().find_map(|o| match o {
+                Options::PeerId(peer_id) => Some(peer_id.peer_id.clone()),
+                _ => None,
+            });
+            let peer_id = match peer_id {
+                Some(id) => Ok(id),
+                None => Err(Error::NoPeerId),
+            }?;
+
+            let target_id = Id::from(self.body_raw());
+
+            PageInfo::tertiary(target_id, peer_id)
+
+        } else if kind.is_data() {
+            PageInfo::Data(())
+
+        } else {
+            return Err(Error::InvalidPageKind)
+        };
+
+        Ok(info)
+    }
+
+    /// Check whether an object has expired
+    #[cfg(feature = "std")]
+    pub fn expired(&self) -> bool {
+        use std::ops::Add;
+
+        // Convert issued and expiry times
+        let (issued, expiry): (Option<std::time::SystemTime>, Option<std::time::SystemTime>) = (
+            self.public_options_iter().issued().map(|v| v.into()),
+            self.public_options_iter().expiry().map(|v| v.into()),
+        );
+
+        // Compute validity
+        match (issued, expiry) {
+            // For fixed expiry, use this
+            (_, Some(expiry)) => std::time::SystemTime::now() > expiry,
+            // For no expiry, use 1h
+            (Some(issued), None) => {
+                std::time::SystemTime::now() > issued.add(std::time::Duration::from_secs(3600))
+            }
+            // Otherwise default non-expiring..?
+            // TODO: should we even allow services _without_ valid time records?
+            // how to approach this for non-timesync'd devices?
+            _ => false,
+        }
     }
 }
 

@@ -28,5 +28,8 @@ bitflags! {
 
         /// Signal a device is transient, limiting persistence of ID and address
         const NO_PERSIST = (1 << 8);
+
+        /// (subscribe request) prioritise latency, eliding message containers (and thus p2p encryption)
+        const QOS_PRIO_LATENCY = (1 << 9);
     }
 }

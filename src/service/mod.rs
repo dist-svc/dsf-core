@@ -22,7 +22,7 @@ mod subscriber;
 pub use subscriber::Subscriber;
 
 mod registry;
-pub use registry::Registry;
+pub use registry::{Registry, TertiaryOptions};
 
 mod net;
 pub use net::Net;
@@ -172,7 +172,6 @@ mod test {
     use pretty_assertions::{assert_eq};
 
     use crate::base::{Body};
-    use crate::page::Page;
     use crate::service::publisher::{DataOptions, Publisher, SecondaryOptions};
     use crate::service::subscriber::Subscriber;
     use crate::wire::Container;
@@ -216,11 +215,10 @@ mod test {
 
         let base2 = Container::parse(page1.as_ref(), &keys).expect("Error parsing service page");
         assert_eq!(n, base2.len());
-        let page2 = Page::try_from(base2).unwrap();
-        assert_eq!(Page::try_from(pp1).unwrap(), page2);
+        assert_eq!(pp1, base2);
 
         println!("Generating service replica");
-        let mut replica = Service::load(&page2).expect("Error generating service replica");
+        let mut replica = Service::load(&base2).expect("Error generating service replica");
 
         println!("Updating service");
         service
@@ -239,7 +237,7 @@ mod test {
 
         println!("Applying updated page to replica");
         replica
-            .apply_primary(&Page::try_from(pp3).unwrap())
+            .apply_primary(&pp3)
             .expect("Error updating service replica");
         assert_eq!(replica.version, 1);
 
@@ -253,7 +251,7 @@ mod test {
         // Convert secondary container to page
         let b = Container::parse(secondary.as_ref(), &s.keys()).unwrap();
         service
-            .validate_secondary(&Page::try_from(b).unwrap())
+            .validate_secondary(&b)
             .expect("Error validating secondary page against publisher");
 
         println!("Generating a data object");
@@ -265,7 +263,7 @@ mod test {
         println!("Validating data object");
         let b = Container::parse(data.as_ref(), &s.keys()).unwrap();
         replica
-            .validate_data(&Page::try_from(b).unwrap())
+            .validate_data(&b)
             .expect("Error validating data against replica");
     }
 }

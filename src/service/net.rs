@@ -4,7 +4,7 @@ use crate::base::{Encode};
 use crate::error::Error;
 use crate::net::{Request, RequestKind, Response, ResponseKind, Common};
 use crate::options::Options;
-use crate::prelude::{Header, Keys, Page};
+use crate::prelude::{Header, Keys};
 use crate::service::Service;
 use crate::types::{MutableData, MessageKind, Address, Flags};
 use crate::wire::builder::SetPublicOptions;
@@ -80,7 +80,7 @@ impl Net for Service {
             RequestKind::Store(id, pages) | RequestKind::PushData(id, pages) | RequestKind::Register(id, pages) => {
                 b.with_body(|buff| {
                     let mut n = id.encode(buff)?;
-                    n += Page::encode_pages(pages, &mut buff[n..])?;
+                    n += Container::encode_pages(pages, &mut buff[n..])?;
                     Ok(n)
                 })?
             },
@@ -135,7 +135,7 @@ impl Net for Service {
             ResponseKind::ValuesFound(id, pages) | ResponseKind::PullData(id, pages) => {
                 b.with_body(|buff| {
                     let mut i = id.encode(buff)?;
-                    i += Page::encode_pages(pages, &mut buff[i..])?;
+                    i += Container::encode_pages(pages, &mut buff[i..])?;
                     Ok(i)
                 })?
             },
@@ -218,7 +218,7 @@ mod test {
         (s, p)
     }
 
-    fn requests(source: Id, target: Id, flags: Flags, page: Page) -> Vec<Request> {
+    fn requests(source: Id, target: Id, flags: Flags, page: Container) -> Vec<Request> {
         let request_id = 120;
 
         vec![
@@ -274,7 +274,7 @@ mod test {
         let (_n, page) = source.publish_primary_buff(Default::default()).unwrap();
 
         let flags = Flags::ADDRESS_REQUEST;
-        let reqs = requests(source.id(), target.id(), flags, Page::try_from(page).unwrap());
+        let reqs = requests(source.id(), target.id(), flags, page.to_owned());
 
         for r in reqs {
             let mut buff = vec![0u8; 1024];
@@ -308,7 +308,7 @@ mod test {
         let target_keys = target.keys().derive_peer(source.public_key()).unwrap();
 
         let flags = Flags::ADDRESS_REQUEST | Flags::SYMMETRIC_MODE;
-        let reqs = requests(source.id(), target.id(), flags, Page::try_from(page).unwrap());
+        let reqs = requests(source.id(), target.id(), flags, page.to_owned());
 
 
         for r in reqs {
@@ -337,7 +337,7 @@ mod test {
     }
 
 
-    fn responses(source: &Service, target: &Service, flags: Flags, page: Page) -> Vec<Response> {
+    fn responses(source: &Service, target: &Service, flags: Flags, page: Container) -> Vec<Response> {
         let request_id = 123;
         
         vec![
@@ -388,7 +388,7 @@ mod test {
         let (_n, page) = source.publish_primary_buff(Default::default()).unwrap();
 
         let flags = Flags::ADDRESS_REQUEST;
-        let resps = responses(&source, &target, flags, Page::try_from(page).unwrap());
+        let resps = responses(&source, &target, flags, page.to_owned());
 
         for r in resps {
             let mut buff = vec![0u8; 1024];
@@ -422,7 +422,7 @@ mod test {
         let target_keys = target.keys().derive_peer(source.public_key()).unwrap();
 
         let flags = Flags::ADDRESS_REQUEST | Flags::SYMMETRIC_MODE;
-        let resps = responses(&source, &target, flags, Page::try_from(page).unwrap());
+        let resps = responses(&source, &target, flags, page.to_owned());
 
         for r in resps {
             let mut buff = vec![0u8; 1024];

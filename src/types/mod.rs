@@ -91,11 +91,10 @@ pub const HASH_LEN: usize = 32;
 pub type CryptoHash = Array<HASH_LEN>;
 
 
-//#[derive(Clone, PartialEq, Debug)]
-//TODO: remove
-use crate::page::Page;
+
 use crate::prelude::Encode;
-pub type Data = Page;
+use crate::wire::Container;
+pub type Data = Container;
 
 pub mod kinds;
 pub use self::kinds::*;

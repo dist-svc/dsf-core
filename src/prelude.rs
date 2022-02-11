@@ -16,7 +16,7 @@ pub use crate::types::{PrivateKey, PublicKey, SecretKey, Signature};
 
 pub use crate::base::{Body, Encode, Header, Parse, MaybeEncrypted};
 
-pub use crate::page::{Page, PageInfo};
+pub use crate::page::{PageInfo};
 
 pub use crate::net::{
     Message as NetMessage, Request as NetRequest, RequestKind as NetRequestKind,

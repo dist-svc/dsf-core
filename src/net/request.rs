@@ -6,7 +6,6 @@ use alloc::vec::{Vec};
 
 use crate::error::Error;
 use crate::options::{Options, Filters};
-use crate::page::Page;
 use crate::types::*;
 use crate::keys::KeySource;
 use crate::wire::Container;
@@ -36,15 +35,15 @@ pub enum RequestKind {
     Ping,
     FindNode(Id),
     FindValue(Id),
-    Store(Id, Vec<Page>),
+    Store(Id, Vec<Container>),
 
     Locate(Id),
     Subscribe(Id),
     Unsubscribe(Id),
     Query(Id),
-    PushData(Id, Vec<Page>),
+    PushData(Id, Vec<Container>),
 
-    Register(Id, Vec<Page>),
+    Register(Id, Vec<Container>),
     Unregister(Id),
     Discover(Vec<u8>, Vec<Options>),
 }
@@ -164,7 +163,7 @@ impl Request {
 
                 // Perhaps i should not fetch pages until later..?
                 // And also sign them earlier..?
-                let pages = Page::decode_pages(&body[ID_LEN..], key_source)?;
+                let pages = Container::decode_pages(&body[ID_LEN..], key_source)?;
 
                 RequestKind::Store(id, pages)
             }
@@ -172,7 +171,7 @@ impl Request {
                 let mut id = Id::default();
                 id.copy_from_slice(&body[0..ID_LEN]);
 
-                let pages = Page::decode_pages(&body[ID_LEN..], key_source)?;
+                let pages = Container::decode_pages(&body[ID_LEN..], key_source)?;
 
                 RequestKind::PushData(id, pages)
             }
@@ -180,7 +179,7 @@ impl Request {
                 let mut id = Id::default();
                 id.copy_from_slice(&body[0..ID_LEN]);
 
-                let pages = Page::decode_pages(&body[ID_LEN..], key_source)?;
+                let pages = Container::decode_pages(&body[ID_LEN..], key_source)?;
 
                 RequestKind::Register(id, pages)
             }
