@@ -129,6 +129,10 @@ impl <B: PageBody + Default> Service<B> {
         }
     }
 
+    pub fn kind(&self) -> PageKind {
+        self.kind
+    }
+
     pub fn public_options(&self) -> &[Options] {
         &self.public_options
     }

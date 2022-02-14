@@ -205,7 +205,7 @@ impl Service {
 
 #[cfg(test)]
 mod test {
-    use std::{convert::TryFrom, net::{IpAddr, Ipv4Addr, SocketAddr}};
+    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
     use pretty_assertions::assert_eq;
 

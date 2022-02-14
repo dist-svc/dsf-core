@@ -5,7 +5,7 @@ use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 use self::kind_flags::REQUEST_FLAGS;
 
-/// Kind identifies the type of the of the obvject
+/// Kind identifies the type of the of the object
 #[derive(PartialEq, Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
@@ -73,17 +73,18 @@ pub enum KindError {
     Unrecognized(u16),
 }
 
-/// PageKind describes DSF-specific page kinds
+/// PageKind describes DSF-specific page kinds for encoding and decoding
 #[derive(PartialEq, Debug, Clone, Copy, IntoPrimitive, TryFromPrimitive)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-#[cfg_attr(feature = "strum", derive(strum_macros::EnumString))]
+#[cfg_attr(feature = "strum", derive(strum_macros::Display, strum_macros::EnumString, strum_macros::EnumVariantNames))]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[repr(u16)]
-    pub enum PageKind {
+pub enum PageKind {
     Generic     = 0x0000 | PAGE_FLAGS,
     Peer        = 0x0001 | PAGE_FLAGS,
     Replica     = 0x0002 | PAGE_FLAGS,
-    Tertiary    = 0x0003 | PAGE_FLAGS,
+    Name        = 0x0003 | PAGE_FLAGS,
+    Tertiary    = 0x0004 | PAGE_FLAGS,
     Private     = 0x0FFF | PAGE_FLAGS,
 }
 
@@ -234,9 +235,9 @@ pub mod kind_flags {
     pub const REQUEST_FLAGS: u16 = 0b0010_0000_0000_0000;
     pub const RESPONSE_FLAGS: u16 = 0b0100_0000_0000_0000;
 
-    pub const DATA_FLAGS: u16 = 0b0110_0000_0000_0000;
+    pub const DATA_FLAGS: u16   = 0b0110_0000_0000_0000;
     pub const DATA_GENERIC: u16 = 0x0000 | DATA_FLAGS;
-    pub const DATA_IOT: u16 = 0x0001 | DATA_FLAGS;
+    pub const DATA_IOT: u16     = 0x0001 | DATA_FLAGS;
 }
 
 #[cfg(test)]

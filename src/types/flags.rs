@@ -13,14 +13,17 @@ bitflags! {
         /// Signal an object is encrypted
         const ENCRYPTED       = (1 << 2);
 
-        /// Request that the response contains a service address (messages_only)
+        /// Specify service is of nameservice type (primary page only)
+        const NAMESERVICE     = (1 << 3);
+
+        /// Request that the response contains a service address (messages only)
         const ADDRESS_REQUEST = (1 << 3);
-        /// Request that the response contains a public key (messages_only)
+        /// Request that the response contains a public key (messages only)
         const PUB_KEY_REQUEST = (1 << 4);
 
         /// Signal symmetric encryption is enabled (messages only)
         const SYMMETRIC_MODE = (1 << 5);
-        /// Set direction flag for symmetric encryption
+        /// Set direction flag for symmetric encryption (messages only)
         const SYMMETRIC_DIR  = (1 << 6);
 
         /// Signal a device is constrained (requests are delegation, not for use as DHT peer)

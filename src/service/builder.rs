@@ -88,7 +88,7 @@ impl ServiceBuilder {
         let mut s = Self {
             // TODO: fix up kinds, seems to be conflation between DB and DSF pages?
             // maybe this should be flags for pri | sec | ter + enum for variant?
-            kind: PageKind::Generic,
+            kind: PageKind::Name,
             ..Default::default()
         };
 

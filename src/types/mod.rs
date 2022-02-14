@@ -91,7 +91,6 @@ pub const HASH_LEN: usize = 32;
 pub type CryptoHash = Array<HASH_LEN>;
 
 
-
 use crate::prelude::Encode;
 use crate::wire::Container;
 pub type Data = Container;

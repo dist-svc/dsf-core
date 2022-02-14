@@ -1,10 +1,13 @@
 use core::str;
+use core::str::FromStr;
+use core::fmt::Display;
 
 use byteorder::{ByteOrder, NetworkEndian};
 
 use crate::base::{Encode, Parse};
 use crate::error::Error;
-use crate::types::DateTime;
+use crate::types::{DateTime, PublicKey};
+use super::Options;
 
 impl Parse for String {
     type Output = String;
@@ -56,3 +59,61 @@ impl Encode for DateTime {
     }
 }
 
+#[derive(Debug, Clone)]
+#[cfg_attr(feature="thiserror", derive(thiserror::Error))]
+pub enum OptionsParseError {
+    #[cfg_attr(feature="thiserror", error("Invalid format (expected key:value)"))]
+    InvalidFormat,
+    
+    #[cfg_attr(feature="thiserror", error("String encode/decode not supported for this option kind"))]
+    Unsupported,
+
+    #[cfg_attr(feature="thiserror", error("Base64 decode error: {0}"))]
+    B64(base64::DecodeError),
+}
+
+impl FromStr for Options {
+    type Err = OptionsParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        use OptionsParseError::*;
+
+        let mut p = s.split(":");
+        let (prefix, data) = match (p.next(), p.next()) {
+            (Some(p), Some(d)) => (p, d),
+            _ => return Err(InvalidFormat),
+        };
+
+        match prefix {
+            "pub_key" => Options::pub_key(PublicKey::from_str(&data).map_err(B64)?),
+            "name" => Options::name(&data),
+            "kind" => Options::kind(&data),
+            _ => return Err(Unsupported),
+        };
+        
+        todo!()
+    }
+}
+
+impl Display for Options {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Options::PubKey(o) => write!(f, "pub_key:{}", o.public_key),
+            Options::Name(o) => write!(f, "name:{}", o.value),
+            Options::Kind(o) => write!(f, "kind:{}", o.value),
+            //Options::Building(o) => write!(f, "name:{}", name.value),
+            //Options::Room(o) => write!(f, "kind:{}", kind.value),
+            _ => write!(f, "{:?}", self),
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    #[test]
+    fn test_options_parsing() {
+
+
+    }
+
+}

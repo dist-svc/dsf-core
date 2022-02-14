@@ -3,13 +3,15 @@
 use crate::types::*;
 
 use ed25519_dalek::{
+    Signer as _, Verifier as _,
     Keypair, PublicKey as DalekPublicKey, SecretKey as DalekSecretKey, Signature, SignatureError,
 };
 
-use rand_facade::GlobalRng;
+use rand::rngs::OsRng;
 
 pub fn pk_new() -> (PublicKey, PrivateKey) {
-    let keypair = Keypair::generate(&mut GlobalRng::get());
+    let mut csprng = OsRng{};
+    let keypair = Keypair::generate(&mut csprng);
     (keypair.public.to_bytes().into(), keypair.to_bytes().into())
 }
 
@@ -31,4 +33,37 @@ pub fn pk_validate(
 ) -> Result<bool, SignatureError> {
     let public_key = DalekPublicKey::from_bytes(&public_key).unwrap();
     Ok(public_key.verify(data, signature).is_ok())
+}
+
+
+#[cfg(test)]
+mod test {
+    extern crate test;
+    use test::Bencher;
+
+    use crate::types::SECRET_KEY_TAG_LEN;
+    use super::*;
+    #[bench]
+    fn bench_pk_sign(b: &mut Bencher) {
+        let (_public, private) = pk_new();
+        let data = [0xabu8; 256];
+
+        b.iter(|| {
+            let _sig = pk_sign(&private, &data).expect("Error generating signature");
+        })
+    }
+
+    #[bench]
+    fn bench_pk_verify(b: &mut Bencher) {
+        let (public, private) = pk_new();
+        let data = [0xabu8; 256];
+
+        let signature = pk_sign(&private, &data).expect("Error generating signature");
+
+        b.iter(|| {
+            let valid =
+                pk_validate(&public, &signature, &data).expect("Error validating signature");
+            assert_eq!(true, valid);
+        })
+    }
 }

@@ -3,6 +3,7 @@
  
 use core::convert::TryFrom;
 use core::fmt::Debug;
+use core::str::FromStr;
 
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
@@ -38,6 +39,7 @@ pub enum Options {
     Metadata(Metadata),
     Coord(Coordinates),
 }
+
 
 pub struct OptionsIter<T> {
     index: usize,
