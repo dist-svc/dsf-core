@@ -44,7 +44,7 @@ impl <T: ImmutableData> PartialEq for Container<T> {
 
 /// Override `core::fmt::Debug` to show subfields
 impl <T: ImmutableData> core::fmt::Debug for Container<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let mut d = f.debug_struct("Container");
 
         d.field("id", &self.id())
@@ -67,8 +67,8 @@ impl <T: ImmutableData> core::fmt::Debug for Container<T> {
         .field("len", &self.len())
         .field("decrypted", &self.decrypted)
         .field("verified", &self.verified)
-        // TODO: work out how to force this to format as hex?
-        .field("raw", &self.raw())
+        // TODO: work out how to make this optional / force this to format as hex?
+        //.field("raw", &self.raw())
         .finish()
     }
 }
@@ -80,7 +80,8 @@ impl <T: ImmutableData> serde::Serialize for Container<T> {
     where
         S: serde::Serializer,
     {
-        serializer.serialize_bytes(self.raw())
+        //serializer.serialize_bytes(self.raw())
+        serializer.serialize_str(&base64::encode(self.raw()))
     }
 }
 
@@ -99,12 +100,25 @@ impl<'de: 'a, 'a> serde::Deserialize<'de> for Container {
                 formatter.write_str("raw container object bytes")
             }
 
-            fn visit_bytes<E>(self, buff: &[u8]) -> Result<Self::Value, E>
+            fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
             where
                 E: serde::de::Error,
             {
-                // TODO: parsing errors here?
-                // .map_err(|_e| de::Error::custom("decoding b64"))
+                let buff = base64::decode(v)
+                    .map_err(|_e| serde::de::Error::custom("decoding base64"))?;
+
+                Container::try_from(buff)
+                    .map_err(|_e| serde::de::Error::custom("decoding container"))
+            }
+
+            fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+
+                let buff = base64::decode(v)
+                    .map_err(|_e| serde::de::Error::custom("decoding base64"))?;
+
                 Container::try_from(buff)
                     .map(|c| c.to_owned())
                     .map_err(|_e| serde::de::Error::custom("decoding container"))
@@ -120,6 +134,16 @@ impl <'a> TryFrom<&'a [u8]> for Container<&'a [u8]> {
     type Error = ();
 
     fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
+        let c = Container::from(value);
+        Ok(c.0)
+    }
+}
+
+impl TryFrom<Vec<u8>> for Container<Vec<u8>> {
+    // TODO: check basic container info
+    type Error = ();
+
+    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
         let c = Container::from(value);
         Ok(c.0)
     }
