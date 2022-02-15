@@ -2,7 +2,19 @@
 //! This allows for limited capability devices to perform network operations via
 //! a full-featured device
 
-use crate::types::Id;
+use crate::{types::Id, base::{PageBody, DataBody}};
+
+/// Application object used to describe a DSF application
+pub trait Application {
+    /// DSF Application ID
+    const APPLICATION_ID: u16;
+
+    /// Service information (page body)
+    type Info: PageBody + core::fmt::Debug;
+
+    /// Service data (block body)
+    type Data: DataBody + core::fmt::Debug;
+}
 
 /// ServiceHandle objects are used to pass around instances of a service
 #[derive(Debug, Clone, PartialEq)]

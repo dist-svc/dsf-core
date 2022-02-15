@@ -8,7 +8,7 @@ mod header;
 pub use header::*;
 
 use crate::options::Options;
-use crate::types::ImmutableData;
+use crate::types::{ImmutableData, Id};
 use crate::error::Error;
 
 pub type Body = MaybeEncrypted;
@@ -32,6 +32,16 @@ pub trait Parse {
             _t: PhantomData,
             _e: PhantomData,
         }
+    }
+}
+
+impl Parse for () {
+    type Output = ();
+
+    type Error = Infallible;
+
+    fn parse(_buff: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
+        Ok(((), 0))
     }
 }
 
@@ -112,6 +122,14 @@ impl <T: Encode> Encode for &T {
     }
 }
 
+impl Encode for () {
+    type Error = Infallible;
+
+    fn encode(&self, _buff: &mut [u8]) -> Result<usize, Self::Error> {
+        Ok(0)
+    }
+}
+
 /// Encode for arrays of encodable types
 impl <T: Encode> Encode for &[T] {
     type Error = <T as Encode>::Error;
@@ -174,12 +192,18 @@ pub trait PageBody: Encode {}
 
 impl PageBody for &[u8] {}
 
+impl PageBody for Id {}
+
+impl PageBody for () {}
+
 //TODO: impl PageBody for Vec<u8> {}
 
 /// Marker trait for data body types
 pub trait DataBody: Encode {}
 
 impl DataBody for &[u8] {}
+
+impl DataBody for () {}
 
 //TODO: impl DataBody for Vec<u8> {}
 
