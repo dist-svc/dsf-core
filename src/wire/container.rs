@@ -401,9 +401,17 @@ impl<'a, T: ImmutableData> Container<T> {
                 None => Err(Error::NoPeerId),
             }?;
 
-            let target_id = Id::from(self.body_raw());
-
-            PageInfo::tertiary(target_id, peer_id)
+            match PageKind::try_from(kind.index()) {
+                Ok(PageKind::ServiceLink) => {
+                    let target_id = Id::from(self.body_raw());
+                    PageInfo::service_link(target_id, peer_id)
+                },
+                Ok(PageKind::BlockLink) => {
+                    let block_sig = Signature::from(self.body_raw());
+                    PageInfo::block_link(block_sig, peer_id)
+                }
+                _ => return Err(Error::InvalidPageKind),
+            }
 
         } else if kind.is_data() {
             PageInfo::Data(())

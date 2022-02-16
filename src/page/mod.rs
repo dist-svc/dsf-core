@@ -1,4 +1,4 @@
-use crate::types::{Id, PublicKey};
+use crate::types::{Id, PublicKey, Signature};
 
 /// Information about a type of page
 #[derive(Debug, PartialEq, Clone)]
@@ -8,7 +8,8 @@ pub enum PageInfo {
     Primary(Primary),
     Secondary(Secondary),
     Data(()),
-    Tertiary(Tertiary),
+    ServiceLink(ServiceLink),
+    BlockLink(BlockLink),
 }
 
 impl PageInfo {
@@ -20,8 +21,12 @@ impl PageInfo {
         PageInfo::Secondary(Secondary { peer_id })
     }
 
-    pub fn tertiary(target_id: Id, peer_id: Id) -> Self {
-        PageInfo::Tertiary(Tertiary{ target_id, peer_id })
+    pub fn service_link(target_id: Id, peer_id: Id) -> Self {
+        PageInfo::ServiceLink(ServiceLink{ target_id, peer_id })
+    }
+
+    pub fn block_link(block_sig: Signature, peer_id: Id) -> Self {
+        PageInfo::BlockLink(BlockLink{ block_sig, peer_id })
     }
 
     pub fn is_primary(&self) -> bool {
@@ -70,7 +75,15 @@ pub struct Secondary {
 #[derive(Debug, PartialEq, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub struct Tertiary {
+pub struct ServiceLink {
     pub target_id: Id,
+    pub peer_id: Id,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub struct BlockLink {
+    pub block_sig: Signature,
     pub peer_id: Id,
 }

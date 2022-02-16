@@ -2,11 +2,11 @@ use byteorder::{NetworkEndian, ByteOrder};
 
 use crate::base::{Encode};
 use crate::error::Error;
-use crate::net::{Request, RequestKind, Response, ResponseKind, Common};
+use crate::net::{Request, RequestBody, Response, ResponseBody, Common};
 use crate::options::Options;
 use crate::prelude::{Header, Keys};
 use crate::service::Service;
-use crate::types::{MutableData, MessageKind, Address, Flags};
+use crate::types::{MutableData, RequestKind, ResponseKind, Address, Flags, Kind};
 use crate::wire::builder::SetPublicOptions;
 use crate::wire::{Container, Builder};
 
@@ -62,7 +62,7 @@ impl Net for Service {
 
         // Create generic header
           let header = Header {
-            kind: MessageKind::from(&req.data).into(),
+            kind: Kind::from(RequestKind::from(&req.data)),
             flags: req.flags,
             index: req.id,
             ..Default::default()
@@ -75,9 +75,9 @@ impl Net for Service {
 
         // Encode body
         let b = match &req.data {
-            RequestKind::Hello | RequestKind::Ping => b.body(&[])?,
-            RequestKind::FindNode(id) | RequestKind::FindValue(id) | RequestKind::Subscribe(id) | RequestKind::Unsubscribe(id) | RequestKind::Query(id) | RequestKind::Locate(id) | RequestKind::Unregister(id) => b.body(id.as_ref())?,
-            RequestKind::Store(id, pages) | RequestKind::PushData(id, pages) | RequestKind::Register(id, pages) => {
+            RequestBody::Hello | RequestBody::Ping => b.body(&[])?,
+            RequestBody::FindNode(id) | RequestBody::FindValue(id) | RequestBody::Subscribe(id) | RequestBody::Unsubscribe(id) | RequestBody::Query(id) | RequestBody::Locate(id) | RequestBody::Unregister(id) => b.body(id.as_ref())?,
+            RequestBody::Store(id, pages) | RequestBody::PushData(id, pages) | RequestBody::Register(id, pages) => {
                 b.with_body(|buff| {
                     let mut n = id.encode(buff)?;
                     n += Container::encode_pages(pages, &mut buff[n..])?;
@@ -85,7 +85,7 @@ impl Net for Service {
                 })?
             },
             // TODO: filter on options here too
-            RequestKind::Discover(body, _opts) => {
+            RequestBody::Discover(body, _opts) => {
                 b.body(body)?
             },
         };
@@ -104,7 +104,7 @@ impl Net for Service {
     fn encode_response<B: MutableData>(&self, resp: &Response, keys: &Keys, buff: B) -> Result<Container<B>, Error> {
         // Create generic header
         let header = Header {
-            kind: MessageKind::from(&resp.data).into(),
+            kind: Kind::from(ResponseKind::from(&resp.data)),
             flags: resp.flags,
             index: resp.id,
             ..Default::default()
@@ -117,11 +117,11 @@ impl Net for Service {
 
         // Encode body
         let b = match &resp.data {
-            ResponseKind::Status(status) => b.with_body(|buff| {
+            ResponseBody::Status(status) => b.with_body(|buff| {
                 NetworkEndian::write_u32(buff, status.into());
                 Ok(4)
             })?,
-            ResponseKind::NodesFound(id, nodes) => b.with_body(|buff| {
+            ResponseBody::NodesFound(id, nodes) => b.with_body(|buff| {
                     let mut i = id.encode(buff)?;
                     for n in nodes {
                         i += Options::encode_iter(&[
@@ -132,14 +132,14 @@ impl Net for Service {
                     }
                     Ok(i)
             })?,
-            ResponseKind::ValuesFound(id, pages) | ResponseKind::PullData(id, pages) => {
+            ResponseBody::ValuesFound(id, pages) | ResponseBody::PullData(id, pages) => {
                 b.with_body(|buff| {
                     let mut i = id.encode(buff)?;
                     i += Container::encode_pages(pages, &mut buff[i..])?;
                     Ok(i)
                 })?
             },
-            ResponseKind::NoResult => b.body(&[])?,
+            ResponseBody::NoResult => b.body(&[])?,
         };
 
         // Attach options
@@ -225,43 +225,43 @@ mod test {
             Request::new(
                 source.clone(),
                 0,
-                RequestKind::Hello,
+                RequestBody::Hello,
                 flags.clone(),
             ),
             Request::new(
                 source.clone(),
                 1,
-                RequestKind::Ping,
+                RequestBody::Ping,
                 flags.clone(),
             ),
             Request::new(
                 source.clone(),
                 request_id,
-                RequestKind::FindNode(target.clone()),
+                RequestBody::FindNode(target.clone()),
                 flags.clone(),
             ),
             Request::new(
                 source.clone(),
                 request_id,
-                RequestKind::Store(source.clone(), vec![page.clone()]),
+                RequestBody::Store(source.clone(), vec![page.clone()]),
                 flags.clone(),
             ),
             Request::new(
                 source.clone(),
                 request_id,
-                RequestKind::Subscribe(target.clone()),
+                RequestBody::Subscribe(target.clone()),
                 flags.clone(),
             ),
             Request::new(
                 source.clone(),
                 request_id,
-                RequestKind::Query(target.clone()),
+                RequestBody::Query(target.clone()),
                 flags.clone(),
             ),
             Request::new(
                 source.clone(),
                 request_id,
-                RequestKind::PushData(source.clone(), vec![page.clone()]),
+                RequestBody::PushData(source.clone(), vec![page.clone()]),
                 flags.clone(),
             ),
         ]
@@ -344,14 +344,14 @@ mod test {
             Response::new(
                 source.id(),
                 request_id,
-                ResponseKind::Status(Status::Ok),
+                ResponseBody::Status(Status::Ok),
                 flags.clone(),
             ),
             // TODO: put node information here
             Response::new(
                 source.id(),
                 request_id,
-                ResponseKind::NodesFound(
+                ResponseBody::NodesFound(
                     target.id(),
                     vec![(
                         target.id(),
@@ -364,19 +364,19 @@ mod test {
             Response::new(
                 source.id(),
                 request_id,
-                ResponseKind::ValuesFound(target.id(), vec![page.clone()]),
+                ResponseBody::ValuesFound(target.id(), vec![page.clone()]),
                 flags.clone(),
             ),
             Response::new(
                 source.id(),
                 request_id,
-                ResponseKind::NoResult,
+                ResponseBody::NoResult,
                 flags.clone(),
             ),
             Response::new(
                 source.id(),
                 request_id,
-                ResponseKind::PullData(target.id(), vec![page.clone()]),
+                ResponseBody::PullData(target.id(), vec![page.clone()]),
                 flags.clone(),
             ),
         ]

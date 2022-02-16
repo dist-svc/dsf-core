@@ -1,4 +1,5 @@
 use core::fmt;
+use std::ops::Add;
 
 use chrono::{NaiveDateTime, TimeZone, Utc};
 
@@ -20,6 +21,16 @@ impl DateTime {
 
     pub fn as_secs(&self) -> u64 {
         self.0
+    }
+}
+
+impl Add<core::time::Duration> for DateTime {
+    type Output = DateTime;
+
+    /// Add a [`core::time::Duration`] to the provided [`DateTime`]
+    fn add(self, rhs: core::time::Duration) -> Self::Output {
+        let secs = rhs.as_secs() as u64;
+        Self(self.0 + secs)
     }
 }
 

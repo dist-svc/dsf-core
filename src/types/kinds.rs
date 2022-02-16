@@ -1,76 +1,87 @@
 use core::convert::TryFrom;
-use core::str::FromStr;
 
+use modular_bitfield::prelude::*;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
-use self::kind_flags::REQUEST_FLAGS;
-
-/// Kind identifies the type of the of the object
-#[derive(PartialEq, Debug, Clone, Copy)]
+/// Kind identifies the type of the of object
+#[bitfield]
+#[derive(Copy, Clone, PartialEq, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub struct Kind(pub u16);
+#[repr(u16)]
+pub struct Kind {
+    /// Object kind index
+    pub index: B13,
+    /// Application flag, indicates object is application defined / external to DSF
+    pub app: bool,
+    /// Base object kind specifier
+    pub base: BaseKind,
+}
+
+#[derive(BitfieldSpecifier, Copy, Clone, PartialEq, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[bits = 2]
+pub enum BaseKind {
+    /// Page object (for storage in the DHT)
+    Page = 0,
+    /// Data object
+    Block = 1,
+    /// Request message
+    Request = 2,
+    /// Response message
+    Response = 3,
+}
 
 impl Kind {
     pub fn is_application(&self) -> bool {
-        self.0 & kind_flags::APP_FLAG != 0
+        self.app()
     }
 
     pub fn is_page(&self) -> bool {
-        self.0 & kind_flags::KIND_MASK == kind_flags::PAGE_FLAGS
+        self.base() == BaseKind::Page
+    }
+
+    pub fn is_request(&self) -> bool {
+        self.base() == BaseKind::Request
+    }
+
+    pub fn is_response(&self) -> bool {
+        self.base() == BaseKind::Response
     }
 
     pub fn is_message(&self) -> bool {
         self.is_request() || self.is_response()
     }
 
-    pub fn is_request(&self) -> bool {
-        self.0 & kind_flags::KIND_MASK == kind_flags::REQUEST_FLAGS
-    }
-
-    pub fn is_response(&self) -> bool {
-        self.0 & kind_flags::KIND_MASK == kind_flags::RESPONSE_FLAGS
-    }
-
     pub fn is_data(&self) -> bool {
-        self.0 & kind_flags::KIND_MASK == kind_flags::DATA_FLAGS
+        self.base() == BaseKind::Block
     }
 
-    pub fn page(value: u16) -> Self {
-        Kind(value | kind_flags::PAGE_FLAGS)
+    pub fn page(index: u16) -> Self {
+        Kind::new().with_base(BaseKind::Page).with_index(index)
     }
 
-    pub fn request(value: u16) -> Self {
-        Kind(value | kind_flags::REQUEST_FLAGS)
+    pub fn request(index: u16) -> Self {
+        Kind::new().with_base(BaseKind::Request).with_index(index)
     }
 
-    pub fn response(value: u16) -> Self {
-        Kind(value | kind_flags::RESPONSE_FLAGS)
+    pub fn response(index: u16) -> Self {
+        Kind::new().with_base(BaseKind::Response).with_index(index)
     }
 
-    pub fn data(value: u16) -> Self {
-        Kind(value | kind_flags::DATA_FLAGS)
+    pub fn data(index: u16) -> Self {
+        Kind::new().with_base(BaseKind::Block).with_index(index)
     }
 }
 
-impl From<u16> for Kind {
-    fn from(v: u16) -> Self {
-        Kind(v)
-    }
-}
-
-impl Into<u16> for Kind {
-    fn into(self) -> u16 {
-        self.0
-    }
-}
 
 // Error parsing kind values
 #[derive(Clone, PartialEq, Debug, Copy)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum KindError {
-    InvalidKind(u16),
-    Unrecognized(u16),
+    InvalidKind(Kind),
+    Unrecognized(Kind),
 }
 
 /// PageKind describes DSF-specific page kinds for encoding and decoding
@@ -80,12 +91,26 @@ pub enum KindError {
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[repr(u16)]
 pub enum PageKind {
-    Generic     = 0x0000 | PAGE_FLAGS,
-    Peer        = 0x0001 | PAGE_FLAGS,
-    Replica     = 0x0002 | PAGE_FLAGS,
-    Name        = 0x0003 | PAGE_FLAGS,
-    Tertiary    = 0x0004 | PAGE_FLAGS,
-    Private     = 0x0FFF | PAGE_FLAGS,
+    /// Basic / default page, primary
+    Generic     = 0x0000,
+
+    /// Peer page, primary, encodes connection information for peers
+    Peer        = 0x0001,
+
+    /// Replica page, secondary, links a service to a replicating peer w/ QoS information
+    Replica     = 0x0002,
+
+    /// Name page, primary, defines a name service
+    Name        = 0x0003,
+    
+    /// Service link page, tertiary, published by name service, links a hashed value to a third party service
+    ServiceLink = 0x0004,
+
+    /// Block link page, tertiary, published by name services, links a hashed value to a block published by the name service
+    BlockLink   = 0x0005,
+
+    /// Private page kind, do not parse
+    Private     = 0x0FFF,
 }
 
 impl TryFrom<Kind> for PageKind {
@@ -93,15 +118,15 @@ impl TryFrom<Kind> for PageKind {
 
     fn try_from(v: Kind) -> Result<Self, Self::Error> {
         // Check kind mask
-        if v.0 & kind_flags::KIND_MASK != kind_flags::PAGE_FLAGS {
-            return Err(KindError::InvalidKind(v.0 & kind_flags::KIND_MASK));
+        if v.base() != BaseKind::Page {
+            return Err(KindError::InvalidKind(v));
         }
 
         // Convert to page kind
-        match PageKind::try_from(v.0) {
+        match PageKind::try_from(v.index()) {
             Ok(v) => Ok(v),
             Err(_e) => {
-                Err(KindError::InvalidKind(v.0 & kind_flags::KIND_MASK))
+                Err(KindError::InvalidKind(v))
             }
         }
     }
@@ -109,135 +134,110 @@ impl TryFrom<Kind> for PageKind {
 
 impl Into<Kind> for PageKind {
     fn into(self) -> Kind {
-        Kind(self.into())
+        Kind::new().with_base(BaseKind::Page).with_index(self as u16)
     }
 }
 
-use kind_flags::{RESPONSE_FLAGS, PAGE_FLAGS};
-
-#[derive(PartialEq, Debug, Clone, Copy, IntoPrimitive, TryFromPrimitive)]
+#[derive(BitfieldSpecifier, Copy, Clone, PartialEq, Debug)]
 #[cfg_attr(feature = "strum_macros", derive(strum_macros::EnumString, strum_macros::Display))]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-#[repr(u16)]
-pub enum MessageKind {
-    Hello           = 0x0000 | REQUEST_FLAGS,
-    Ping            = 0x0001 | REQUEST_FLAGS,         
-    FindNodes       = 0x0002 | REQUEST_FLAGS,
-    FindValues      = 0x0003 | REQUEST_FLAGS,
-    Store           = 0x0004 | REQUEST_FLAGS,
-    Subscribe       = 0x0005 | REQUEST_FLAGS,
-    Query           = 0x0006 | REQUEST_FLAGS,
-    PushData        = 0x0007 | REQUEST_FLAGS,
-    Unsubscribe     = 0x0008 | REQUEST_FLAGS,
-    Register        = 0x0009 | REQUEST_FLAGS,
-    Unregister      = 0x000a | REQUEST_FLAGS,
-    Discover        = 0x000b | REQUEST_FLAGS,
-    Locate          = 0x000c | REQUEST_FLAGS,
-
-    Status          = 0x0000 | RESPONSE_FLAGS,
-    NoResult        = 0x0001 | RESPONSE_FLAGS,
-    NodesFound      = 0x0002 | RESPONSE_FLAGS,
-    ValuesFound     = 0x0003 | RESPONSE_FLAGS,
-    PullData        = 0x0004 | RESPONSE_FLAGS,
+#[bits = 13]
+pub enum RequestKind {
+    Hello           = 0x0000,
+    Ping            = 0x0001,         
+    FindNodes       = 0x0002,
+    FindValues      = 0x0003,
+    Store           = 0x0004,
+    Subscribe       = 0x0005,
+    Query           = 0x0006,
+    PushData        = 0x0007,
+    Unsubscribe     = 0x0008,
+    Register        = 0x0009,
+    Unregister      = 0x000a,
+    Discover        = 0x000b,
+    Locate          = 0x000c,
 }
 
-impl TryFrom<Kind> for MessageKind {
+impl From<RequestKind> for Kind {
+    fn from(k: RequestKind) -> Self {
+        Kind::new().with_base(BaseKind::Request).with_index(k as u16)
+    }
+}
+
+impl TryFrom<Kind> for RequestKind {
     type Error = KindError;
 
-    fn try_from(v: Kind) -> Result<Self, Self::Error> {
-        // Check kind is message
-        if (v.0 & kind_flags::KIND_MASK) != kind_flags::REQUEST_FLAGS
-            && (v.0 & kind_flags::KIND_MASK) != kind_flags::RESPONSE_FLAGS {
-            return Err(KindError::InvalidKind(v.0 & kind_flags::KIND_MASK));
+    fn try_from(value: Kind) -> Result<Self, Self::Error> {
+        if value.base() != BaseKind::Request || value.app() {
+            return Err(KindError::InvalidKind(value))
         }
-        
-        // TODO: do not attempt to parse application specific kinds
-        
-        // Parse message kind
-        match MessageKind::try_from(v.0) {
-            Ok(v) => Ok(v),
-            Err(_e) => {
-                Err(KindError::InvalidKind(v.0 & kind_flags::KIND_MASK))
-            }
-        }
+
+        RequestKind::from_bytes(value.index())
+            .map_err(|_| KindError::Unrecognized(value) )
     }
 }
 
-impl Into<Kind> for MessageKind {
-    fn into(self) -> Kind {
-        Kind(self.into())
-    }
-}
 
-#[derive(PartialEq, Debug, Clone, Copy)]
+#[derive(BitfieldSpecifier, Copy, Clone, PartialEq, Debug)]
+#[cfg_attr(feature = "strum_macros", derive(strum_macros::EnumString, strum_macros::Display))]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[bits = 13]
+pub enum ResponseKind {
+    Status          = 0x0000,
+    NoResult        = 0x0001,
+    NodesFound      = 0x0002,
+    ValuesFound     = 0x0003,
+    PullData        = 0x0004,
+}
+
+impl From<ResponseKind> for Kind {
+    fn from(k: ResponseKind) -> Self {
+        Kind::new().with_base(BaseKind::Response).with_index(k as u16)
+    }
+}
+
+impl TryFrom<Kind> for ResponseKind {
+    type Error = KindError;
+
+    fn try_from(value: Kind) -> Result<Self, Self::Error> {
+        if value.base() != BaseKind::Response || value.app(){
+            return Err(KindError::InvalidKind(value))
+        }
+
+        ResponseKind::from_bytes(value.index())
+            .map_err(|_| KindError::Unrecognized(value) )
+    }
+}
+
+
+#[derive(BitfieldSpecifier, Copy, Clone, PartialEq, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[bits = 13]
+
 pub enum DataKind {
-    Generic,
-    Iot,
-    Unknown(u16),
+    Generic = 0x0000,
+}
+
+impl From<DataKind> for Kind {
+    fn from(k: DataKind) -> Self {
+        Kind::new().with_base(BaseKind::Block).with_index(k as u16)
+    }
 }
 
 impl TryFrom<Kind> for DataKind {
     type Error = KindError;
 
-    fn try_from(v: Kind) -> Result<Self, Self::Error> {
-        if v.0 & kind_flags::KIND_MASK != kind_flags::DATA_FLAGS {
-            return Err(KindError::InvalidKind(v.0 & kind_flags::KIND_MASK));
+    fn try_from(value: Kind) -> Result<Self, Self::Error> {
+        if value.base() != BaseKind::Block || value.app(){
+            return Err(KindError::InvalidKind(value))
         }
 
-        let base = match v.0 {
-            kind_flags::DATA_GENERIC => DataKind::Generic,
-            kind_flags::DATA_IOT => DataKind::Iot,
-            _ => return Err(KindError::Unrecognized(v.0)),
-        };
-
-        Ok(base)
+        DataKind::from_bytes(value.index())
+            .map_err(|_| KindError::Unrecognized(value) )
     }
-}
-
-impl Into<Kind> for DataKind {
-    fn into(self) -> Kind {
-        let base = match self {
-            DataKind::Generic => kind_flags::DATA_GENERIC,
-            DataKind::Iot => kind_flags::DATA_IOT,
-            DataKind::Unknown(v) => kind_flags::DATA_FLAGS | v,
-        };
-
-        Kind(base)
-    }
-}
-
-impl FromStr for DataKind {
-    type Err = core::num::ParseIntError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.to_ascii_lowercase() == "generic" {
-            Ok(DataKind::Generic)
-        } else {
-            let v: u16 = s.parse()?;
-            Ok(DataKind::Unknown(v))
-        }
-    }
-}
-
-pub mod kind_flags {
-    pub const NONE: u16 = 0x0000;
-
-    pub const KIND_MASK: u16 = 0b0110_0000_0000_0000;
-
-    pub const APP_FLAG: u16 = 0b1000_0000_0000_0000;
-
-    // Page Kinds
-    pub const PAGE_FLAGS: u16 = 0b0000_0000_0000_0000;
-
-    // Message Kinds
-    pub const REQUEST_FLAGS: u16 = 0b0010_0000_0000_0000;
-    pub const RESPONSE_FLAGS: u16 = 0b0100_0000_0000_0000;
-
-    pub const DATA_FLAGS: u16   = 0b0110_0000_0000_0000;
-    pub const DATA_GENERIC: u16 = 0x0000 | DATA_FLAGS;
-    pub const DATA_IOT: u16     = 0x0001 | DATA_FLAGS;
 }
 
 #[cfg(test)]
@@ -248,64 +248,91 @@ mod tests {
     fn test_page_kinds() {
         let tests = vec![
             // Pages
-            (PageKind::Generic, Kind(0b0000_0000_0000_0000)),
-            (PageKind::Peer, Kind(0b0000_0000_0000_0001)),
-            (PageKind::Replica, Kind(0b0000_0000_0000_0010)),
-            (PageKind::Tertiary, Kind(0b0000_0000_0000_0011)),
-            (PageKind::Private, Kind(0b0000_1111_1111_1111)),
+            (PageKind::Generic, Kind::from_bytes([0b0000_0000, 0b0000_0000])),
+            (PageKind::Peer,    Kind::from_bytes([0b0000_0001, 0b0000_0000])),
+            (PageKind::Replica, Kind::from_bytes([0b0000_0010, 0b0000_0000])),
+            (PageKind::Name,    Kind::from_bytes([0b0000_0011, 0b0000_0000])),
+            (PageKind::ServiceLink, Kind::from_bytes([0b0000_0100, 0b0000_0000])),
+            (PageKind::BlockLink, Kind::from_bytes([0b0000_0101, 0b0000_0000])),
+            (PageKind::Private, Kind::from_bytes([0b1111_1111, 0b0000_1111])),
         ];
 
         for (t, v) in tests {
-            println!("page t: {:?}, v: {:#b}", t, v.0);
+            println!("page t: {:?}, v: {:#08b}", t, u16::from(v));
             assert_eq!(v.is_page(), true);
+
             let k: Kind = t.into();
             assert_eq!(v, k, "error converting {:?}", t);
+            
             let d = PageKind::try_from(v).expect("error parsing");
             assert_eq!(t, d, "error decoding {:?}", t);
         }
     }
 
     #[test]
-    fn test_message_kinds() {
+    fn test_request_kinds() {
         let tests = vec![
-            (MessageKind::Hello, Kind(0b0010_0000_0000_0000)),
-            (MessageKind::Ping, Kind(0b0010_0000_0000_0001)),
-            (MessageKind::FindNodes, Kind(0b0010_0000_0000_0010)),
-            (MessageKind::FindValues, Kind(0b0010_0000_0000_0011)),
-            (MessageKind::Store, Kind(0b0010_0000_0000_0100)),
-            (MessageKind::Subscribe, Kind(0b0010_0000_0000_0101)),
-            (MessageKind::Query, Kind(0b0010_0000_0000_0110)),
-            (MessageKind::PushData, Kind(0b0010_0000_0000_0111)),
-            (MessageKind::Unsubscribe, Kind(0b0010_0000_0000_1000)),
-            (MessageKind::Register, Kind(0b0010_0000_0000_1001)),
-            (MessageKind::Unregister, Kind(0b0010_0000_0000_1010)),
-            (MessageKind::Discover, Kind(0b0010_0000_0000_1011)),
-            (MessageKind::Status, Kind(0b0100_0000_0000_0000)),
-            (MessageKind::NoResult, Kind(0b0100_0000_0000_0001)),
-            (MessageKind::NodesFound, Kind(0b0100_0000_0000_0010)),
-            (MessageKind::ValuesFound, Kind(0b0100_0000_0000_0011)),
-            (MessageKind::PullData, Kind(0b0100_0000_0000_0100)),
+            (RequestKind::Hello,    Kind::from_bytes([0b0000_0000, 0b1000_0000])),
+            (RequestKind::Ping, Kind::from_bytes([0b0000_0001, 0b1000_0000])),
+            (RequestKind::FindNodes, Kind::from_bytes([0b0000_0010, 0b1000_0000])),
+            (RequestKind::FindValues, Kind::from_bytes([0b0000_0011, 0b1000_0000])),
+            (RequestKind::Store, Kind::from_bytes([0b0000_0100, 0b1000_0000])),
+            (RequestKind::Subscribe, Kind::from_bytes([0b0000_0101, 0b1000_0000])),
+            (RequestKind::Query, Kind::from_bytes([0b0000_0110, 0b1000_0000])),
+            (RequestKind::PushData, Kind::from_bytes([0b0000_0111, 0b1000_0000])),
+            (RequestKind::Unsubscribe, Kind::from_bytes([0b0000_1000, 0b1000_0000])),
+            (RequestKind::Register, Kind::from_bytes([0b0000_1001, 0b1000_0000])),
+            (RequestKind::Unregister, Kind::from_bytes([0b0000_1010, 0b1000_0000])),
+            (RequestKind::Discover, Kind::from_bytes([0b0000_1011, 0b1000_0000])),
         ];
 
         for (t, v) in tests {
-            println!("message t: {:02x?}, v: {:#b}", t, v.0);
+            println!("request t: {:02x?}, v: {:#b}", t, u16::from(v));
             assert_eq!(v.is_message(), true);
-            let k: Kind = t.into();
+            assert_eq!(v.is_request(), true);
+
+            let k = Kind::from(t);
             assert_eq!(v, k, "error converting {:02x?} into: {:02x?}", t, k);
-            let d = MessageKind::try_from(v).expect("error parsing message kind");
+
+            let d = RequestKind::try_from(v).expect("error parsing request kind");
+            assert_eq!(t, d, "error decoding {:02x?}", t);
+        }
+    }
+
+    #[test]
+    fn test_response_kinds() {
+        let tests = vec![
+            (ResponseKind::Status, Kind::from_bytes([0b0000_0000, 0b1100_0000])),
+            (ResponseKind::NoResult, Kind::from_bytes([0b0000_0001, 0b1100_0000])),
+            (ResponseKind::NodesFound, Kind::from_bytes([0b0000_0010, 0b1100_0000])),
+            (ResponseKind::ValuesFound, Kind::from_bytes([0b0000_0011, 0b1100_0000])),
+            (ResponseKind::PullData, Kind::from_bytes([0b0000_0100, 0b1100_0000])),
+        ];
+
+        for (t, v) in tests {
+            println!("message t: {:02x?}, v: {:#b}", t, u16::from(v));
+            assert_eq!(v.is_message(), true);
+            assert_eq!(v.is_response(), true);
+            
+            let k = Kind::from(t);
+            assert_eq!(v, k, "error converting {:02x?} into: {:02x?}", t, k);
+            
+            let d = ResponseKind::try_from(v).expect("error parsing response kind");
             assert_eq!(t, d, "error decoding {:02x?}", t);
         }
     }
 
     #[test]
     fn test_data_kinds() {
-        let tests = vec![(DataKind::Generic, Kind(0b0110_0000_0000_0000))];
+        let tests = vec![(DataKind::Generic, Kind::from_bytes([0b0000_0000, 0b0100_0000]))];
 
         for (t, v) in tests {
-            println!("data t: {:02x?}, v: {:#b}", t, v.0);
+            println!("data t: {:02x?}, v: {:#b}", t, u16::from(v));
             assert_eq!(v.is_data(), true);
+
             let k: Kind = t.into();
             assert_eq!(v, k, "error converting {:02x?}", t);
+            
             let d = DataKind::try_from(v).expect("error parsing data kind");
             assert_eq!(t, d, "error decoding {:02x?}", t);
         }

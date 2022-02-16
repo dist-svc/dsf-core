@@ -5,7 +5,7 @@ use crate::options::Options;
 
 use crate::error::Error;
 use crate::prelude::{Header};
-use crate::types::{Id, Kind, PageKind, Flags, Queryable, DateTime};
+use crate::types::{Id, Kind, PageKind, Flags, Queryable, DateTime, Signature, MutableData};
 use crate::wire::{Builder, Container};
 
 use super::Service;
@@ -15,17 +15,49 @@ pub trait Registry{
     fn resolve(&self, q: impl Queryable) -> Result<Id, Error>;
 
     /// Generates a tertiary page for the provided service ID and options
-    fn publish_tertiary<const N: usize, Q: Queryable> (
+    fn publish_tertiary<Q: Queryable, T: MutableData> (
         &mut self,
-        id: Id,
+        link: TertiaryLink,
         opts: TertiaryOptions,
         q: Q,
-    ) -> Result<Container<[u8; N]>, Error>;
+        buff: T
+    ) -> Result<(usize, Container<T>), Error>;
+
+    /// Generates a tertiary page for the provided service ID and options
+    fn publish_tertiary_buff<const N: usize, Q: Queryable> (
+        &mut self,
+        link: TertiaryLink,
+        opts: TertiaryOptions,
+        q: Q,
+    ) -> Result<(usize, Container<[u8; N]>), Error> {
+        let buff = [0u8; N];
+        self.publish_tertiary(link, opts, q, buff)
+    }
 }
+
+#[derive(Clone, PartialEq, Debug)]
+pub enum TertiaryLink {
+    Service(Id),
+    Block(Signature),
+}
+
+impl From<Id> for TertiaryLink {
+    fn from(id: Id) -> Self {
+        Self::Service(id)
+    }
+}
+
+impl From<Signature> for TertiaryLink {
+    fn from(sig: Signature) -> Self {
+        Self::Block(sig)
+    }
+}
+
 
 /// Tertiary page configuration options
 #[derive(Clone, PartialEq, Debug)]
 pub struct TertiaryOptions {
+    pub index: u16,
     pub issued: DateTime,
     pub expiry: DateTime,
 }
@@ -37,13 +69,15 @@ impl Default for TertiaryOptions {
         let now = std::time::SystemTime::now();
 
         Self { 
+            index: 0,
             issued: now.into(), 
-            expiry: now.add(std::time::Duration::from_secs(24 * 60 * 60)).into(),
+            expiry: now.add(core::time::Duration::from_secs(24 * 60 * 60)).into(),
         }
     }
 }
 
 impl Registry for Service {
+    /// Resolve an ID for a given hash
     fn resolve(&self, q: impl Queryable) -> Result<Id, Error>{
         // Generate ID for page lookup using this registry
         let tid = crate::crypto::hash_tid(self.id(), &self.keys(), q);
@@ -51,12 +85,13 @@ impl Registry for Service {
         Ok(tid)
     }
 
-    fn publish_tertiary<const N: usize, Q: Queryable>(
+    fn publish_tertiary<Q: Queryable, T: MutableData>(
         &mut self,
-        id: Id,
+        link: TertiaryLink,
         opts: TertiaryOptions,
         q: Q,
-    ) -> Result<Container<[u8; N]>, Error> {
+        buff: T,
+    ) -> Result<(usize, Container<T>), Error> {
 
         // Generate TID
         let tid = crate::crypto::hash_tid(self.id(), &self.keys(), q);
@@ -67,19 +102,24 @@ impl Registry for Service {
             flags |= Flags::ENCRYPTED;
         }
 
+        let (kind, body): (_, &[u8]) = match &link {
+            TertiaryLink::Service(id) => (PageKind::ServiceLink, &id),
+            TertiaryLink::Block(sig) => (PageKind::BlockLink, &sig),
+        };
+
         // Setup header
         let header = Header {
-            kind: Kind::page(PageKind::Tertiary as u16),
+            kind: Kind::page(kind as u16),
             index: 0,
             flags,
             ..Default::default()
         };
 
         // TODO: should service link be in private options..?
-        let b = Builder::new([0u8; N])
+        let b = Builder::new(buff)
             .header(&header)
             .id(&tid)
-            .body(&id)?
+            .body(body)?
             .private_options(&[])?;
 
         // Apply internal encryption if enabled
@@ -94,7 +134,7 @@ impl Registry for Service {
         // Sign generated object
         let c = self.sign(b)?;
 
-        Ok(c)
+        Ok((c.len(), c))
     }
 }
 
@@ -114,7 +154,7 @@ mod test {
         let (_n, _c) = c.publish_primary_buff(Default::default()).unwrap();
 
         // Generate page for name entry
-        let p1 = Registry::publish_tertiary::<512, _>(&mut r, c.id(), TertiaryOptions::default(), &opt_name).unwrap();
+        let (_n, p1) = Registry::publish_tertiary_buff::<512, _>(&mut r, c.id().into(), TertiaryOptions::default(), &opt_name).unwrap();
 
         println!("Tertiary page: {:02x?}", p1);
 

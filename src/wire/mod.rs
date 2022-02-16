@@ -463,7 +463,7 @@ mod test {
         keys.sec_key = None;
 
         let header = Header {
-            kind: PageKind::Tertiary.into(),
+            kind: PageKind::ServiceLink.into(),
             flags: Flags::TERTIARY,
             ..Default::default()
         };

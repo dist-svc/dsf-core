@@ -30,7 +30,7 @@ impl Default for Header {
         Self {
             protocol_version: 0,
             application_id: 0,
-            kind: Kind(0),
+            kind: Kind::from_bytes([0, 0]),
             flags: Flags::default(),
             index: 0,
         }

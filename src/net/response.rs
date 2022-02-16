@@ -20,14 +20,14 @@ use super::Common;
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct Response {
     pub common: Common,
-    pub data: ResponseKind,
+    pub data: ResponseBody,
 }
 
 /// Response message kinds
 #[derive(Clone, PartialEq, Debug)]
 #[cfg_attr(feature = "strum", derive(strum_macros::Display))]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub enum ResponseKind {
+pub enum ResponseBody {
     Status(Status),
     NodesFound(Id, Vec<(Id, Address, PublicKey)>),
     ValuesFound(Id, Vec<Container>),
@@ -36,14 +36,14 @@ pub enum ResponseKind {
 }
 
 /// Convert response kind object to protocol message enumeration
-impl From<&ResponseKind> for MessageKind {
-    fn from(r: &ResponseKind) -> Self {
+impl From<&ResponseBody> for ResponseKind {
+    fn from(r: &ResponseBody) -> Self {
         match r {
-            ResponseKind::Status(_) => MessageKind::Status,
-            ResponseKind::NodesFound(_, _) => MessageKind::NodesFound,
-            ResponseKind::ValuesFound(_, _) => MessageKind::ValuesFound,
-            ResponseKind::NoResult => MessageKind::NoResult,
-            ResponseKind::PullData(_, _) => MessageKind::PullData,
+            ResponseBody::Status(_) => ResponseKind::Status,
+            ResponseBody::NodesFound(_, _) => ResponseKind::NodesFound,
+            ResponseBody::ValuesFound(_, _) => ResponseKind::ValuesFound,
+            ResponseBody::NoResult => ResponseKind::NoResult,
+            ResponseBody::PullData(_, _) => ResponseKind::PullData,
         }
     }
 }
@@ -95,7 +95,7 @@ impl Deref for Response {
 }
 
 impl Response {
-    pub fn new(from: Id, id: RequestId, data: ResponseKind, mut flags: Flags) -> Response {
+    pub fn new(from: Id, id: RequestId, data: ResponseBody, mut flags: Flags) -> Response {
         flags.remove(Flags::SYMMETRIC_DIR);
         let common = Common {
             from,
@@ -149,18 +149,18 @@ impl Response {
         //let _private_options = base.private_options().to_vec();
         let public_key = Filters::pub_key(&public_options.iter());
 
-        let kind = match MessageKind::try_from(header.kind()) {
+        let kind = match ResponseKind::try_from(header.kind()) {
             Ok(k) => k,
-            Err(_) => return Err(Error::InvalidMessageKind),
+            Err(_) => return Err(Error::InvalidResponseKind),
         };
 
         let data = match kind {
-            MessageKind::Status => {
+            ResponseKind::Status => {
                 let status = NetworkEndian::read_u32(body);
-                ResponseKind::Status(status.into())
+                ResponseBody::Status(status.into())
             }
-            MessageKind::NoResult => ResponseKind::NoResult,
-            MessageKind::NodesFound => {
+            ResponseKind::NoResult => ResponseBody::NoResult,
+            ResponseKind::NodesFound => {
                 let mut id = Id::default();
                 id.copy_from_slice(&body[..ID_LEN]);
 
@@ -185,30 +185,30 @@ impl Response {
                     })
                     .collect();
 
-                ResponseKind::NodesFound(id, nodes)
+                ResponseBody::NodesFound(id, nodes)
             }
-            MessageKind::ValuesFound => {
+            ResponseKind::ValuesFound => {
                 let mut id = Id::default();
                 id.copy_from_slice(&body[0..ID_LEN]);
 
                 let pages = Container::decode_pages(&body[ID_LEN..], key_source)?;
 
-                ResponseKind::ValuesFound(id, pages)
+                ResponseBody::ValuesFound(id, pages)
             }
-            MessageKind::PullData => {
+            ResponseKind::PullData => {
                 let mut id = Id::default();
                 id.copy_from_slice(&body[0..ID_LEN]);
 
                 let pages = Container::decode_pages(&body[ID_LEN..], key_source)?;
 
-                ResponseKind::PullData(id, pages)
+                ResponseBody::PullData(id, pages)
             }
             _ => {
                 error!(
                     "Error converting base object of kind {:?} to response message",
                     header.kind()
                 );
-                return Err(Error::InvalidMessageKind);
+                return Err(Error::InvalidResponseKind);
             }
         };
 

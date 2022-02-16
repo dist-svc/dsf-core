@@ -16,7 +16,7 @@ use super::Common;
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct Request {
     pub common: Common,
-    pub data: RequestKind,
+    pub data: RequestBody,
 }
 
 impl Deref for Request {
@@ -30,7 +30,7 @@ impl Deref for Request {
 #[derive(Clone, PartialEq, Debug)]
 #[cfg_attr(feature = "strum", derive(strum_macros::Display))]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub enum RequestKind {
+pub enum RequestBody {
     Hello,
     Ping,
     FindNode(Id),
@@ -49,28 +49,28 @@ pub enum RequestKind {
 }
 
 /// Convert request kind containers to protocol message enumerations
-impl From<&RequestKind> for MessageKind {
-    fn from(r: &RequestKind) -> Self {
+impl From<&RequestBody> for RequestKind {
+    fn from(r: &RequestBody) -> Self {
         match r {
-            RequestKind::Hello => MessageKind::Hello,
-            RequestKind::Ping => MessageKind::Ping,
-            RequestKind::FindNode(_) => MessageKind::FindNodes,
-            RequestKind::FindValue(_) => MessageKind::FindValues,
-            RequestKind::Store(_, _) => MessageKind::Store,
-            RequestKind::Locate(_) => MessageKind::Locate,
-            RequestKind::Subscribe(_) => MessageKind::Subscribe,
-            RequestKind::Unsubscribe(_) => MessageKind::Unsubscribe,
-            RequestKind::Query(_) => MessageKind::Query,
-            RequestKind::PushData(_, _) => MessageKind::PushData,
-            RequestKind::Register(_, _) => MessageKind::Register,
-            RequestKind::Unregister(_) => MessageKind::Unregister,
-            RequestKind::Discover(_, _) => MessageKind::Discover,
+            RequestBody::Hello => RequestKind::Hello,
+            RequestBody::Ping => RequestKind::Ping,
+            RequestBody::FindNode(_) => RequestKind::FindNodes,
+            RequestBody::FindValue(_) => RequestKind::FindValues,
+            RequestBody::Store(_, _) => RequestKind::Store,
+            RequestBody::Locate(_) => RequestKind::Locate,
+            RequestBody::Subscribe(_) => RequestKind::Subscribe,
+            RequestBody::Unsubscribe(_) => RequestKind::Unsubscribe,
+            RequestBody::Query(_) => RequestKind::Query,
+            RequestBody::PushData(_, _) => RequestKind::PushData,
+            RequestBody::Register(_, _) => RequestKind::Register,
+            RequestBody::Unregister(_) => RequestKind::Unregister,
+            RequestBody::Discover(_, _) => RequestKind::Discover,
         }
     }
 }
 
 impl Request {
-    pub fn new(from: Id, request_id: u16, data: RequestKind, flags: Flags) -> Request {
+    pub fn new(from: Id, request_id: u16, data: RequestBody, flags: Flags) -> Request {
         let common = Common {
             from,
             id: request_id,
@@ -119,45 +119,45 @@ impl Request {
         let public_key = Filters::pub_key(&public_options.iter());
         //let _private_options = base.private_options().to_vec();
 
-        let kind = match MessageKind::try_from(header.kind()) {
+        let kind = match RequestKind::try_from(header.kind()) {
             Ok(k) => k,
-            Err(_) => return Err(Error::InvalidMessageKind),
+            Err(_) => return Err(Error::InvalidRequestKind),
         };
 
         let data = match kind {
-            MessageKind::Hello => RequestKind::Hello,
-            MessageKind::Ping => RequestKind::Ping,
-            MessageKind::FindNodes => {
+            RequestKind::Hello => RequestBody::Hello,
+            RequestKind::Ping => RequestBody::Ping,
+            RequestKind::FindNodes => {
                 let mut id = Id::default();
                 id.copy_from_slice(&body[0..ID_LEN]);
-                RequestKind::FindNode(id)
+                RequestBody::FindNode(id)
             }
-            MessageKind::FindValues => {
+            RequestKind::FindValues => {
                 let mut id = Id::default();
                 id.copy_from_slice(&body[0..ID_LEN]);
-                RequestKind::FindValue(id)
+                RequestBody::FindValue(id)
             }
-            MessageKind::Subscribe => {
+            RequestKind::Subscribe => {
                 let mut id = Id::default();
                 id.copy_from_slice(&body[0..ID_LEN]);
-                RequestKind::Subscribe(id)
+                RequestBody::Subscribe(id)
             }
-            MessageKind::Unsubscribe => {
+            RequestKind::Unsubscribe => {
                 let mut id = Id::default();
                 id.copy_from_slice(&body[0..ID_LEN]);
-                RequestKind::Unsubscribe(id)
+                RequestBody::Unsubscribe(id)
             }
-            MessageKind::Query => {
+            RequestKind::Query => {
                 let mut id = Id::default();
                 id.copy_from_slice(&body[0..ID_LEN]);
-                RequestKind::Query(id)
+                RequestBody::Query(id)
             }
-            MessageKind::Locate => {
+            RequestKind::Locate => {
                 let mut id = Id::default();
                 id.copy_from_slice(&body[0..ID_LEN]);
-                RequestKind::Locate(id)
+                RequestBody::Locate(id)
             }
-            MessageKind::Store => {
+            RequestKind::Store => {
                 let mut id = Id::default();
                 id.copy_from_slice(&body[0..ID_LEN]);
 
@@ -165,33 +165,33 @@ impl Request {
                 // And also sign them earlier..?
                 let pages = Container::decode_pages(&body[ID_LEN..], key_source)?;
 
-                RequestKind::Store(id, pages)
+                RequestBody::Store(id, pages)
             }
-            MessageKind::PushData => {
+            RequestKind::PushData => {
                 let mut id = Id::default();
                 id.copy_from_slice(&body[0..ID_LEN]);
 
                 let pages = Container::decode_pages(&body[ID_LEN..], key_source)?;
 
-                RequestKind::PushData(id, pages)
+                RequestBody::PushData(id, pages)
             }
-            MessageKind::Register => {
+            RequestKind::Register => {
                 let mut id = Id::default();
                 id.copy_from_slice(&body[0..ID_LEN]);
 
                 let pages = Container::decode_pages(&body[ID_LEN..], key_source)?;
 
-                RequestKind::Register(id, pages)
+                RequestBody::Register(id, pages)
             }
-            MessageKind::Unregister => {
+            RequestKind::Unregister => {
                 let mut id = Id::default();
                 id.copy_from_slice(&body[0..ID_LEN]);
 
-                RequestKind::Unregister(id)
+                RequestBody::Unregister(id)
             }
-            MessageKind::Discover => {
+            RequestKind::Discover => {
                 // TODO: pass through discover options
-                RequestKind::Discover(body.to_vec(), public_options)
+                RequestBody::Discover(body.to_vec(), public_options)
             },
             _ => {
                 error!(

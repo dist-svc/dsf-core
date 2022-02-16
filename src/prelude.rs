@@ -5,7 +5,7 @@ pub use crate::service::{DataOptions, Publisher as _, SecondaryOptions};
 pub use crate::service::Subscriber as _;
 
 pub use crate::types::{
-    Address, Data, DataKind, Flags, Id, Kind, MessageKind, PageKind, RequestId,
+    Address, Data, DataKind, Flags, Id, Kind, PageKind, RequestId,
 };
 
 pub use crate::options::Options;
@@ -19,8 +19,8 @@ pub use crate::base::{Body, Encode, Header, Parse, MaybeEncrypted};
 pub use crate::page::{PageInfo};
 
 pub use crate::net::{
-    Message as NetMessage, Request as NetRequest, RequestKind as NetRequestKind,
-    Response as NetResponse, ResponseKind as NetResponseKind,
+    Message as NetMessage, Request as NetRequest, RequestBody as NetRequestBody,
+    Response as NetResponse, ResponseBody as NetResponseBody,
 };
 
 pub use crate::keys::{KeySource, Keys};

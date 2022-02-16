@@ -214,7 +214,7 @@ mod test {
 
         // Append sig to page1
         //page1.set_signature(base1.signature().clone().unwrap());
-        assert_eq!(service.version, 0, "initial service version");
+        assert_eq!(service.version, 1, "initial service version");
 
         println!("Encoded service to {} bytes", n);
 
@@ -234,7 +234,7 @@ mod test {
                 public_options.push(Options::kind("Test Kind"));
             })
             .expect("Error updating service");
-        assert_eq!(service.version, 1, "service.update updates service version");
+        assert_eq!(service.version, 2, "service.update updates service version");
 
         println!("Generating updated page");
         let (_n, page3) = service
@@ -247,7 +247,7 @@ mod test {
         replica
             .apply_primary(&pp3)
             .expect("Error updating service replica");
-        assert_eq!(replica.version, 1);
+        assert_eq!(replica.version, 3);
 
         println!("Generating a secondary page");
         let secondary_options = SecondaryOptions::default();

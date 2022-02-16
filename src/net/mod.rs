@@ -8,10 +8,10 @@ use crate::error::Error;
 use crate::types::*;
 
 pub mod request;
-pub use request::{Request, RequestKind};
+pub use request::{Request, RequestBody};
 
 pub mod response;
-pub use response::{Response, ResponseKind, Status};
+pub use response::{Response, ResponseBody, Status};
 
 pub const BUFF_SIZE: usize = 10 * 1024;
 

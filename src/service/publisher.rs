@@ -137,16 +137,13 @@ impl <'a>Default for SecondaryOptions<'a> {
 #[derive(Clone, Debug)]
 pub struct DataOptions<'a, Body: DataBody = &'a [u8]> {
     /// Data object kind
-    pub data_kind: Kind,
+    pub data_kind: u16,
 
     /// Data object body
     pub body: Option<Body>,
 
     /// Data publish time
     pub issued: Option<DateTime>,
-
-    /// Data expiry time
-    pub expiry: Option<DateTime>,
 
     /// Public options attached to the data object
     pub public_options: &'a [Options],
@@ -161,10 +158,9 @@ pub struct DataOptions<'a, Body: DataBody = &'a [u8]> {
 impl<'a, Body: DataBody> Default for DataOptions<'a, Body> {
     fn default() -> Self {
         Self {
-            data_kind: DataKind::Generic.into(),
+            data_kind: 0,
             body: None,
             issued: default_issued(),
-            expiry: default_expiry(),
             public_options: &[],
             private_options: &[],
             no_last_sig: false,
@@ -185,6 +181,8 @@ impl Publisher for Service {
         }
 
         debug!("Primary options: {:?}", options);
+
+        self.version = self.version.wrapping_add(1);
 
         // Setup header
         let header = Header {
@@ -324,13 +322,11 @@ impl Publisher for Service {
             flags |= Flags::ENCRYPTED;
         }
 
-        assert!(options.data_kind.is_data());
-
-        self.data_index += 1;
+        self.data_index = self.data_index.wrapping_add(1);
 
         let header = Header {
             application_id: self.application_id,
-            kind: options.data_kind,
+            kind: Kind::data(options.data_kind),
             flags,
             index: self.data_index,
             ..Default::default()
@@ -358,7 +354,7 @@ impl Publisher for Service {
 
         // Attach issued if provided
         if let Some(iss) = options.issued {
-            b = b.public_options(&[Options::expiry(iss)])?;
+            b = b.public_options(&[Options::issued(iss)])?;
         }
 
         // Attach last sig if available
@@ -366,7 +362,7 @@ impl Publisher for Service {
             b = b.public_options(&[Options::prev_sig(last)])?;
         }
 
-        // Then finally attach public options
+        // Attach public options
         let b = b.public_options(options.public_options)?;
 
         // Sign generated object
@@ -414,5 +410,68 @@ impl Service {
 
 #[cfg(test)]
 mod test {
+    use crate::{prelude::*, options::Filters};
+    use super::*;
 
+    fn init_service() -> Service {
+        ServiceBuilder::<Body>::default()
+            .kind(PageKind::Generic.into())
+            .public_options(vec![Options::name("Test Service")])
+            .encrypt()
+            .build()
+            .expect("Failed to create service")
+    }
+
+    #[test]
+    fn test_publish_primary() {
+
+        let mut svc = init_service();
+
+        let opts = PrimaryOptions{
+            ..Default::default()
+        };
+
+        // Publish first page
+        let (_n, p) = svc.publish_primary_buff(opts.clone()).expect("Failed to publish primary page");
+        assert_eq!(p.header().index(), 1);
+
+        // Publish second page
+        let (_n, p) = svc.publish_primary_buff(opts.clone()).expect("Failed to publish primary page");
+        assert_eq!(p.header().index(), 2);
+    }
+
+    #[test]
+    fn test_publish_data() {
+
+        let mut svc = init_service();
+
+        let opts = PrimaryOptions{
+            ..Default::default()
+        };
+
+        // Generate primary page for linking
+        let (_n, p) = svc.publish_primary_buff(opts).expect("Failed to publish primary page");
+        assert_eq!(svc.last_sig, Some(p.signature()));
+
+
+        let body: &[u8] = &[0x00, 0x11, 0x22, 0x33];
+        let opts = DataOptions{
+            body: Some(body),
+            ..Default::default()
+        };
+
+        // Publish first data object
+        let(_n, d1) = svc.publish_data_buff(opts.clone()).expect("Failed to publish data object");
+        assert_eq!(d1.header().index(), 1);
+        assert_eq!(d1.public_options_iter().prev_sig(), Some(p.signature()));
+        assert_eq!(svc.last_sig, Some(d1.signature()));
+
+
+        // Publish second data object
+        let(_n, d2) = svc.publish_data_buff(opts.clone()).expect("Failed to publish data object");
+        
+        assert_eq!(d2.header().index(), 2);
+        assert_eq!(d2.public_options_iter().prev_sig(), Some(d1.signature()));
+        assert_eq!(svc.last_sig, Some(d2.signature()));
+    }
 }
