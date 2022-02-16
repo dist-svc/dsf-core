@@ -129,6 +129,10 @@ impl <B: PageBody + Default> Service<B> {
         }
     }
 
+    pub fn version(&self) -> u16 {
+        self.version
+    }
+
     pub fn kind(&self) -> PageKind {
         self.kind
     }

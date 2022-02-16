@@ -17,7 +17,8 @@ pub struct ServiceBuilder<B: PageBody = Body> {
 
     kind: PageKind,
     application_id: u16,
-    index: u16,
+    last_page: u16,
+    last_data: u16,
     body: B,
 
     private_key: Option<PrivateKey>,
@@ -39,7 +40,8 @@ impl <B: PageBody + Default> Default for ServiceBuilder<B> {
             public_key: None,
 
             application_id: 0,
-            index: 0,
+            last_page: 0,
+            last_data: 0,
             kind: PageKind::Generic,
             body: B::default(),
 
@@ -107,8 +109,13 @@ impl <B: PageBody + Default> ServiceBuilder<B> {
         self
     }
     
-    pub fn last_index(mut self, index: u16) -> Self {
-        self.index = index;
+    pub fn last_page(mut self, index: u16) -> Self {
+        self.last_page = index;
+        self
+    }
+
+    pub fn last_data(mut self, index: u16) -> Self {
+        self.last_data = index;
         self
     }
 
@@ -201,8 +208,8 @@ impl <B: PageBody + Default> ServiceBuilder<B> {
             id,
             application_id: self.application_id,
             kind: self.kind,
-            version: 0,
-            data_index: 0,
+            version: self.last_page,
+            data_index: self.last_data,
             body: self.body,
             public_options: self.public_options,
             private_options: MaybeEncrypted::Cleartext(self.private_options),
