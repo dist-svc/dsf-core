@@ -13,7 +13,7 @@ impl Parse for String {
     type Output = String;
     type Error = Error;
 
-    fn parse<'a>(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
+    fn parse<'a>(data: &'a [u8]) -> Result<(Self::Output, usize), Self::Error> {
         let length = NetworkEndian::read_u16(&data[0..2]) as usize;
         let value = str::from_utf8(&data[2..2 + length]).unwrap().to_owned();
 

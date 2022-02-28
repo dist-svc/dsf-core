@@ -121,7 +121,7 @@ impl<'a, T: ImmutableData> Container<T> {
         let kind = header.kind();
         let id: Id = container.id();
 
-        debug!("Parse container: {:?} Header: {:?}", container, header);
+        debug!("Parse container: {:?}", container);
 
         // Fetch signature for page
         let mut verified = false;

@@ -2,18 +2,21 @@
 //! This allows for limited capability devices to perform network operations via
 //! a full-featured device
 
-use crate::{types::Id, base::{PageBody, DataBody}};
+use crate::{types::Id, base::{PageBody, DataBody}, prelude::Parse};
 
 /// Application object used to describe a DSF application
 pub trait Application {
     /// DSF Application ID
     const APPLICATION_ID: u16;
 
-    /// Service information (page body)
-    type Info: PageBody + core::fmt::Debug;
+    /// Service information (page body) encoding
+    type Info: PageBody + Parse<Output=Self::Info> + core::fmt::Debug;
 
-    /// Service data (block body)
-    type Data: DataBody + core::fmt::Debug;
+    /// Service data (block body) encoding
+    type Data: DataBody + Parse<Output=Self::Data> + core::fmt::Debug;
+
+    /// Helper function for info matching to support discovery
+    fn matches(_info: &Self::Info, _req: &[u8]) -> bool { false }
 }
 
 /// ServiceHandle objects are used to pass around instances of a service

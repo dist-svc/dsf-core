@@ -442,7 +442,7 @@ impl Parse for PubKey {
     type Output = PubKey;
     type Error = Error;
 
-    fn parse(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
+    fn parse<'a>(data: &'a [u8]) -> Result<(Self::Output, usize), Self::Error> {
         let mut public_key = [0u8; PUBLIC_KEY_LEN];
         public_key.copy_from_slice(&data[..PUBLIC_KEY_LEN]);
 
@@ -486,7 +486,7 @@ impl Parse for PeerId {
     type Output = PeerId;
     type Error = Error;
 
-    fn parse(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
+    fn parse<'a>(data: &'a [u8]) -> Result<(Self::Output, usize), Self::Error> {
         let mut peer_id = [0u8; ID_LEN];
         peer_id.copy_from_slice(&data[..ID_LEN]);
         Ok((
@@ -528,7 +528,7 @@ impl Parse for PrevSig {
     type Output = Self;
     type Error = Error;
 
-    fn parse(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
+    fn parse<'a>(data: &'a [u8]) -> Result<(Self::Output, usize), Self::Error> {
         let mut sig = [0u8; SIGNATURE_LEN];
         sig.copy_from_slice(&data[..SIGNATURE_LEN]);
         Ok((Self { sig: sig.into() }, SIGNATURE_LEN))
@@ -567,7 +567,7 @@ impl Parse for Kind {
     type Output = Kind;
     type Error = Error;
 
-    fn parse(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
+    fn parse<'a>(data: &'a [u8]) -> Result<(Self::Output, usize), Self::Error> {
         let value = core::str::from_utf8(data).unwrap().to_owned();
 
         Ok((Kind { value }, data.len()))
@@ -608,7 +608,7 @@ impl Parse for Name {
     type Output = Name;
     type Error = Error;
 
-    fn parse(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
+    fn parse<'a>(data: &'a [u8]) -> Result<(Self::Output, usize), Self::Error> {
         let value = core::str::from_utf8(data).unwrap().to_owned();
 
         Ok((Name { value }, data.len()))
@@ -641,7 +641,7 @@ impl Parse for AddressV4 {
     type Output = AddressV4;
     type Error = Error;
 
-    fn parse(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
+    fn parse<'a>(data: &'a [u8]) -> Result<(Self::Output, usize), Self::Error> {
         let mut ip = [0u8; 4];
 
         ip.copy_from_slice(&data[0..4]);
@@ -669,7 +669,7 @@ impl Parse for AddressV6 {
     type Output = AddressV6;
     type Error = Error;
 
-    fn parse(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
+    fn parse<'a>(data: &'a [u8]) -> Result<(Self::Output, usize), Self::Error> {
         let mut ip = [0u8; 16];
 
         ip.copy_from_slice(&data[0..16]);
@@ -714,7 +714,7 @@ impl Parse for Metadata {
     type Output = Metadata;
     type Error = Error;
 
-    fn parse(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
+    fn parse<'a>(data: &'a [u8]) -> Result<(Self::Output, usize), Self::Error> {
         let kv = core::str::from_utf8(data).unwrap().to_owned();
         let split: Vec<_> = kv.split('|').collect();
         if split.len() != 2 {
@@ -849,7 +849,7 @@ impl Parse for Limit {
     type Output = Self;
     type Error = Error;
 
-    fn parse(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
+    fn parse<'a>(data: &'a [u8]) -> Result<(Self::Output, usize), Self::Error> {
         Ok((
             Self {
                 n: NetworkEndian::read_u32(data),
@@ -890,7 +890,7 @@ impl Parse for Coordinates {
     type Output = Self;
     type Error = Error;
 
-    fn parse(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
+    fn parse<'a>(data: &'a [u8]) -> Result<(Self::Output, usize), Self::Error> {
         Ok((
             Self {
                 lat: NetworkEndian::read_f32(&data[0..]),

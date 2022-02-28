@@ -151,6 +151,18 @@ impl<T: MutableData> Builder<Init, T> {
         })
     }
 
+    pub fn no_body(
+        mut self,
+    ) -> Builder<SetPrivateOptions, T> {
+        Builder {
+            buf: self.buf,
+            n: self.n,
+            c: 0,
+            encrypted: false,
+            _s: PhantomData,
+        }
+    }
+
     pub fn encrypted(
         self,
         body: &[u8],

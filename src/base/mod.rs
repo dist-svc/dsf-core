@@ -8,7 +8,7 @@ mod header;
 pub use header::*;
 
 use crate::options::Options;
-use crate::types::{ImmutableData, Id};
+use crate::types::{ImmutableData, Id, ID_LEN};
 use crate::error::Error;
 
 pub type Body = MaybeEncrypted;
@@ -16,13 +16,13 @@ pub type Body = MaybeEncrypted;
 /// Parse trait for building parse-able objects
 pub trait Parse {
     /// Output type returned from parsing
-    type Output;
+    type Output: Debug;
     
     /// Error type returned on parse error
-    type Error;
+    type Error: Debug;
 
     /// Parse method consumes a slice and returns an object and the remaining slice.
-    fn parse(buff: &[u8]) -> Result<(Self::Output, usize), Self::Error>;
+    fn parse<'a>(buff: &'a[u8]) -> Result<(Self::Output, usize), Self::Error>;
 
     /// Parse iter consumes a slice and returns an iterator over decoded objects
     fn parse_iter<'a>(buff: &'a [u8]) -> ParseIter<'a, Self::Output, Self::Error> {
@@ -40,8 +40,30 @@ impl Parse for () {
 
     type Error = Infallible;
 
-    fn parse(_buff: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
+    fn parse<'a>(_buff: &'a [u8]) -> Result<(Self::Output, usize), Self::Error> {
         Ok(((), 0))
+    }
+}
+
+#[cfg(nope)]
+impl Parse for &[u8] {
+    type Output = &[u8];
+
+    type Error = Infallible;
+
+    fn parse<'a>(buff: &'a [u8]) -> Result<(Self::Output, usize), Self::Error> {
+        Ok((buff, buff.len()))
+    }
+}
+
+impl Parse for Id {
+    type Output = Id;
+
+    type Error = Infallible;
+
+    fn parse<'a>(buff: &'a [u8]) -> Result<(Self::Output, usize), Self::Error> {
+        let id = Id::from(buff);
+        Ok((id, ID_LEN))
     }
 }
 
@@ -169,7 +191,7 @@ impl Parse for Vec<u8> {
     type Output = Vec<u8>;
     type Error = Error;
 
-    fn parse<'a>(data: &[u8]) -> Result<(Self::Output, usize), Self::Error> {
+    fn parse<'a>(data: &'a [u8]) -> Result<(Self::Output, usize), Self::Error> {
         let value = Vec::from(data);
 
         Ok((value, data.len()))
@@ -192,20 +214,21 @@ pub trait PageBody: Encode {}
 
 impl PageBody for &[u8] {}
 
+impl PageBody for Vec<u8> {}
+
 impl PageBody for Id {}
 
 impl PageBody for () {}
 
-//TODO: impl PageBody for Vec<u8> {}
 
 /// Marker trait for data body types
 pub trait DataBody: Encode {}
 
 impl DataBody for &[u8] {}
 
-impl DataBody for () {}
+impl DataBody for Vec<u8> {}
 
-//TODO: impl DataBody for Vec<u8> {}
+impl DataBody for () {}
 
 
 /// Container for objects / collections that may be encrypted
@@ -227,6 +250,7 @@ impl <O: Debug, E: ImmutableData> MaybeEncrypted<O, E> {
         Self::Encrypted(e)
     }
 }
+
 
 impl <O: Encode + Debug, E: ImmutableData + Debug> Encode for MaybeEncrypted<O, E> 
 {
@@ -301,5 +325,3 @@ impl From<Option<MaybeEncrypted>> for MaybeEncrypted {
     }
 }
 
-/// Allow MaybeEncrypted type to be used for page and block data
-impl <O: Encode + Debug, E: ImmutableData + Debug> PageBody for MaybeEncrypted<O, E> {}

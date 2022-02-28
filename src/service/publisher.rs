@@ -1,8 +1,9 @@
 use core::ops::Add;
 
-use crate::base::{Header, MaybeEncrypted, DataBody};
+use crate::base::{Header, MaybeEncrypted, DataBody, PageBody};
 use crate::error::Error;
 use crate::options::Options;
+use crate::prelude::Encode;
 use crate::service::Service;
 use crate::types::*;
 use crate::wire::builder::{Encrypt, SetPublicOptions};
@@ -91,7 +92,7 @@ fn default_expiry() -> Option<DateTime> {
 }
 
 #[derive(Clone)]
-pub struct SecondaryOptions<'a, Body=&'a [u8]> {
+pub struct SecondaryOptions<'a, Body: DataBody=&'a [u8]> {
     /// Application ID of primary service
     pub application_id: u16,
 
@@ -168,7 +169,11 @@ impl<'a, Body: DataBody> Default for DataOptions<'a, Body> {
     }
 }
 
-impl Publisher for Service {
+impl <B> Publisher for Service<B> 
+    where
+        B: PageBody,
+        <B as Encode>::Error: core::fmt::Debug,
+{
     /// Publish generates a page to publishing for the given service.
     fn publish_primary<T: MutableData>(
         &mut self,
@@ -193,12 +198,6 @@ impl Publisher for Service {
             ..Default::default()
         };
 
-        let body = match &self.body {
-            MaybeEncrypted::Cleartext(b) => &b[..],
-            MaybeEncrypted::None => &[],
-            _ => return Err(Error::CryptoError),
-        };
-
         let private_opts = match &self.private_options {
             MaybeEncrypted::Cleartext(o) => &o[..],
             MaybeEncrypted::None => &[],
@@ -208,9 +207,23 @@ impl Publisher for Service {
         // Build object
         let b = Builder::new(buff)
            .header(&header)
-           .id(&self.id())
-           .body(body)?
-           .private_options(&private_opts)?;
+           .id(&self.id());
+
+        let b = match &self.body {
+            MaybeEncrypted::Cleartext(body) => b.body(body).map_err(|e| {
+                error!("Failed to encode body: {:?}", e);
+                Error::EncodeFailed
+            })?,
+            MaybeEncrypted::Encrypted(_) => {
+                // TODO: we can't publish if we don't have the secret keys anyway
+                // so we _could_ just write this directly...
+                error!("Cannot encode encrypted body");
+                return Err(Error::EncodeFailed)
+            }
+            MaybeEncrypted::None => b.no_body(),
+        };
+
+        let b = b.private_options(&private_opts)?;
         
         // Apply internal encryption if enabled
         let mut b = self.encrypt(b)?;
@@ -312,9 +325,9 @@ impl Publisher for Service {
         Ok((c.len(), c))
     }
 
-    fn publish_data<B: DataBody, T: MutableData>(
+    fn publish_data<D: DataBody, T: MutableData>(
         &mut self,
-        options: DataOptions<B>,
+        options: DataOptions<D>,
         buff: T,
     ) -> Result<(usize, Container<T>), Error> {
         let mut flags = Flags::default();
@@ -373,7 +386,7 @@ impl Publisher for Service {
     }
 }
 
-impl Service {
+impl <B: PageBody> Service<B> {
 
     /// Encrypt the data and private options in the provided container builder
     pub(super) fn encrypt<T: MutableData>(&mut self, b: Builder<Encrypt, T>) -> Result<Builder<SetPublicOptions, T>, Error> {
@@ -414,7 +427,7 @@ mod test {
     use super::*;
 
     fn init_service() -> Service {
-        ServiceBuilder::<Body>::default()
+        ServiceBuilder::default()
             .kind(PageKind::Generic.into())
             .public_options(vec![Options::name("Test Service")])
             .encrypt()

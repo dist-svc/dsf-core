@@ -39,7 +39,7 @@ use crate::keys::Keys;
 #[derive(PartialEq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "diesel", derive(diesel::Queryable))]
-pub struct Service<B: PageBody = Body> {
+pub struct Service<B: PageBody = Vec<u8>> {
     id: Id,
 
     application_id: u16,
@@ -48,7 +48,7 @@ pub struct Service<B: PageBody = Body> {
     version: u16,
     data_index: u16,
 
-    body: B,
+    body: MaybeEncrypted<B>,
 
     public_options: Vec<Options>,
     private_options: MaybeEncrypted<Vec<Options>>,
@@ -62,7 +62,7 @@ pub struct Service<B: PageBody = Body> {
     last_sig: Option<Signature>,
 }
 
-impl <B: PageBody + Default> Default for Service<B> {
+impl <B: PageBody> Default for Service<B> {
     /// Create a default / blank Service for further initialisation.
     fn default() -> Self {
         // Generate service key-pair
@@ -78,7 +78,7 @@ impl <B: PageBody + Default> Default for Service<B> {
             kind: PageKind::Generic,
             version: 0,
             data_index: 0,
-            body: B::default(),
+            body: MaybeEncrypted::None,
             public_options: vec![],
             private_options: MaybeEncrypted::None,
             public_key,
@@ -90,7 +90,7 @@ impl <B: PageBody + Default> Default for Service<B> {
     }
 }
 
-impl <B: PageBody + Default> Service<B> {
+impl <B: PageBody> Service<B> {
     pub fn id(&self) -> Id {
         self.id.clone()
     }
@@ -100,7 +100,7 @@ impl <B: PageBody + Default> Service<B> {
     /// as well as a reset of the data_index.
     pub fn update<U>(&mut self, update_fn: U) -> Result<(), Error>
     where
-        U: Fn(&mut B, &mut Vec<Options>, &mut MaybeEncrypted<Vec<Options>>),
+        U: Fn(&mut MaybeEncrypted<B>, &mut Vec<Options>, &mut MaybeEncrypted<Vec<Options>>),
     {
         if self.private_key().is_none() {
             return Err(Error::NoPrivateKey);
@@ -137,8 +137,16 @@ impl <B: PageBody + Default> Service<B> {
         self.kind
     }
 
+    pub fn body(&self) -> &MaybeEncrypted<B> {
+        &self.body
+    }
+
     pub fn public_options(&self) -> &[Options] {
         &self.public_options
+    }
+
+    pub fn encrypted(&self) -> bool {
+        self.encrypted
     }
 
     pub fn public_key(&self) -> PublicKey {
@@ -193,7 +201,7 @@ mod test {
         let socket = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8080);
 
         println!("Creating new service");
-        let service_builder = ServiceBuilder::<Body>::default()
+        let service_builder = ServiceBuilder::<Vec<u8>>::default()
             .kind(PageKind::Generic.into())
             .public_options(vec![Options::name("Test Service")])
             .private_options(vec![Options::address_v4(socket)].into())
@@ -226,7 +234,7 @@ mod test {
         assert_eq!(pp1, base2);
 
         println!("Generating service replica");
-        let mut replica = Service::load(&base2).expect("Error generating service replica");
+        let mut replica = Service::<Vec<u8>>::load(&base2).expect("Error generating service replica");
 
         println!("Updating service");
         service

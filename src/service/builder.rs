@@ -11,7 +11,7 @@ use crate::keys::Keys;
 use super::Service;
 
 /// Service builder to assist in the construction of service instances
-pub struct ServiceBuilder<B: PageBody = Body> {
+pub struct ServiceBuilder<B: PageBody = Vec<u8>> {
     id: Option<Id>,
     public_key: Option<PublicKey>,
 
@@ -19,7 +19,7 @@ pub struct ServiceBuilder<B: PageBody = Body> {
     application_id: u16,
     last_page: u16,
     last_data: u16,
-    body: B,
+    body: Option<B>,
 
     private_key: Option<PrivateKey>,
     secret_key: Option<SecretKey>,
@@ -32,7 +32,7 @@ pub struct ServiceBuilder<B: PageBody = Body> {
     last_sig: Option<Signature>,
 }
 
-impl <B: PageBody + Default> Default for ServiceBuilder<B> {
+impl <B: PageBody> Default for ServiceBuilder<B> {
     /// Create a default service builder instance
     fn default() -> Self {
         Self {
@@ -43,7 +43,7 @@ impl <B: PageBody + Default> Default for ServiceBuilder<B> {
             last_page: 0,
             last_data: 0,
             kind: PageKind::Generic,
-            body: B::default(),
+            body: None,
 
             private_key: None,
             secret_key: None,
@@ -57,7 +57,7 @@ impl <B: PageBody + Default> Default for ServiceBuilder<B> {
     }
 }
 
-impl ServiceBuilder {
+impl <B: PageBody> ServiceBuilder<B> {
     /// Setup a peer service.
     /// This is equivalent to .kind(Kind::Peer)
     pub fn peer() -> Self {
@@ -101,7 +101,7 @@ impl ServiceBuilder {
 }
 
 /// ServiceBuilder provides helpers for constructing service instances
-impl <B: PageBody + Default> ServiceBuilder<B> {
+impl <B: PageBody> ServiceBuilder<B> {
     /// Set the ID and public key for the service
     pub fn id(mut self, id: Id, public_key: PublicKey) -> Self {
         self.id = Some(id);
@@ -125,7 +125,7 @@ impl <B: PageBody + Default> ServiceBuilder<B> {
     }
 
     pub fn body(mut self, body: B) -> Self {
-        self.body = body;
+        self.body = Some(body);
         self
     }
 
@@ -203,6 +203,11 @@ impl <B: PageBody + Default> ServiceBuilder<B> {
             _ => panic!("Invalid service builder configuration"),
         };
 
+        let body = match self.body {
+            Some(b) => MaybeEncrypted::Cleartext(b),
+            None => MaybeEncrypted::None,
+        };
+
         // Build service
         Ok(Service {
             id,
@@ -210,7 +215,7 @@ impl <B: PageBody + Default> ServiceBuilder<B> {
             kind: self.kind,
             version: self.last_page,
             data_index: self.last_data,
-            body: self.body,
+            body,
             public_options: self.public_options,
             private_options: MaybeEncrypted::Cleartext(self.private_options),
             public_key,

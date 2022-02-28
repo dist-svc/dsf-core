@@ -1,6 +1,6 @@
 use byteorder::{NetworkEndian, ByteOrder};
 
-use crate::base::{Encode};
+use crate::base::{Encode, PageBody};
 use crate::error::Error;
 use crate::net::{Request, RequestBody, Response, ResponseBody, Common};
 use crate::options::Options;
@@ -57,7 +57,7 @@ pub trait Net<const N: usize = 1024>{
 }
 
 
-impl Net for Service {
+impl <D: PageBody> Net for Service<D> {
     fn encode_request<B: MutableData>(&self, req: &Request, keys: &Keys, buff: B) -> Result<Container<B>, Error> {
 
         // Create generic header
@@ -155,7 +155,7 @@ impl Net for Service {
 }
 
 
-impl Service {
+impl <D: PageBody> Service<D> {
 
     pub fn finalise_message<T: MutableData>(&self, flags: Flags, common: &Common, keys: &Keys, mut b: Builder<SetPublicOptions, T> ) -> Result<Container<T>, Error> {
 

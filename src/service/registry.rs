@@ -1,6 +1,7 @@
 
 use std::ops::Add;
 
+use crate::base::PageBody;
 use crate::options::Options;
 
 use crate::error::Error;
@@ -10,7 +11,7 @@ use crate::wire::{Builder, Container};
 
 use super::Service;
 
-pub trait Registry{
+pub trait Registry {
     /// Generate ID for registry lookup
     fn resolve(&self, q: impl Queryable) -> Result<Id, Error>;
 
@@ -76,7 +77,7 @@ impl Default for TertiaryOptions {
     }
 }
 
-impl Registry for Service {
+impl <B: PageBody> Registry for Service<B> {
     /// Resolve an ID for a given hash
     fn resolve(&self, q: impl Queryable) -> Result<Id, Error>{
         // Generate ID for page lookup using this registry
@@ -149,7 +150,7 @@ mod test {
     fn registry_publish(mut r: Service) {
         // Build target service
         let opt_name = Name::new("something");
-        let mut c = ServiceBuilder::generic().public_options(vec![Options::Name(opt_name.clone())]).build().unwrap();
+        let mut c = ServiceBuilder::<()>::generic().public_options(vec![Options::Name(opt_name.clone())]).build().unwrap();
         
         let (_n, _c) = c.publish_primary_buff(Default::default()).unwrap();
 

@@ -2,17 +2,18 @@ use core::convert::TryInto;
 
 
 
+use crate::base::PageBody;
 use crate::crypto;
 use crate::error::Error;
 use crate::page::{PageInfo};
-use crate::prelude::MaybeEncrypted;
+use crate::prelude::{MaybeEncrypted, Parse};
 use crate::service::Service;
 use crate::types::*;
 use crate::wire::Container;
 
-pub trait Subscriber {
+pub trait Subscriber<B: PageBody> {
     /// Create a service instance (or replica) from a given primary service page
-    fn load<T: ImmutableData>(page: &Container<T>) -> Result<Service, Error>;
+    fn load<T: ImmutableData>(page: &Container<T>) -> Result<Service<B>, Error>;
 
     /// Apply an updated primary page to an existing service instance
     fn apply_primary<T: ImmutableData>(&mut self, primary: &Container<T>) -> Result<bool, Error>;
@@ -24,9 +25,9 @@ pub trait Subscriber {
     fn validate_block<T: ImmutableData>(&mut self, _block: &Container<T>) -> Result<(), Error> { todo!() }
 }
 
-impl Subscriber for Service {
+impl <B: PageBody + Parse<Output=B>> Subscriber<B> for Service<B> {
     /// Create a service instance from a given page
-    fn load<T: ImmutableData>(page: &Container<T>) -> Result<Service, Error> {
+    fn load<T: ImmutableData>(page: &Container<T>) -> Result<Service<B>, Error> {
         let header = page.header();
         let flags = header.flags();
 
@@ -39,8 +40,16 @@ impl Subscriber for Service {
         };
 
         let body = match page.encrypted() {
+            _ if page.header().data_len() == 0 => MaybeEncrypted::None,
             true => MaybeEncrypted::Encrypted(page.body_raw().to_vec()),
-            false => MaybeEncrypted::Cleartext(page.body_raw().to_vec()),
+            false => {
+                let (info, _n) = B::parse(page.body_raw())
+                    .map_err(|e| {
+                        error!("Failed to parse body: {:?}", e);
+                        Error::EncodeFailed
+                    })?;
+                MaybeEncrypted::Cleartext(info)
+            },
         };
 
         let public_options: Vec<_> = page.public_options_iter().collect();
@@ -58,7 +67,7 @@ impl Subscriber for Service {
             version: header.index(),
             data_index: 0,
 
-            body: body.clone(),
+            body: body,
 
             public_options: public_options,
             private_options: private_options,
@@ -81,8 +90,16 @@ impl Subscriber for Service {
         let flags = header.flags();
         
         let body = match update.encrypted() {
+            _ if update.header().data_len() == 0 => MaybeEncrypted::None,
             true => MaybeEncrypted::Encrypted(update.body_raw().to_vec()),
-            false => MaybeEncrypted::Cleartext(update.body_raw().to_vec()),
+            false => {
+                let (info, _n) = B::parse(update.body_raw())
+                    .map_err(|e| {
+                        error!("Failed to parse body: {:?}", e);
+                        Error::EncodeFailed
+                    })?;
+                MaybeEncrypted::Cleartext(info)
+            },
         };
 
         let public_options: Vec<_> = update.public_options_iter().collect();
@@ -130,7 +147,7 @@ impl Subscriber for Service {
     }
 }
 
-impl Service {
+impl <B: PageBody> Service<B> {
     /// Validate a primary page
     pub(crate) fn validate_primary<T: ImmutableData>(&mut self, page: &Container<T>) -> Result<(), Error> {
         let header = page.header();
