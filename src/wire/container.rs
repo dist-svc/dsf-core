@@ -61,8 +61,11 @@ impl <T: ImmutableData> core::fmt::Debug for Container<T> {
             false => d.field("private_opts", &self.private_options_iter()),
         };
 
-        d.field("public_opts", &self.public_options_iter())
-        .field("tag", &self.tag())
+        // TODO: there seems to be a fault in here which can lead to an infinite loop...
+        //d.field("public_opts", &self.public_options_iter());
+        d.field("public_opts", &self.public_options_raw());
+
+        d.field("tag", &self.tag())
         .field("sig", &self.signature())
         .field("len", &self.len())
         .field("decrypted", &self.decrypted)
@@ -281,6 +284,9 @@ impl<'a, T: ImmutableData> Container<T> {
 
         let n = HEADER_LEN + ID_LEN + header.data_len() + header.private_options_len() + tag_len;
         let s = header.public_options_len();
+
+        debug!("OptionsIter offset: {} len: {}", n, s);
+
         OptionsIter::new(&data[n..n + s])
     }
 
@@ -465,21 +471,30 @@ impl<'a, T: MutableData> Container<T> {
 
     // Decrypt an encrypted object, mutating the internal buffer
     pub fn decrypt(&mut self, sk: &SecretKey) -> Result<(), Error> {
+        // TODO: skip if body + private options are empty...
+        debug!("SK Decrypt with key: {}", sk);
+
         // Check we're encrypted
         if !self.header().flags().contains(Flags::ENCRYPTED) || self.decrypted {
+            debug!("Object already decrypted");
             return Err(Error::InvalidSignature)
         }
 
         // Extract tag
         let tag = match self.tag() {
             Some(t) => t,
-            None => return Err(Error::InvalidSignature),
+            None => {
+                debug!("Object does not contain tag");
+                return Err(Error::InvalidSignature)
+            },
         };
 
         // Perform decryption
         let c = self.cyphertext_mut();
-        crypto::sk_decrypt(sk, &tag, c)
-            .map_err(|_e| Error::InvalidSignature)?;
+        if let Err(_) = crypto::sk_decrypt(sk, &tag, c) {
+            debug!("Signature verification failed");
+            return Err(Error::InvalidSignature);
+        }
 
         self.decrypted = true;
 

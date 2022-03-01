@@ -59,7 +59,7 @@ fn validate(
 ) -> Result<bool, Error> {
     // Attempt to use secret key mode if available
     let valid = if flags.contains(Flags::SYMMETRIC_MODE) {
-        debug!("Using symmetric mode");
+        debug!("Using symmetric signing mode");
 
         // Ensure symmetric mode is only used for messages
         if !kind.is_message() {
@@ -74,6 +74,8 @@ fn validate(
                 return Err(Error::NoSymmetricKeys);
             }
         };
+
+        debug!("Verify with key: {}", sk);
 
         // Validate signature
         crypto::sk_validate(sk, sig, data).map_err(|_e| Error::CryptoError)?
@@ -338,7 +340,7 @@ mod test {
     use crate::{crypto, keys::NullKeySource, prelude::{Header, Body}};
 
     fn setup() -> (Id, Keys) {
-        let _ = simplelog::SimpleLogger::init(simplelog::LevelFilter::Debug, simplelog::Config::default());
+        let _ = simplelog::SimpleLogger::init(simplelog::LevelFilter::Trace, simplelog::Config::default());
 
         let (pub_key, pri_key) =
             crypto::new_pk().expect("Error generating new public/private key pair");
@@ -523,6 +525,49 @@ mod test {
         assert_eq!(decoded.body_raw(), &data);
     }
 
+    #[test]
+    fn encode_decode_encrypted_message() {
+        let (id, keys) = setup();
+
+        // Generate target keys
+        let (pub_key, _pri_key) =
+            crypto::new_pk().expect("Error generating new public/private key pair");
+        let keys = keys.derive_peer(pub_key).unwrap();
+
+
+        let header = Header {
+            kind: RequestKind::Hello.into(),
+            flags: Flags::SYMMETRIC_MODE | Flags::ENCRYPTED,
+            ..Default::default()
+        };
+        let data = vec![1, 2, 3, 4, 5, 6, 7];
+
+        let encoded = Builder::new(vec![0u8; 1024])
+            .id(&id)
+            .header(&header)
+            .body(Body::Cleartext(data.clone())).unwrap()
+            .private_options(&[]).unwrap()
+            .encrypt(keys.sym_keys.as_ref().map(|k| &k.1 ).unwrap()).unwrap()
+            .public_options(&[
+                Options::peer_id(id.clone()),
+            ]).unwrap()
+            .sign_sk(keys.sym_keys.as_ref().map(|k| &k.1 ).unwrap())
+            //.sign_pk(keys.pri_key.as_ref().unwrap())
+            .expect("Error encoding message");
+
+        let mut decoded = Container::parse(encoded.raw().to_vec(), &keys).expect("Error decoding page");
+        
+        assert_eq!(encoded, decoded);
+
+        // Check we're encrypted
+        assert_eq!(decoded.encrypted(), true);
+        assert_ne!(decoded.body_raw(), &data);
+
+        // Perform decryption
+        decoded.decrypt(keys.sym_keys.as_ref().map(|k| &k.1 ).unwrap()).unwrap();
+        assert_eq!(decoded.body_raw(), &data);
+    }
+
     #[bench]
     fn bench_encode_primary_encrypted(b: &mut Bencher) {
         let (id, keys) = setup();
@@ -548,6 +593,69 @@ mod test {
                     Options::peer_id(id.clone()),
                 ]).unwrap()
                 .sign_pk(keys.pri_key.as_ref().unwrap())
+                .expect("Error encoding page");
+        });
+    }
+
+    #[bench]
+    fn bench_encode_message_signed_pk(b: &mut Bencher) {
+        let (id, keys) = setup();
+
+        let header = Header {
+            kind: RequestKind::Hello.into(),
+            application_id: 0,
+            index: 12,
+            ..Default::default()
+        };
+        let data = vec![1, 2, 3, 4, 5, 6, 7];
+
+        b.iter(|| {
+            // Encode using builder
+            let _c = Builder::new([0u8; 1024])
+                .id(&id)
+                .header(&header)
+                .body(&data).unwrap()
+                .private_options(&[]).unwrap()
+                .public()
+                .public_options(&[
+                    Options::peer_id(id.clone()),
+                ]).unwrap()
+                .sign_pk(keys.pri_key.as_ref().unwrap())
+                .expect("Error encoding page");
+        });
+    }
+
+    #[bench]
+    fn bench_encode_message_signed_sk(b: &mut Bencher) {
+        let (id, keys) = setup();
+
+        let (pub_key, pri_key) =
+            crypto::new_pk().expect("Error generating new public/private key pair");
+        let target = Keys{ pub_key: Some(pub_key), pri_key: Some(pri_key), ..Default::default() };
+
+        let target = target.derive_peer(keys.pub_key.unwrap().clone()).unwrap();
+
+        let header = Header {
+            kind: RequestKind::Hello.into(),
+            application_id: 0,
+            index: 12,
+            flags: Flags::SYMMETRIC_MODE,
+            ..Default::default()
+        };
+        let data = vec![1, 2, 3, 4, 5, 6, 7];
+
+        b.iter(|| {
+            // Encode using builder
+            let _c = Builder::new([0u8; 1024])
+                .id(&id)
+                .header(&header)
+                .body(&data).unwrap()
+                .private_options(&[]).unwrap()
+                .public()
+                .public_options(&[
+                    Options::peer_id(id.clone()),
+                ]).unwrap()
+                .sign_sk(target.sym_keys.as_ref().map(|k| &k.0).unwrap())
                 .expect("Error encoding page");
         });
     }

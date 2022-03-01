@@ -368,6 +368,11 @@ impl Parse for Options {
         let option_kind = NetworkEndian::read_u16(&data[0..2]);
         let option_len = NetworkEndian::read_u16(&data[2..4]) as usize;
 
+        if (OPTION_HEADER_LEN + option_len) > data.len() {
+            warn!("Option length ({}) exceeds buffer length ({}) for kind: {}", option_len, data.len(), option_kind);
+            return Err(Error::InvalidOptionLength);
+        }
+
         let d = &data[OPTION_HEADER_LEN..OPTION_HEADER_LEN + option_len];
 
         // Convert to option kind

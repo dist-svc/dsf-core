@@ -92,13 +92,33 @@ impl Message {
 
 impl Message {
     /// Parses an array containing a page into a page object using the provided key source
-    pub fn parse<'a, K, T: ImmutableData>(data: T, key_source: &K) -> Result<(Message, usize), Error>
+    pub fn parse<'a, K, T: MutableData>(data: T, key_source: &K) -> Result<(Message, usize), Error>
     where
         K: KeySource,
     {
-        let c = Container::parse(data, key_source)?;
+        // Parse container, verifying sigs etc.
+        let mut c = Container::parse(data, key_source)?;
         let n = c.len();
 
+        // Decrypt symmetric encrypted objects if enabled
+        let flags = c.header().flags();
+        if flags.contains(Flags::SYMMETRIC_MODE) && flags.contains(Flags::ENCRYPTED) {
+            debug!("Applying symmetric decrypt to message from: {}", c.id());
+
+            match key_source.keys(&c.id()).map(|k| k.sym_keys).flatten() {
+                Some(sym_keys) if flags.contains(Flags::SYMMETRIC_DIR) => {
+                    c.decrypt(&sym_keys.0)?
+                },
+                Some(sym_keys) => {
+                    c.decrypt(&sym_keys.1)?
+                },
+                None => {
+                    return Err(Error::NoSymmetricKeys)
+                }
+            }
+        }
+
+        // Convert into message object
         let m = Message::convert(c, key_source)?;
 
         Ok((m, n))
@@ -106,7 +126,7 @@ impl Message {
 }
 
 impl Message {
-    pub fn convert<T: ImmutableData, K: KeySource>(base: Container<T>, key_source: &K) -> Result<Message, Error> {
+    fn convert<T: ImmutableData, K: KeySource>(base: Container<T>, key_source: &K) -> Result<Message, Error> {
         let header = base.header();
         let app_id = header.application_id();
         let kind = header.kind();

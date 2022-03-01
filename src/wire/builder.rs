@@ -237,6 +237,10 @@ impl<T: MutableData> Builder<Encrypt, T> {
         mut self,
         secret_key: &SecretKey,
     ) -> Result<Builder<SetPublicOptions, T>, Error> {
+        // TODO: skip if body + private options are empty...
+
+        debug!("SK Encrypt with key: {}", secret_key);
+
         // Calculate area to be encrypted
         let o = HEADER_LEN + ID_LEN;
         let l = self.header_ref().data_len()
@@ -409,6 +413,8 @@ impl<T: MutableData> Builder<SetPublicOptions, T> {
     // Sign the builder object, returning a new signed container
     pub fn sign_sk(mut self, signing_key: &SecretKey) -> Result<Container<T>, Error> {
         let b = self.buf.as_mut();
+
+        debug!("Sign with key: {}", signing_key);
 
         // Generate signature
         let sig = crypto::sk_sign(signing_key, &b[..self.n]).unwrap();

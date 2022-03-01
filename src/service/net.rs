@@ -7,7 +7,7 @@ use crate::options::Options;
 use crate::prelude::{Header, Keys};
 use crate::service::Service;
 use crate::types::{MutableData, RequestKind, ResponseKind, Address, Flags, Kind};
-use crate::wire::builder::SetPublicOptions;
+use crate::wire::builder::{SetPublicOptions, Encrypt};
 use crate::wire::{Container, Builder};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -91,8 +91,10 @@ impl <D: PageBody> Net for Service<D> {
         };
 
         // Attach options
-        let b = b.private_options(&[])?
-            .public();
+        let b = b.private_options(&[])?;
+
+        // Encrypt if running symmetric mode
+        let b = self.encrypt_message(req.flags, keys, b)?;
 
         // Sign/encrypt object using provided keying
         let c = self.finalise_message(req.flags, &req.common, keys, b)?;
@@ -143,9 +145,11 @@ impl <D: PageBody> Net for Service<D> {
         };
 
         // Attach options
-        let b = b.private_options(&[])?
-            .public();
+        let b = b.private_options(&[])?;
 
+        // Encrypt if running symmetric mode
+        let b = self.encrypt_message(resp.flags, keys, b)?;
+        
         // Sign/encrypt object using provided keying
         let c = self.finalise_message(resp.flags, &resp.common, keys, b)?;
 
@@ -156,6 +160,23 @@ impl <D: PageBody> Net for Service<D> {
 
 
 impl <D: PageBody> Service<D> {
+
+    pub fn encrypt_message<T: MutableData>(&self, flags: Flags, keys: &Keys, b: Builder<Encrypt, T>) -> Result<Builder<SetPublicOptions, T>, Error> {
+
+        // Apply symmetric encryption if enabled
+        if flags.contains(Flags::SYMMETRIC_MODE) && flags.contains(Flags::ENCRYPTED) {
+            // Select matching symmetric key
+            let sec_key = match &keys.sym_keys {
+                Some(k) if flags.contains(Flags::SYMMETRIC_DIR) => &k.1,
+                Some(k) => &k.0,
+                _ => panic!("Attempted to encrypt object with no secret key"),
+            };
+
+            b.encrypt(&sec_key)
+        } else {
+            Ok(b.public())
+        }
+    }
 
     pub fn finalise_message<T: MutableData>(&self, flags: Flags, common: &Common, keys: &Keys, mut b: Builder<SetPublicOptions, T> ) -> Result<Container<T>, Error> {
 
@@ -175,6 +196,8 @@ impl <D: PageBody> Service<D> {
         // Sign/encrypt object using provided keying
         let c = if !flags.contains(Flags::SYMMETRIC_MODE) {
             // Public key mode, no KX required
+
+            // TODO: attempt encryption against peer pub key if available
 
             // Check we have a private key to sign with 
             let private_key = match &self.private_key {
@@ -209,10 +232,13 @@ mod test {
 
     use pretty_assertions::assert_eq;
 
-    use crate::{prelude::*, net::Status};
+    use crate::{prelude::*, net::{Status, Message}};
     use super::*;
 
     fn setup() -> (Service, Service) {
+        let _ = simplelog::SimpleLogger::init(simplelog::LevelFilter::Debug, simplelog::Config::default());
+
+
         let s = ServiceBuilder::generic().build().unwrap();
         let p = ServiceBuilder::generic().build().unwrap();
         (s, p)
@@ -286,16 +312,10 @@ mod test {
                 .expect("Error encoding request");
 
             // Parse back and check objects match
-            let dec = Container::parse(enc.raw().to_vec(), &source.keys())
+            let (r2, _) = Message::parse(enc.raw().to_vec(), &source.keys())
                 .expect("error parsing message");
-                
-            println!("Decoded: {:?}", dec);
 
-            // Cast to message and check instances match
-            let r2 = Request::convert(dec, &source.keys())
-                .expect("error converting base object to message");
-
-            assert_eq!(r, r2);
+            assert_eq!(Message::request(r), r2);
         }
     }
 
@@ -307,7 +327,7 @@ mod test {
         let source_keys = source.keys().derive_peer(target.public_key()).unwrap();
         let target_keys = target.keys().derive_peer(source.public_key()).unwrap();
 
-        let flags = Flags::ADDRESS_REQUEST | Flags::SYMMETRIC_MODE;
+        let flags = Flags::ADDRESS_REQUEST | Flags::SYMMETRIC_MODE | Flags::ENCRYPTED;
         let reqs = requests(source.id(), target.id(), flags, page.to_owned());
 
 
@@ -323,16 +343,10 @@ mod test {
             println!("Decoding: {:?}", enc);
 
             // Parse back and check objects match
-            let dec = Container::parse(enc.raw().to_vec(), &target_keys)
+            let (r2, _) = Message::parse(enc.raw().to_vec(), &target_keys)
                 .expect("error parsing message");
 
-            println!("Decoded: {:?}", dec);
-
-            // Cast to message and check instances match
-            let r2 = Request::convert(dec, &target_keys)
-                .expect("error converting base object to message");
-
-            assert_eq!(r, r2);
+            assert_eq!(Message::request(r), r2);
         }
     }
 
@@ -400,16 +414,10 @@ mod test {
                 .expect("Error encoding response");
 
             // Parse back and check objects match
-            let dec = Container::parse(enc.raw().to_vec(), &source.keys())
+            let (r2, _) = Message::parse(enc.raw().to_vec(), &source.keys())
                 .expect("error parsing message");
 
-            println!("Decoded: {:?}", dec);
-
-            // Cast to message and check instances match
-            let r2 = Response::convert(dec, &source.keys())
-                .expect("error converting base object to message");
-
-            assert_eq!(r, r2);
+            assert_eq!(Message::response(r), r2);
         }
     }
 
@@ -421,7 +429,7 @@ mod test {
         let source_keys = source.keys().derive_peer(target.public_key()).unwrap();
         let target_keys = target.keys().derive_peer(source.public_key()).unwrap();
 
-        let flags = Flags::ADDRESS_REQUEST | Flags::SYMMETRIC_MODE;
+        let flags = Flags::ADDRESS_REQUEST | Flags::SYMMETRIC_MODE | Flags::ENCRYPTED;
         let resps = responses(&source, &target, flags, page.to_owned());
 
         for r in resps {
@@ -436,16 +444,10 @@ mod test {
             println!("Decoding: {:?}", enc);
 
             // Parse back and check objects match
-            let dec = Container::parse(enc.raw().to_vec(), &target_keys)
+            let (r2, _) = Message::parse(enc.raw().to_vec(), &target_keys)
                 .expect("error parsing message");
 
-            println!("Decoded: {:?}", dec);
-
-            // Cast to message and check instances match
-            let r2 = Response::convert(dec, &target_keys)
-                .expect("error converting base object to message");
-
-            assert_eq!(r, r2);
+            assert_eq!(Message::response(r), r2);
         }
     }
 }
