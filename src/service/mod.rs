@@ -3,7 +3,7 @@
 //! `Publisher`, `Subscriber`, and `Net` traits provide functionality for publishing services,
 //! subscribing to services, and sending messages respectively.
 
-use crate::base::{Body, MaybeEncrypted, PageBody};
+use crate::base::{MaybeEncrypted, PageBody};
 use crate::crypto;
 use crate::error::Error;
 use crate::options::Options;

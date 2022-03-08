@@ -213,7 +213,7 @@ const DSF_NS_KDF_CTX: [u8; 8] = [208, 217, 2, 27, 15, 253, 70, 121];
 const DSF_NS_KDF_IDX: u64 = 1;
 
 /// Hash function to generate tertiary IDs
-pub fn hash_tid(id: Id, keys: &Keys, o: impl Queryable) -> CryptoHash {
+pub fn hash_tid(id: Id, keys: &Keys, o: impl Queryable) -> Result<CryptoHash, ()> {
 
     let seed: Array32 = match (&keys.sec_key, &keys.pub_key) {
         // If we have a secret key, derive a new key for hashing
@@ -235,13 +235,18 @@ pub fn hash_tid(id: Id, keys: &Keys, o: impl Queryable) -> CryptoHash {
     // Generate new identity hash
     let mut h = sodiumoxide::crypto::hash::sha256::State::new();
     h.update(&seed);
-    o.hash(&mut h);
+    
+    if !o.hash(&mut h) {
+        error!("Attempted to hash non-queryable type: {:?}", o);
+        return Err(())
+    }
+
     let h = CryptoHash::from(h.finalize().0);
 
     // XOR with ns ID to give new location
     
 
-    h ^ id
+    Ok(h ^ id)
 }
 
 impl CryptoHasher for sodiumoxide::crypto::hash::sha256::State {

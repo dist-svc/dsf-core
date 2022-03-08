@@ -85,9 +85,8 @@ impl<T: ImmutableData> WireHeader<T> {
     }
 }
 
-#[cfg(feature = "std")]
-impl<T: ImmutableData> std::fmt::Debug for WireHeader<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+impl<T: ImmutableData> core::fmt::Debug for WireHeader<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> Result<(), core::fmt::Error> {
         f.debug_struct("WireHeader")
             .field("protocol_version", &self.protocol_version())
             .field("application_id", &self.application_id())

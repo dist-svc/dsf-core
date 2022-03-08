@@ -1,5 +1,5 @@
 
-use std::ops::Add;
+use core::ops::Add;
 
 use crate::base::PageBody;
 use crate::options::Options;
@@ -81,9 +81,10 @@ impl <B: PageBody> Registry for Service<B> {
     /// Resolve an ID for a given hash
     fn resolve(&self, q: impl Queryable) -> Result<Id, Error>{
         // Generate ID for page lookup using this registry
-        let tid = crate::crypto::hash_tid(self.id(), &self.keys(), q);
-        // Return ID for page lookup
-        Ok(tid)
+        match crate::crypto::hash_tid(self.id(), &self.keys(), q) {
+            Ok(tid) => Ok(tid),
+            Err(_) => Err(Error::CryptoError),
+        }
     }
 
     fn publish_tertiary<Q: Queryable, T: MutableData>(
@@ -95,7 +96,10 @@ impl <B: PageBody> Registry for Service<B> {
     ) -> Result<(usize, Container<T>), Error> {
 
         // Generate TID
-        let tid = crate::crypto::hash_tid(self.id(), &self.keys(), q);
+        let tid = match crate::crypto::hash_tid(self.id(), &self.keys(), q) {
+            Ok(tid) => tid,
+            Err(_) => return Err(Error::CryptoError),
+        };
 
         // Setup flags
         let mut flags = Flags::TERTIARY;
@@ -143,24 +147,24 @@ impl <B: PageBody> Registry for Service<B> {
 #[cfg(test)]
 mod test {
     use crate::{prelude::*, service::Publisher};
-    use crate::options::{Options, Name, Filters};
+    use crate::options::{Options, Filters};
 
     use super::*;
 
     fn registry_publish(mut r: Service) {
         // Build target service
-        let opt_name = Name::new("something");
+        let opt_name = "something".to_string();
         let mut c = ServiceBuilder::<()>::generic().public_options(vec![Options::Name(opt_name.clone())]).build().unwrap();
         
         let (_n, _c) = c.publish_primary_buff(Default::default()).unwrap();
 
         // Generate page for name entry
-        let (_n, p1) = Registry::publish_tertiary_buff::<512, _>(&mut r, c.id().into(), TertiaryOptions::default(), &opt_name).unwrap();
+        let (_n, p1) = Registry::publish_tertiary_buff::<512, _>(&mut r, c.id().into(), TertiaryOptions::default(), &Options::Name(opt_name.clone())).unwrap();
 
         println!("Tertiary page: {:02x?}", p1);
 
         // Lookup TID for name
-        let tid_name = Registry::resolve(&r, &opt_name).unwrap();
+        let tid_name = Registry::resolve(&r, &Options::Name(opt_name.clone())).unwrap();
         assert_eq!(&p1.id(), &tid_name);
 
         // Check link to registry

@@ -1,5 +1,4 @@
 use byteorder::{NetworkEndian, ByteOrder};
-
 use crate::base::{Encode, PageBody};
 use crate::error::Error;
 use crate::net::{Request, RequestBody, Response, ResponseBody, Common};
@@ -236,8 +235,8 @@ mod test {
     use super::*;
 
     fn setup() -> (Service, Service) {
+        #[cfg(feature="simplelog")]
         let _ = simplelog::SimpleLogger::init(simplelog::LevelFilter::Debug, simplelog::Config::default());
-
 
         let s = ServiceBuilder::generic().build().unwrap();
         let p = ServiceBuilder::generic().build().unwrap();

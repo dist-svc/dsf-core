@@ -1,6 +1,7 @@
 //! Error types for DSF Core
 
-use std::convert::Infallible;
+use core::convert::Infallible;
+
 #[cfg(feature = "std")]
 use std::io::Error as IoError;
 #[cfg(feature = "std")]
@@ -12,7 +13,7 @@ use std::time::SystemTimeError;
 #[derive(PartialEq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "thiserror", derive(thiserror::Error))]
-#[cfg_attr(feature = "strum", derive(strum_macros::Display))]
+#[cfg_attr(feature = "strum", derive(strum::Display))]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Error {
     IO,
@@ -58,6 +59,7 @@ pub enum Error {
     Timeout,
     Unknown,
     EncodeFailed,
+    BufferLength,
 }
 
 #[cfg(feature = "std")]

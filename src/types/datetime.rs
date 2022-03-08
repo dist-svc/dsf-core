@@ -1,5 +1,5 @@
 use core::fmt;
-use std::ops::Add;
+use core::ops::Add;
 
 use chrono::{NaiveDateTime, TimeZone, Utc};
 
@@ -64,6 +64,7 @@ impl From<std::time::SystemTime> for DateTime {
     }
 }
 
+#[cfg(feature = "std")]
 impl From<NaiveDateTime> for DateTime {
     fn from(s: NaiveDateTime) -> Self {
         Self(s.timestamp_millis() as u64 / 1000)

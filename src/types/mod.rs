@@ -9,13 +9,14 @@ use core::ops::{Deref, DerefMut};
 use core::str::FromStr;
 use core::marker::PhantomData;
 use core::ops::BitXor;
-use std::convert::Infallible;
+use core::convert::{Infallible, TryFrom};
 
 #[cfg(feature = "serde")]
 use serde::de::{self, Visitor};
 #[cfg(feature = "serde")]
 use serde::{Deserializer, Serializer};
 
+#[cfg(feature = "std")]
 pub use chrono::Duration;
 
 /// ImmutableData trait wraps AsRef<[u8]>
@@ -31,8 +32,8 @@ pub trait MutableData: AsMut<[u8]> + ImmutableData {}
 impl<T: AsMut<[u8]> + ImmutableData> MutableData for T {}
 
 /// Queryable trait for name resolution services
-pub trait Queryable {
-    fn hash<H: CryptoHasher>(&self, h: &mut H);
+pub trait Queryable: core::fmt::Debug {
+    fn hash<H: CryptoHasher>(&self, h: &mut H) -> bool;
 }
 
 pub trait CryptoHasher {
@@ -46,8 +47,9 @@ pub type Id = Array<ID_LEN>;
 
 
 impl Queryable for Id {
-    fn hash<H: CryptoHasher>(&self, state: &mut H) {
+    fn hash<H: CryptoHasher>(&self, state: &mut H) -> bool {
         state.update(&self.0);
+        true
     }
 }
 
@@ -91,7 +93,7 @@ pub const HASH_LEN: usize = 32;
 pub type CryptoHash = Array<HASH_LEN>;
 
 
-use crate::prelude::Encode;
+use crate::prelude::{Encode, DsfError};
 use crate::wire::Container;
 pub type Data = Container;
 
@@ -162,11 +164,19 @@ impl <const N: usize> PartialOrd for Array<N> {
     }
 }
 
-impl <const N: usize> From<&[u8]> for Array<N> {
-    fn from(data: &[u8]) -> Self {
+impl <const N: usize> TryFrom<&[u8]> for Array<N> {
+    type Error = DsfError;
+
+    fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
         let mut a = [0u8; N];
+
+        if data.len() != N {
+            return Err(DsfError::BufferLength);
+        }
+
         a.copy_from_slice(data);
-        a.into()
+
+        Ok(a.into())
     }
 }
 

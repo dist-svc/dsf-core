@@ -1,9 +1,9 @@
 
 use core::fmt::Debug;
-use std::convert::TryFrom;
-use std::marker::PhantomData;
+use core::convert::TryFrom;
 
-use serde::Serialize;
+#[cfg(feature = "alloc")]
+use alloc::vec::Vec;
 
 use crate::base::PageBody;
 use crate::page::PageInfo;
@@ -187,7 +187,7 @@ impl<'a, T: ImmutableData> Container<T> {
 
     /// Fetch object ID
     pub fn id(&self) -> Id {
-        Id::from(self.id_raw())
+        Id::try_from(self.id_raw()).unwrap()
     }
 
     pub fn encrypted(&self) -> bool {
@@ -268,7 +268,7 @@ impl<'a, T: ImmutableData> Container<T> {
     }
 
     pub fn tag(&self) -> Option<SecretMeta> {
-        self.tag_raw().map(SecretMeta::from)
+        self.tag_raw().map(|d| SecretMeta::try_from(d).ok() ).flatten()
     }
 
     /// Return the public options section data
@@ -311,7 +311,7 @@ impl<'a, T: ImmutableData> Container<T> {
     /// Fetch the message signature
     pub fn signature(&self) -> Signature {
         let r = self.signature_raw();
-        Signature::from(r)
+        Signature::try_from(r).unwrap()
     }
 
     /// Return the total length of the object (from the header)
@@ -362,15 +362,10 @@ impl<'a, T: ImmutableData> Container<T> {
             // Handle primary page parsing
 
             // Fetch public key from options
-            let public_key = self.public_options_iter().find_map(|o| match o {
-                Options::PubKey(pub_key) => Some(pub_key.public_key.clone()),
-                _ => None,
-            });
-
-            let public_key = match public_key {
-                Some(pk) => Ok(pk.clone()),
-                None => Err(Error::NoPublicKey),
-            }?;
+            let public_key: PublicKey = match self.public_options_iter().pub_key() {
+                Some(pk) => pk,
+                None => return Err(Error::NoPublicKey),
+            };
 
             // Check public key and ID match
             let hash: Id = crypto::hash(&public_key).unwrap();
@@ -384,7 +379,7 @@ impl<'a, T: ImmutableData> Container<T> {
             // Handle secondary page parsing
 
             let peer_id = self.public_options_iter().find_map(|o| match o {
-                Options::PeerId(peer_id) => Some(peer_id.peer_id.clone()),
+                Options::PeerId(peer_id) => Some(peer_id.clone()),
                 _ => None,
             });
 
@@ -399,7 +394,7 @@ impl<'a, T: ImmutableData> Container<T> {
             // Handle tertiary page parsing
 
             let peer_id = self.public_options_iter().find_map(|o| match o {
-                Options::PeerId(peer_id) => Some(peer_id.peer_id.clone()),
+                Options::PeerId(peer_id) => Some(peer_id.clone()),
                 _ => None,
             });
             let peer_id = match peer_id {
@@ -409,11 +404,11 @@ impl<'a, T: ImmutableData> Container<T> {
 
             match PageKind::try_from(kind.index()) {
                 Ok(PageKind::ServiceLink) => {
-                    let target_id = Id::from(self.body_raw());
+                    let target_id = Id::try_from(self.body_raw())?;
                     PageInfo::service_link(target_id, peer_id)
                 },
                 Ok(PageKind::BlockLink) => {
-                    let block_sig = Signature::from(self.body_raw());
+                    let block_sig = Signature::try_from(self.body_raw())?;
                     PageInfo::block_link(block_sig, peer_id)
                 }
                 _ => return Err(Error::InvalidPageKind),
@@ -432,7 +427,7 @@ impl<'a, T: ImmutableData> Container<T> {
     /// Check whether an object has expired
     #[cfg(feature = "std")]
     pub fn expired(&self) -> bool {
-        use std::ops::Add;
+        use core::ops::Add;
 
         // Convert issued and expiry times
         let (issued, expiry): (Option<std::time::SystemTime>, Option<std::time::SystemTime>) = (

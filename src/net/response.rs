@@ -25,7 +25,7 @@ pub struct Response {
 
 /// Response message kinds
 #[derive(Clone, PartialEq, Debug)]
-#[cfg_attr(feature = "strum", derive(strum_macros::Display))]
+#[cfg_attr(feature = "strum", derive(strum::Display))]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum ResponseBody {
     Status(Status),
@@ -202,13 +202,6 @@ impl Response {
                 let pages = Container::decode_pages(&body[ID_LEN..], key_source)?;
 
                 ResponseBody::PullData(id, pages)
-            }
-            _ => {
-                error!(
-                    "Error converting base object of kind {:?} to response message",
-                    header.kind()
-                );
-                return Err(Error::InvalidResponseKind);
             }
         };
 

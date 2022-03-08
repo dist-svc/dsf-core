@@ -1,7 +1,6 @@
+// TODO: work out how to avoid owning well, everything ideally, so this works without alloc
 #[cfg(feature = "alloc")]
-use alloc::vec::{Vec};
-
-//use std::collections::HashMap;
+use alloc::{vec::Vec, string::String};
 
 #[derive(PartialEq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]

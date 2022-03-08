@@ -10,8 +10,8 @@ license = "MPL-2.0"
 edition = "2018"
 
 [features]
-std = [ "managed/std", "bytes/std", "base64/std", "byteorder/std", "sha2/std", "chrono/std", "strum", "strum_macros", "thiserror", "rand_core/std" ]
-alloc = [ "base64/alloc", "chrono/alloc", "pretty-hex/alloc" ]
+std = [ "managed/std", "bytes/std", "base64/std", "byteorder/std", "sha2/std", "chrono/std", "strum", "strum_macros", "thiserror", "rand_core/std", "log/std", "simplelog" ]
+alloc = [ "base64/alloc", "chrono/alloc", "pretty-hex/alloc", "strum", "strum_macros" ]
 crypto-dalek = [ "ed25519-dalek" ]
 default = [ "std", "serde" ]
 
@@ -19,7 +19,7 @@ default = [ "std", "serde" ]
 [dependencies]
 bitflags = "1.2.1"
 #derive_builder = "0.7.0"
-log = { version = "0.4.11", features = [ "release_max_level_debug" ] }
+log = { version = "0.4.11", default_features = false, features = [ "release_max_level_debug" ] }
 #ls = "0.0.0"
 #newtype_array = "0.1.6"
 slice-ext = "0.1.0"
@@ -40,14 +40,17 @@ num_enum = { version = "0.5.4", default-features = false }
 structopt = { version = "0.3.8", optional = true }
 thiserror = { version = "1.0.11", default_features = false, optional = true }
 defmt = { version = "0.2.1", optional = true }
-strum_macros = { version = "0.20.1", optional = true }
+strum = { version = "0.23.0", default_features = false, features = [ "derive" ], optional = true }
+strum_macros = { version = "0.20.1", default_features = false, optional = true }
 
 no-std-net = { version = "0.3.0", optional = true }
-strum = { version = "0.23.0", optional = true }
 diesel = { version = "1.4.3", optional = true }
 modular-bitfield = "0.11.2"
 
 ed25519-dalek = { version = "1.0.0", optional = true }
+
+simplelog = { version = "0.10.2", optional = true }
+
 
 [dependencies.sodiumoxide]
 version = "0.2.5"
@@ -64,4 +67,3 @@ sodiumoxide = { git = "https://github.com/sodiumoxide/sodiumoxide.git" }
 
 [dev-dependencies]
 pretty_assertions = "1.0.0"
-simplelog = "0.10.2"

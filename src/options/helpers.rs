@@ -2,60 +2,194 @@ use core::str;
 use core::str::FromStr;
 use core::fmt::Display;
 
-use byteorder::{ByteOrder, NetworkEndian};
+// TODO: work out how to avoid owning well, everything ideally, so this works without alloc
+#[cfg(feature = "alloc")]
+use alloc::{string::String};
 
-use crate::base::{Encode, Parse};
-use crate::error::Error;
-use crate::types::{DateTime, PublicKey};
-use super::Options;
+use crate::base::{Parse};
+use crate::types::{PublicKey, ImmutableData, Address, Signature, DateTime, Id};
+use super::{Options, OPTION_HEADER_LEN};
 
-impl Parse for String {
-    type Output = String;
-    type Error = Error;
 
-    fn parse<'a>(data: &'a [u8]) -> Result<(Self::Output, usize), Self::Error> {
-        let length = NetworkEndian::read_u16(&data[0..2]) as usize;
-        let value = str::from_utf8(&data[2..2 + length]).unwrap().to_owned();
+/// Iterator for decoding options from the provided buffer
+pub struct OptionsIter<T> {
+    index: usize,
+    buff: T,
+}
 
-        Ok((value, length + 2))
+impl <T: ImmutableData> core::fmt::Debug for OptionsIter<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let i = OptionsIter::new(&self.buff);
+        f.debug_list().entries(i).finish()
     }
 }
 
-impl Encode for String {
-    type Error = Error;
-
-    fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
-        let value = self.as_bytes();
-
-        NetworkEndian::write_u16(&mut data[0..], value.len() as u16);
-        data[2..value.len() + 2].copy_from_slice(value);
-
-        Ok(value.len() + 2)
+impl <T: ImmutableData + Clone> Clone for OptionsIter<T> {
+    fn clone(&self) -> Self {
+        Self { index: 0, buff: self.buff.clone() }
     }
 }
 
-impl Parse for DateTime {
-    type Output = DateTime;
-    type Error = Error;
-
-    fn parse<'a>(data: &'a [u8]) -> Result<(Self::Output, usize), Self::Error> {
-        let raw = NetworkEndian::read_u64(&data[0..]);
-        let when = DateTime::from_secs(raw);
-
-        Ok((when, 10))
+impl<T> OptionsIter<T>
+where
+    T: AsRef<[u8]>,
+{
+    pub(crate) fn new(buff: T) -> Self {
+        Self { index: 0, buff }
     }
 }
 
-impl Encode for DateTime {
-    type Error = Error;
+impl<T> Iterator for OptionsIter<T>
+where
+    T: AsRef<[u8]>,
+{
+    type Item = Options;
 
-    fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
-        NetworkEndian::write_u16(&mut *data, 8);
-        let time_s = self.as_secs();
+    fn next(&mut self) -> Option<Options> {
+        // Fetch remaining data
+        let rem = &self.buff.as_ref()[self.index..];
 
-        NetworkEndian::write_u64(&mut data[2..], time_s);
+        // Short circuit if we're too short
+        if rem.len() < OPTION_HEADER_LEN {
+            return None;
+        }
 
-        Ok(10)
+        let (o, n) = match Options::parse(rem) {
+            Ok(v) => v,
+            Err(e) => {
+                error!("Option parsing error: {:?}", e);
+                return None;
+            }
+        };
+
+        self.index += n;
+
+        Some(o)
+    }
+}
+
+
+/// Filter helpers for option iterators
+pub trait Filters {
+    fn pub_key(&self) -> Option<PublicKey>;
+    fn peer_id(&self) -> Option<Id>;
+    fn issued(&self) -> Option<DateTime>;
+    fn expiry(&self) -> Option<DateTime>;
+    fn prev_sig(&self) -> Option<Signature>;
+    fn address(&self) -> Option<Address>;
+    fn name(&self) -> Option<String>;
+}
+
+/// Filter implementation for [`OptionsIter`]
+impl <T: AsRef<[u8]>> Filters for OptionsIter<T> {
+    fn pub_key(&self) -> Option<PublicKey> {
+        let mut s = OptionsIter{ index: 0, buff: self.buff.as_ref() };
+        s.find_map(|o| match o {
+            Options::PubKey(pk) => Some(pk.clone()),
+            _ => None,
+        })
+    }
+
+    fn peer_id(&self) -> Option<Id> {
+        let mut s = OptionsIter{ index: 0, buff: self.buff.as_ref() };
+        s.find_map(|o| match o {
+            Options::PeerId(peer_id) => Some(peer_id.clone()),
+            _ => None,
+        })
+    }
+
+    fn issued(&self) -> Option<DateTime> {
+        let mut s = OptionsIter{ index: 0, buff: self.buff.as_ref() };
+        s.find_map(|o| match o {
+            Options::Issued(t) => Some(t),
+            _ => None,
+        })
+    }
+
+    fn expiry(&self) -> Option<DateTime> {
+        let mut s = OptionsIter{ index: 0, buff: self.buff.as_ref() };
+        s.find_map(|o| match o {
+            Options::Expiry(t) => Some(t),
+            _ => None,
+        })
+    }
+
+    fn prev_sig(&self) -> Option<Signature> {
+        let mut s = OptionsIter{ index: 0, buff: self.buff.as_ref() };
+        s.find_map(|o| match o {
+            Options::PrevSig(s) => Some(s.clone()),
+            _ => None,
+        })
+    }
+
+    fn name(&self) -> Option<String> {
+        let mut s = OptionsIter{ index: 0, buff: self.buff.as_ref() };
+        s.find_map(|o| match o {
+            Options::Name(name) => Some(name.clone()),
+            _ => None,
+        })
+    }
+
+    fn address(&self) -> Option<Address> {
+        let mut s = OptionsIter{ index: 0, buff: self.buff.as_ref() };
+        s.find_map(|o| match o {
+            Options::IPv4(addr) => Some((addr).into()),
+            Options::IPv6(addr) => Some((addr).into()),
+            _ => None,
+        })
+    }
+}
+
+/// [`Filters`] implementation for types implementing Iterator over Options
+impl <'a, T: Iterator<Item=&'a Options> + Clone> Filters for T {
+    fn pub_key(&self) -> Option<PublicKey> {
+        self.clone().find_map(|o| match o {
+            Options::PubKey(pk) => Some(pk.clone()),
+            _ => None,
+        })
+    }
+
+    fn peer_id(&self) -> Option<Id> {
+        self.clone().find_map(|o| match o {
+            Options::PeerId(peer_id) => Some(peer_id.clone()),
+            _ => None,
+        })
+    }
+
+    fn issued(&self) -> Option<DateTime> {
+        self.clone().find_map(|o| match o {
+            Options::Issued(t) => Some(t.clone()),
+            _ => None,
+        })
+    }
+
+    fn expiry(&self) -> Option<DateTime> {
+        self.clone().find_map(|o| match o {
+            Options::Expiry(t) => Some(t.clone()),
+            _ => None,
+        })
+    }
+
+    fn prev_sig(&self) -> Option<Signature> {
+        self.clone().find_map(|o| match o {
+            Options::PrevSig(s) => Some(s.clone()),
+            _ => None,
+        })
+    }
+
+    fn name(&self) -> Option<String> {
+        self.clone().find_map(|o| match o {
+            Options::Name(name) => Some(name.clone()),
+            _ => None,
+        })
+    }
+
+    fn address(&self) -> Option<Address> {
+        self.clone().find_map(|o| match o {
+            Options::IPv4(addr) => Some((*addr).into()),
+            Options::IPv6(addr) => Some((*addr).into()),
+            _ => None,
+        })
     }
 }
 
@@ -98,9 +232,9 @@ impl FromStr for Options {
 impl Display for Options {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Options::PubKey(o) => write!(f, "pub_key:{}", o.public_key),
-            Options::Name(o) => write!(f, "name:{}", o.value),
-            Options::Kind(o) => write!(f, "kind:{}", o.value),
+            Options::PubKey(o) => write!(f, "pub_key:{}", o),
+            Options::Name(o) => write!(f, "name:{}", o),
+            Options::Kind(o) => write!(f, "kind:{}", o),
             //Options::Building(o) => write!(f, "name:{}", name.value),
             //Options::Room(o) => write!(f, "kind:{}", kind.value),
             _ => write!(f, "{:?}", self),

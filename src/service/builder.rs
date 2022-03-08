@@ -1,7 +1,7 @@
 #[cfg(feature = "alloc")]
 use alloc::vec::{Vec};
 
-use crate::base::{Body, MaybeEncrypted, PageBody};
+use crate::base::{MaybeEncrypted, PageBody};
 use crate::crypto;
 use crate::error::Error;
 use crate::options::Options;

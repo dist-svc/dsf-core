@@ -77,6 +77,19 @@ impl AddressV4 {
     }
 }
 
+
+impl From<(u32, u16)> for AddressV4 {
+    fn from(a: (u32, u16)) -> Self {
+        Self::new(a.0.to_ne_bytes(), a.1)
+    }
+}
+
+impl From<(Ipv4, u16)> for AddressV4 {
+    fn from(a: (Ipv4, u16)) -> Self {
+        Self::new(a.0, a.1)
+    }
+}
+
 #[cfg(feature = "std")]
 impl From<SocketAddrV4> for AddressV4 {
     fn from(a: SocketAddrV4) -> Self {
@@ -105,6 +118,13 @@ impl AddressV6 {
         Self { ip, port }
     }
 }
+
+impl From<(Ipv6, u16)> for AddressV6 {
+    fn from(a: (Ipv6, u16)) -> Self {
+        Self::new(a.0, a.1)
+    }
+}
+
 
 #[cfg(feature = "std")]
 impl From<SocketAddrV6> for AddressV6 {

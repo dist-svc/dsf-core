@@ -162,13 +162,13 @@ impl<'a, T: ImmutableData> Container<T> {
         for o in container.public_options_iter() {
             match o {
                 Options::PeerId(v) => {
-                    peer_id = Some(v.peer_id.clone());
+                    peer_id = Some(v.clone());
                 },
                 Options::PubKey(v) => {
-                    pub_key = Some(v.public_key.clone());
+                    pub_key = Some(v.clone());
                 },
                 Options::PrevSig(v) => {
-                    parent = Some(v.sig.clone());
+                    parent = Some(v.clone());
                 },
                 _ => (),
             }
@@ -340,6 +340,7 @@ mod test {
     use crate::{crypto, keys::NullKeySource, prelude::{Header, Body}};
 
     fn setup() -> (Id, Keys) {
+        #[cfg(feature="simplelog")]
         let _ = simplelog::SimpleLogger::init(simplelog::LevelFilter::Trace, simplelog::Config::default());
 
         let (pub_key, pri_key) =

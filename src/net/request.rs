@@ -28,7 +28,7 @@ impl Deref for Request {
 }
 
 #[derive(Clone, PartialEq, Debug)]
-#[cfg_attr(feature = "strum", derive(strum_macros::Display))]
+#[cfg_attr(feature = "strum", derive(strum::Display))]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum RequestBody {
     Hello,
@@ -193,13 +193,6 @@ impl Request {
                 // TODO: pass through discover options
                 RequestBody::Discover(body.to_vec(), public_options)
             },
-            _ => {
-                error!(
-                    "No handler for converting base object of kind {:?} to request message",
-                    header.kind()
-                );
-                return Err(Error::Unimplemented);
-            }
         };
 
         // TODO: fetch message specific options

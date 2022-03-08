@@ -2,7 +2,10 @@
 
 use core::marker::PhantomData;
 use core::fmt::Debug;
-use std::convert::Infallible;
+use core::convert::{TryFrom, Infallible};
+
+#[cfg(feature = "alloc")]
+use alloc::vec::Vec;
 
 mod header;
 pub use header::*;
@@ -59,10 +62,10 @@ impl Parse for &[u8] {
 impl Parse for Id {
     type Output = Id;
 
-    type Error = Infallible;
+    type Error = Error;
 
     fn parse<'a>(buff: &'a [u8]) -> Result<(Self::Output, usize), Self::Error> {
-        let id = Id::from(buff);
+        let id = Id::try_from(buff).map_err(|_| Error::BufferLength )?;
         Ok((id, ID_LEN))
     }
 }
@@ -186,7 +189,7 @@ impl Encode for &[u8; 0] {
     }
 }
 
-
+#[cfg(feature = "alloc")]
 impl Parse for Vec<u8> {
     type Output = Vec<u8>;
     type Error = Error;
@@ -198,7 +201,8 @@ impl Parse for Vec<u8> {
     }
 }
 
-impl Encode for Vec<u8> {
+#[cfg(feature = "alloc")]
+impl Encode for alloc::vec::Vec<u8> {
     type Error = Error;
 
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {

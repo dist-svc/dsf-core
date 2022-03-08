@@ -3,262 +3,100 @@
  
 use core::convert::TryFrom;
 use core::fmt::Debug;
-use core::str::FromStr;
 
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
+// TODO: work out how to avoid owning well, everything ideally, so this works without alloc
 #[cfg(feature = "alloc")]
-use alloc::vec::{Vec};
+use alloc::{vec::Vec, string::{String, ToString}, borrow::ToOwned};
 
 use byteorder::{ByteOrder, NetworkEndian};
 
 use crate::base::{Encode, Parse};
 use crate::error::Error;
-use crate::types::{Address, AddressV4, AddressV6, DateTime, ID_LEN, Id, Ip, PUBLIC_KEY_LEN, PublicKey, Queryable, SIGNATURE_LEN, Signature, ImmutableData};
+use crate::types::{Address, AddressV4, AddressV6, DateTime, ID_LEN, Id, Ip, PUBLIC_KEY_LEN, PublicKey, Queryable, SIGNATURE_LEN, Signature};
 
 mod helpers;
+pub use helpers::{OptionsIter, OptionsParseError, Filters};
 
-/// DSF defined options fields
+/// DSF defined option fields
 #[derive(PartialEq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Options {
     None,
-    PubKey(PubKey),
-    PeerId(PeerId),
-    PrevSig(PrevSig),
-    Kind(Kind),
-    Name(Name),
+    PubKey(PublicKey),
+    PeerId(Id),
+    PrevSig(Signature),
+    Kind(String),
+    Name(String),
 
     IPv4(AddressV4),
     IPv6(AddressV6),
 
-    Issued(Issued),
-    Expiry(Expiry),
-    Limit(Limit),
+    Issued(DateTime),
+    Expiry(DateTime),
+    Limit(u32),
     Metadata(Metadata),
     Coord(Coordinates),
+
+    Manufacturer(String),
+    Serial(String),
+    Building(String),
+    Room(String),
 }
 
 
-pub struct OptionsIter<T> {
-    index: usize,
-    buff: T,
-}
 
-impl <T: ImmutableData> core::fmt::Debug for OptionsIter<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let i = OptionsIter::new(&self.buff);
-        f.debug_list().entries(i).finish()
-    }
-}
-
-impl <T: ImmutableData + Clone> Clone for OptionsIter<T> {
-    fn clone(&self) -> Self {
-        Self { index: 0, buff: self.buff.clone() }
-    }
-}
-
-impl<T> OptionsIter<T>
-where
-    T: AsRef<[u8]>,
-{
-    pub(crate) fn new(buff: T) -> Self {
-        Self { index: 0, buff }
-    }
-}
-
-impl<T> Iterator for OptionsIter<T>
-where
-    T: AsRef<[u8]>,
-{
-    type Item = Options;
-
-    fn next(&mut self) -> Option<Options> {
-        // Fetch remaining data
-        let rem = &self.buff.as_ref()[self.index..];
-
-        // Short circuit if we're too short
-        if rem.len() < OPTION_HEADER_LEN {
-            return None;
-        }
-
-        let (o, n) = match Options::parse(rem) {
-            Ok(v) => v,
-            Err(e) => {
-                error!("Option parsing error: {:?}", e);
-                return None;
-            }
-        };
-
-        self.index += n;
-
-        Some(o)
-    }
-}
-
-/// Filter helpers for option iterators
-pub trait Filters {
-    fn pub_key(&self) -> Option<PublicKey>;
-    fn peer_id(&self) -> Option<Id>;
-    fn issued(&self) -> Option<DateTime>;
-    fn expiry(&self) -> Option<DateTime>;
-    fn prev_sig(&self) -> Option<Signature>;
-    fn address(&self) -> Option<Address>;
-    fn name(&self) -> Option<Name>;
-}
-
-impl <T: AsRef<[u8]>> Filters for OptionsIter<T> {
-    fn pub_key(&self) -> Option<PublicKey> {
-        let mut s = OptionsIter{ index: 0, buff: self.buff.as_ref() };
-        s.find_map(|o| match o {
-            Options::PubKey(pk) => Some(pk.public_key.clone()),
-            _ => None,
-        })
-    }
-
-    fn peer_id(&self) -> Option<Id> {
-        let mut s = OptionsIter{ index: 0, buff: self.buff.as_ref() };
-        s.find_map(|o| match o {
-            Options::PeerId(peer_id) => Some(peer_id.peer_id.clone()),
-            _ => None,
-        })
-    }
-
-    fn issued(&self) -> Option<DateTime> {
-        let mut s = OptionsIter{ index: 0, buff: self.buff.as_ref() };
-        s.find_map(|o| match o {
-            Options::Issued(t) => Some(t.when),
-            _ => None,
-        })
-    }
-
-    fn expiry(&self) -> Option<DateTime> {
-        let mut s = OptionsIter{ index: 0, buff: self.buff.as_ref() };
-        s.find_map(|o| match o {
-            Options::Expiry(t) => Some(t.when),
-            _ => None,
-        })
-    }
-
-    fn prev_sig(&self) -> Option<Signature> {
-        let mut s = OptionsIter{ index: 0, buff: self.buff.as_ref() };
-        s.find_map(|o| match o {
-            Options::PrevSig(s) => Some(s.sig.clone()),
-            _ => None,
-        })
-    }
-
-    fn name(&self) -> Option<Name> {
-        let mut s = OptionsIter{ index: 0, buff: self.buff.as_ref() };
-        s.find_map(|o| match o {
-            Options::Name(name) => Some(name.clone()),
-            _ => None,
-        })
-    }
-
-    fn address(&self) -> Option<Address> {
-        let mut s = OptionsIter{ index: 0, buff: self.buff.as_ref() };
-        s.find_map(|o| match o {
-            Options::IPv4(addr) => Some((addr).into()),
-            Options::IPv6(addr) => Some((addr).into()),
-            _ => None,
-        })
-    }
-}
-
-impl <'a, T: Iterator<Item=&'a Options> + Clone> Filters for T {
-    fn pub_key(&self) -> Option<PublicKey> {
-        self.clone().find_map(|o| match o {
-            Options::PubKey(pk) => Some(pk.public_key.clone()),
-            _ => None,
-        })
-    }
-
-    fn peer_id(&self) -> Option<Id> {
-        self.clone().find_map(|o| match o {
-            Options::PeerId(peer_id) => Some(peer_id.peer_id.clone()),
-            _ => None,
-        })
-    }
-
-    fn issued(&self) -> Option<DateTime> {
-        self.clone().find_map(|o| match o {
-            Options::Issued(t) => Some(t.when),
-            _ => None,
-        })
-    }
-
-    fn expiry(&self) -> Option<DateTime> {
-        self.clone().find_map(|o| match o {
-            Options::Expiry(t) => Some(t.when),
-            _ => None,
-        })
-    }
-
-    fn prev_sig(&self) -> Option<Signature> {
-        self.clone().find_map(|o| match o {
-            Options::PrevSig(s) => Some(s.sig.clone()),
-            _ => None,
-        })
-    }
-
-    fn name(&self) -> Option<Name> {
-        self.clone().find_map(|o| match o {
-            Options::Name(name) => Some(name.clone()),
-            _ => None,
-        })
-    }
-
-    fn address(&self) -> Option<Address> {
-        self.clone().find_map(|o| match o {
-            Options::IPv4(addr) => Some((*addr).into()),
-            Options::IPv6(addr) => Some((*addr).into()),
-            _ => None,
-        })
-    }
-}
-
-
-/// D-IoT Option kind identifiers
-pub mod option_kinds {
-    pub const PUBKEY: u16 = 0x0000; // Public Key
-    pub const PEER_ID: u16 = 0x0001; // ID of Peer responsible for secondary page
-    pub const PREV_SIG: u16 = 0x0002; // Previous object signature
-    pub const KIND: u16 = 0x0003; // Service KIND in utf-8
-    pub const NAME: u16 = 0x0004; // Service NAME in utf-8
-    pub const ADDR_IPV4: u16 = 0x0005; // IPv4 service address
-    pub const ADDR_IPV6: u16 = 0x0006; // IPv6 service address
-    pub const ISSUED: u16 = 0x0007; // ISSUED option defines object creation time
-    pub const EXPIRY: u16 = 0x0008; // EXPIRY option defines object expiry time
-    pub const LIMIT: u16 = 0x0009; // LIMIT option defines maximum number of objects to return
-    pub const META: u16 = 0x000a; // META option supports generic metadata key:value pairs
-    pub const BUILDING: u16 = 0x000b; // Building name / number (string)
-    pub const ROOM: u16 = 0x000c;     // Room name / number (string)
-    pub const COORD: u16 = 0x000d;    // Coordinates (lat, lng, alt)
-    pub const APP: u16 = 0x8000; // APP flag indicates option is application specific and should not be parsed here
-}
 
 #[derive(PartialEq, Debug, Clone, Copy, IntoPrimitive, TryFromPrimitive)]
-#[cfg_attr(feature = "strum_macros", derive(strum_macros::EnumString, strum_macros::Display))]
+#[cfg_attr(feature = "strum", derive(strum::EnumString, strum::Display))]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[repr(u16)]
 pub enum OptionKind {
-    PubKey      = 0x0000,   // Public Key
-    PeerId      = 0x0001,   // ID of Peer responsible for secondary page
-    PrevSig     = 0x0002,   // Previous object signature
-    Kind        = 0x0003,   // Service KIND in utf-8
-    Name        = 0x0004,   // Service NAME in utf-8
-    IpAddrV4    = 0x0005,   // IPv4 service address
-    IpAddrV6    = 0x0006,   // IPv6 service address
-    Issued      = 0x0007,   // ISSUED option defines object creation time
-    Expiry      = 0x0008,   // EXPIRY option defines object expiry time
-    Limit       = 0x0009,   // LIMIT option defines maximum number of objects to return
-    Meta        = 0x000a,   // META option supports generic metadata key:value pairs
-    Building    = 0x000b,   // Building name / number (string)
-    Room        = 0x000c,   // Room name / number (string)
-    Coord       = 0x000d,   // Coordinates (lat, lng, alt)
+    None        = 0x0000,
+    PubKey      = 0x0001,   // Public Key
+    PeerId      = 0x0002,   // ID of Peer responsible for secondary page
+    PrevSig     = 0x0003,   // Previous object signature
+    Kind        = 0x0004,   // Service KIND in utf-8
+    Name        = 0x0005,   // Service NAME in utf-8
+    IpAddrV4    = 0x0006,   // IPv4 service address
+    IpAddrV6    = 0x0007,   // IPv6 service address
+    Issued      = 0x0008,   // ISSUED option defines object creation time
+    Expiry      = 0x0009,   // EXPIRY option defines object expiry time
+    Limit       = 0x000a,   // LIMIT option defines maximum number of objects to return
+    Meta        = 0x000b,   // META option supports generic metadata key:value pairs
+    Building    = 0x000c,   // Building name / number (string)
+    Room        = 0x000d,   // Room name / number (string)
+    Coord       = 0x000e,   // Coordinates (lat, lng, alt)
+    Manufacturer = 0x000f,  // Manufacturer name (string)
+    Serial      = 0x0010,   // Device serial (string)
+}
+
+impl From<&Options> for OptionKind {
+    /// Fetch a protocol [`OptionKind`] enum from a concrete [`Options`] object
+    fn from(o: &Options) -> Self {
+        match o {
+            Options::None => OptionKind::None,
+            Options::PubKey(_) => OptionKind::PubKey,
+            Options::PeerId(_) => OptionKind::PeerId,
+            Options::PrevSig(_) => OptionKind::PrevSig,
+            Options::Kind(_) => OptionKind::Kind,
+            Options::Name(_) => OptionKind::Name,
+            Options::IPv4(_) => OptionKind::IpAddrV4,
+            Options::IPv6(_) => OptionKind::IpAddrV6,
+            Options::Issued(_) => OptionKind::Issued,
+            Options::Expiry(_) => OptionKind::Expiry,
+            Options::Limit(_) => OptionKind::Limit,
+            Options::Metadata(_) => OptionKind::Meta,
+            Options::Coord(_) => OptionKind::Coord,
+            Options::Building(_) => OptionKind::Building,
+            Options::Room(_) => OptionKind::Room,
+            Options::Manufacturer(_) => OptionKind::Manufacturer,
+            Options::Serial(_) => OptionKind::Serial,
+        }
+    }
 }
 
 
@@ -300,15 +138,15 @@ impl Options {
 impl Options {
     // Helper to generate name metadata
     pub fn name(value: &str) -> Options {
-        Options::Name(Name::new(value))
+        Options::Name(value.to_string())
     }
 
     pub fn kind(value: &str) -> Options {
-        Options::Kind(Kind::new(value))
+        Options::Kind(value.to_string())
     }
 
     pub fn prev_sig(value: &Signature) -> Options {
-        Options::PrevSig(PrevSig::new(value.clone()))
+        Options::PrevSig(value.clone())
     }
 
     pub fn meta(key: &str, value: &str) -> Options {
@@ -316,19 +154,19 @@ impl Options {
     }
 
     pub fn issued<T: Into<DateTime>>(now: T) -> Options {
-        Options::Issued(Issued::new(now))
+        Options::Issued(now.into())
     }
 
     pub fn expiry<T: Into<DateTime>>(when: T) -> Options {
-        Options::Expiry(Expiry::new(when))
+        Options::Expiry(when.into())
     }
 
     pub fn peer_id(id: Id) -> Options {
-        Options::PeerId(PeerId::new(id))
+        Options::PeerId(id)
     }
 
     pub fn public_key(public_key: PublicKey) -> Options {
-        Options::PubKey(PubKey::new(public_key))
+        Options::PubKey(public_key)
     }
 
     pub fn address<T: Into<Address>>(address: T) -> Options {
@@ -349,7 +187,12 @@ impl Options {
     }
 
     pub fn pub_key(public_key: PublicKey) -> Options {
-        Options::PubKey(PubKey::new(public_key))
+        Options::PubKey(public_key)
+    }
+
+    fn parse_string(d: &[u8]) -> Result<String, Error> {
+        let s = core::str::from_utf8(d).map_err(|_| Error::InvalidOption )?;
+        Ok(s.to_owned())
     }
 }
 
@@ -363,17 +206,18 @@ impl Parse for Options {
             return Err(Error::InvalidOptionLength);
         }
 
-        trace!("Parse option header: {:02x?}", &data[0..4]);
-
         let option_kind = NetworkEndian::read_u16(&data[0..2]);
         let option_len = NetworkEndian::read_u16(&data[2..4]) as usize;
+
+        trace!("Parse option kind: 0x{:02x} length: {}", option_kind, option_len);
+
 
         if (OPTION_HEADER_LEN + option_len) > data.len() {
             warn!("Option length ({}) exceeds buffer length ({}) for kind: {}", option_len, data.len(), option_kind);
             return Err(Error::InvalidOptionLength);
         }
 
-        let d = &data[OPTION_HEADER_LEN..OPTION_HEADER_LEN + option_len];
+        let d = &data[OPTION_HEADER_LEN..][..option_len];
 
         // Convert to option kind
         let k = match OptionKind::try_from(option_kind) {
@@ -384,24 +228,58 @@ impl Parse for Options {
             },
         };
 
-        let (n, o) = match k {
-            OptionKind::PubKey => PubKey::parse(d).map(|(o, n) | (n, Options::PubKey(o)) )?,
-            OptionKind::PeerId => PeerId::parse(d).map(|(o, n) | (n, Options::PeerId(o)) )?,
-            OptionKind::PrevSig => PrevSig::parse(d).map(|(o, n) | (n, Options::PrevSig(o)) )?,
-            OptionKind::Kind => Kind::parse(d).map(|(o, n) | (n, Options::Kind(o)) )?,
-            OptionKind::Name => Name::parse(d).map(|(o, n) | (n, Options::Name(o)) )?,
-            OptionKind::IpAddrV4 => AddressV4::parse(d).map(|(o, n) | (n, Options::IPv4(o)) )?,
-            OptionKind::IpAddrV6 => AddressV6::parse(d).map(|(o, n) | (n, Options::IPv6(o)) )?,
-            OptionKind::Meta => Metadata::parse(d).map(|(o, n) | (n, Options::Metadata(o)) )?,
-            OptionKind::Issued => Issued::parse(d).map(|(o, n) | (n, Options::Issued(o)) )?,
-            OptionKind::Expiry => Expiry::parse(d).map(|(o, n) | (n, Options::Expiry(o)) )?,
-            OptionKind::Limit => Limit::parse(d).map(|(o, n) | (n, Options::Limit(o)) )?,
-            OptionKind::Coord => Coordinates::parse(d).map(|(o, n) | (n, Options::Coord(o)) )?,
-            OptionKind::Building => todo!(),
-            OptionKind::Room => todo!(),
+        let r = match k {
+            OptionKind::None => Ok(Options::None),
+            OptionKind::PubKey => PublicKey::try_from(d).map(|v| Options::PubKey(v)),
+            OptionKind::PeerId => Id::try_from(d).map(|v| Options::PeerId(v) ),
+            OptionKind::PrevSig => Signature::try_from(d).map(|v| Options::PrevSig(v) ),
+            OptionKind::Kind => Self::parse_string(d).map(|v| Options::Kind(v.to_string()) ),
+            OptionKind::Name => Self::parse_string(d).map(|v| Options::Name(v.to_string()) ),
+
+            OptionKind::IpAddrV4 => {
+                let mut ip = [0u8; 4];
+
+                ip.copy_from_slice(&d[0..4]);
+                let port = NetworkEndian::read_u16(&d[4..6]);
+
+                Ok(Options::address_v4(AddressV4::new(ip, port)))
+            },
+            OptionKind::IpAddrV6 => {
+                let mut ip = [0u8; 16];
+
+                ip.copy_from_slice(&d[0..16]);
+                let port = NetworkEndian::read_u16(&d[16..18]);
+        
+                Ok(Options::address_v6(AddressV6::new(ip, port)))
+            },
+
+            OptionKind::Meta => Metadata::parse(d).map(|(o, _n) | Options::Metadata(o) ),
+            
+            OptionKind::Issued => Ok(Options::Issued(DateTime::from_secs(NetworkEndian::read_u64(d)))),
+            OptionKind::Expiry => Ok(Options::Expiry(DateTime::from_secs(NetworkEndian::read_u64(d)))),
+            OptionKind::Limit => Ok(Options::Limit(NetworkEndian::read_u32(d))),
+
+            OptionKind::Coord => Ok(Options::Coord(Coordinates{
+                lat: NetworkEndian::read_f32(&d[0..]),
+                lng: NetworkEndian::read_f32(&d[4..]),
+                alt: NetworkEndian::read_f32(&d[8..]),
+            })),
+
+            OptionKind::Building => Self::parse_string(d).map(|v| Options::Building(v.to_string()) ),
+            OptionKind::Room => Self::parse_string(d).map(|v| Options::Room(v.to_string()) ),
+            OptionKind::Manufacturer => Self::parse_string(d).map(|v| Options::Manufacturer(v.to_string()) ),
+            OptionKind::Serial => Self::parse_string(d).map(|v| Options::Serial(v.to_string()) ),
         };
 
-        Ok((o, n + OPTION_HEADER_LEN))
+        let o = match r {
+            Ok(r) => r,
+            Err(e) => {
+                error!("Failed to parse option kind: {} (0x{:02x}), len: {}: ", k, option_kind, option_len);
+                return Err(e);
+            }
+        };
+
+        Ok((o, OPTION_HEADER_LEN + option_len))
     }
 }
 
@@ -409,294 +287,103 @@ impl Encode for Options {
     type Error = Error;
 
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
-        match *self {
-            Options::PubKey(ref o) => Ok(o.encode(data)?),
-            Options::PeerId(ref o) => Ok(o.encode(data)?),
-            Options::PrevSig(ref o) => Ok(o.encode(data)?),
-            Options::Kind(ref o) => Ok(o.encode(data)?),
-            Options::Name(ref o) => Ok(o.encode(data)?),
-            Options::IPv4(ref o) => Ok(o.encode(data)?),
-            Options::IPv6(ref o) => Ok(o.encode(data)?),
-            Options::Metadata(ref o) => Ok(o.encode(data)?),
-            Options::Issued(ref o) => Ok(o.encode(data)?),
-            Options::Expiry(ref o) => Ok(o.encode(data)?),
-            Options::Limit(ref o) => Ok(o.encode(data)?),
-            Options::Coord(ref o) => Ok(o.encode(data)?),
-            _ => {
-                warn!("Option encoding not implemented for object {:?}", *self);
-                unimplemented!();
+        // Set kind
+        let kind = OptionKind::from(self);
+        NetworkEndian::write_u16(&mut data[0..], kind as u16);
+
+        // Encode data
+        let n = match self {
+            Options::PubKey(pub_key) => {
+                data[OPTION_HEADER_LEN..][..PUBLIC_KEY_LEN].copy_from_slice(pub_key);
+                PUBLIC_KEY_LEN
+            },
+            Options::PeerId(peer_id) => {
+                data[OPTION_HEADER_LEN..][..ID_LEN].copy_from_slice(peer_id);
+                ID_LEN
+            },
+            Options::PrevSig(sig) => {
+                data[OPTION_HEADER_LEN..][..SIGNATURE_LEN].copy_from_slice(sig);
+                SIGNATURE_LEN
+            },
+            Options::Kind(s) | Options::Name(s) | Options::Building(s) | Options::Room(s) | Options::Manufacturer(s) | Options::Serial(s) => {
+                let len = s.as_bytes().len();
+                data[OPTION_HEADER_LEN..][..len].copy_from_slice(s.as_bytes());
+                len
+            },
+            Options::Limit(n) => {
+                NetworkEndian::write_u32(&mut data[4..], *n);
+                4
+            },
+            Options::IPv4(v) => {
+                data[OPTION_HEADER_LEN..][..4].copy_from_slice(&v.ip);
+                NetworkEndian::write_u16(&mut data[OPTION_HEADER_LEN + 4..], v.port);
+                6
+            },
+            Options::IPv6(v) => {
+                data[OPTION_HEADER_LEN..][..16].copy_from_slice(&v.ip);
+                NetworkEndian::write_u16(&mut data[OPTION_HEADER_LEN + 16..], v.port);
+
+                18
+            },
+            Options::Issued(v) | Options::Expiry(v) => {
+                NetworkEndian::write_u64(&mut data[4..], v.as_secs());
+                8
+            },
+            Options::Metadata(v) => {
+                let mut n = 0;
+                
+                let key = v.key.as_bytes();
+                data[OPTION_HEADER_LEN+n..][..key.len()].copy_from_slice(key);
+                n += key.len();
+
+                data[OPTION_HEADER_LEN+n] = '|' as u8;
+                n += 1;
+
+                let val = v.value.as_bytes();
+                data[OPTION_HEADER_LEN+n..][..val.len()].copy_from_slice(val);
+                n += val.len();
+
+                n
+            },
+            Options::Coord(v) => {
+                NetworkEndian::write_f32(&mut data[4..8], v.lat);
+                NetworkEndian::write_f32(&mut data[8..12], v.lng);
+                NetworkEndian::write_f32(&mut data[12..16], v.alt);
+
+                3 * 4
+            },
+            _ => todo!()
+        };
+
+        // Write option length
+        NetworkEndian::write_u16(&mut data[2..], n as u16);
+
+        debug!("Encoded option {:?}, value length: {}", kind, n);
+
+        Ok(OPTION_HEADER_LEN + n)
+    }
+}
+
+/// Implementation for queryable options
+impl Queryable for &Options {
+    fn hash<H: crate::types::CryptoHasher>(&self, h: &mut H) -> bool {
+        // First by option kind
+        h.update(&(OptionKind::from(*self) as u16).to_le_bytes());
+
+        // Then by option data
+        match self {
+            // String based options
+            Options::Name(v) | Options::Kind(v) | Options::Manufacturer(v) | Options::Serial(v) | Options::Building(v) | Options::Room(v) => {
+                h.update(&(v.len() as u16).to_le_bytes());
+                h.update(v.as_bytes());
+                true
             }
+            _ => false,
         }
+
     }
 }
 
-#[derive(PartialEq, Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub struct PubKey {
-    pub public_key: PublicKey,
-}
-
-impl PubKey {
-    pub fn new(public_key: PublicKey) -> PubKey {
-        PubKey { public_key }
-    }
-}
-
-impl Parse for PubKey {
-    type Output = PubKey;
-    type Error = Error;
-
-    fn parse<'a>(data: &'a [u8]) -> Result<(Self::Output, usize), Self::Error> {
-        let mut public_key = [0u8; PUBLIC_KEY_LEN];
-        public_key.copy_from_slice(&data[..PUBLIC_KEY_LEN]);
-
-        Ok((
-            PubKey {
-                public_key: public_key.into(),
-            },
-            PUBLIC_KEY_LEN,
-        ))
-    }
-}
-
-impl Encode for PubKey {
-    type Error = Error;
-
-    fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
-        NetworkEndian::write_u16(&mut data[0..2], option_kinds::PUBKEY);
-        NetworkEndian::write_u16(&mut data[2..4], PUBLIC_KEY_LEN as u16);
-
-        data[OPTION_HEADER_LEN..OPTION_HEADER_LEN + PUBLIC_KEY_LEN]
-            .copy_from_slice(&self.public_key);
-
-        Ok(OPTION_HEADER_LEN + PUBLIC_KEY_LEN)
-    }
-}
-
-#[derive(PartialEq, Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub struct PeerId {
-    pub peer_id: Id,
-}
-
-impl PeerId {
-    pub fn new(peer_id: Id) -> PeerId {
-        PeerId { peer_id }
-    }
-}
-
-impl Parse for PeerId {
-    type Output = PeerId;
-    type Error = Error;
-
-    fn parse<'a>(data: &'a [u8]) -> Result<(Self::Output, usize), Self::Error> {
-        let mut peer_id = [0u8; ID_LEN];
-        peer_id.copy_from_slice(&data[..ID_LEN]);
-        Ok((
-            PeerId {
-                peer_id: peer_id.into(),
-            },
-            ID_LEN,
-        ))
-    }
-}
-
-impl Encode for PeerId {
-    type Error = Error;
-
-    fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
-        NetworkEndian::write_u16(&mut data[0..2], option_kinds::PEER_ID);
-        NetworkEndian::write_u16(&mut data[2..4], ID_LEN as u16);
-
-        data[OPTION_HEADER_LEN..][..ID_LEN].copy_from_slice(&self.peer_id);
-
-        Ok(OPTION_HEADER_LEN + ID_LEN)
-    }
-}
-
-#[derive(PartialEq, Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub struct PrevSig {
-    pub sig: Signature,
-}
-
-impl PrevSig {
-    pub fn new(sig: Signature) -> Self {
-        Self { sig }
-    }
-}
-
-impl Parse for PrevSig {
-    type Output = Self;
-    type Error = Error;
-
-    fn parse<'a>(data: &'a [u8]) -> Result<(Self::Output, usize), Self::Error> {
-        let mut sig = [0u8; SIGNATURE_LEN];
-        sig.copy_from_slice(&data[..SIGNATURE_LEN]);
-        Ok((Self { sig: sig.into() }, SIGNATURE_LEN))
-    }
-}
-
-impl Encode for PrevSig {
-    type Error = Error;
-
-    fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
-        NetworkEndian::write_u16(&mut data[0..2], option_kinds::PREV_SIG);
-        NetworkEndian::write_u16(&mut data[2..4], SIGNATURE_LEN as u16);
-
-        data[OPTION_HEADER_LEN..][..SIGNATURE_LEN].copy_from_slice(&self.sig);
-
-        Ok(OPTION_HEADER_LEN + SIGNATURE_LEN)
-    }
-}
-
-#[derive(PartialEq, Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub struct Kind {
-    value: String,
-}
-
-impl Kind {
-    pub fn new(value: &str) -> Kind {
-        Kind {
-            value: value.to_owned(),
-        }
-    }
-}
-
-impl Parse for Kind {
-    type Output = Kind;
-    type Error = Error;
-
-    fn parse<'a>(data: &'a [u8]) -> Result<(Self::Output, usize), Self::Error> {
-        let value = core::str::from_utf8(data).unwrap().to_owned();
-
-        Ok((Kind { value }, data.len()))
-    }
-}
-
-impl Encode for Kind {
-    type Error = Error;
-
-    fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
-        let value = self.value.as_bytes();
-
-        NetworkEndian::write_u16(&mut data[0..2], option_kinds::KIND);
-        NetworkEndian::write_u16(&mut data[2..4], value.len() as u16);
-
-        data[OPTION_HEADER_LEN..OPTION_HEADER_LEN + value.len()].copy_from_slice(value);
-
-        Ok(OPTION_HEADER_LEN + value.len())
-    }
-}
-
-#[derive(PartialEq, Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub struct Name {
-    pub value: String,
-}
-
-impl Name {
-    pub fn new(value: &str) -> Name {
-        Name {
-            value: value.to_owned(),
-        }
-    }
-}
-
-impl Parse for Name {
-    type Output = Name;
-    type Error = Error;
-
-    fn parse<'a>(data: &'a [u8]) -> Result<(Self::Output, usize), Self::Error> {
-        let value = core::str::from_utf8(data).unwrap().to_owned();
-
-        Ok((Name { value }, data.len()))
-    }
-}
-
-impl Encode for Name {
-    type Error = Error;
-
-    fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
-        NetworkEndian::write_u16(&mut data[0..2], option_kinds::NAME);
-        NetworkEndian::write_u16(&mut data[2..4], self.value.len() as u16);
-
-        data[OPTION_HEADER_LEN..][..self.value.len()]
-            .copy_from_slice(self.value.as_bytes());
-
-        Ok(OPTION_HEADER_LEN + self.value.len())
-    }
-}
-
-impl Queryable for &Name {
-    fn hash<H: crate::types::CryptoHasher>(&self, h: &mut H) {
-        h.update(&option_kinds::NAME.to_le_bytes());
-        h.update(&(self.value.len() as u16).to_le_bytes());
-        h.update(self.value.as_bytes());
-    }
-}
-
-impl Parse for AddressV4 {
-    type Output = AddressV4;
-    type Error = Error;
-
-    fn parse<'a>(data: &'a [u8]) -> Result<(Self::Output, usize), Self::Error> {
-        let mut ip = [0u8; 4];
-
-        ip.copy_from_slice(&data[0..4]);
-        let port = NetworkEndian::read_u16(&data[4..6]);
-
-        Ok((AddressV4::new(ip, port), 6))
-    }
-}
-
-impl Encode for AddressV4 {
-    type Error = Error;
-
-    fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
-        NetworkEndian::write_u16(&mut data[0..2], option_kinds::ADDR_IPV4);
-        NetworkEndian::write_u16(&mut data[2..4], 6);
-
-        data[OPTION_HEADER_LEN..OPTION_HEADER_LEN + 4].copy_from_slice(&self.ip);
-        NetworkEndian::write_u16(&mut data[OPTION_HEADER_LEN + 4..], self.port);
-
-        Ok(OPTION_HEADER_LEN + 6)
-    }
-}
-
-impl Parse for AddressV6 {
-    type Output = AddressV6;
-    type Error = Error;
-
-    fn parse<'a>(data: &'a [u8]) -> Result<(Self::Output, usize), Self::Error> {
-        let mut ip = [0u8; 16];
-
-        ip.copy_from_slice(&data[0..16]);
-        let port = NetworkEndian::read_u16(&data[16..18]);
-
-        Ok((AddressV6::new(ip, port), 18))
-    }
-}
-
-impl Encode for AddressV6 {
-    type Error = Error;
-
-    fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
-        NetworkEndian::write_u16(&mut data[0..2], option_kinds::ADDR_IPV6);
-        NetworkEndian::write_u16(&mut data[2..4], 18);
-
-        data[OPTION_HEADER_LEN..][..16].copy_from_slice(&self.ip);
-        NetworkEndian::write_u16(&mut data[OPTION_HEADER_LEN + 16..], self.port);
-
-        Ok(OPTION_HEADER_LEN + 18)
-    }
-}
 
 #[derive(PartialEq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
@@ -736,143 +423,9 @@ impl Parse for Metadata {
     }
 }
 
-impl Encode for Metadata {
-    type Error = Error;
-
-    fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
-        let meta = format!("{}|{}", self.key, self.value);
-
-        NetworkEndian::write_u16(&mut data[0..2], option_kinds::META);
-        NetworkEndian::write_u16(&mut data[2..4], meta.len() as u16);
-
-        data[OPTION_HEADER_LEN..][..meta.len()]
-            .copy_from_slice(meta.as_bytes());
-
-        Ok(OPTION_HEADER_LEN + meta.len())
-    }
-}
-
 impl From<Metadata> for Options {
     fn from(m: Metadata) -> Options {
         Options::Metadata(m)
-    }
-}
-
-#[derive(PartialEq, Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub struct Issued {
-    pub when: DateTime,
-}
-
-impl Issued {
-    pub fn new<T>(when: T) -> Issued
-    where
-        T: Into<DateTime>,
-    {
-        Issued { when: when.into() }
-    }
-}
-
-impl Parse for Issued {
-    type Output = Issued;
-    type Error = Error;
-    fn parse<'a>(data: &'a [u8]) -> Result<(Self::Output, usize), Self::Error> {
-        let raw = NetworkEndian::read_u64(&data[0..8]);
-        let when = DateTime::from_secs(raw);
-
-        Ok((Issued { when }, 8))
-    }
-}
-
-impl Encode for Issued {
-    type Error = Error;
-
-    fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
-        NetworkEndian::write_u16(&mut data[0..2], option_kinds::ISSUED);
-        NetworkEndian::write_u16(&mut data[2..4], 8);
-
-        NetworkEndian::write_u64(&mut data[4..12], self.when.as_secs());
-
-        Ok(OPTION_HEADER_LEN + 8)
-    }
-}
-
-#[derive(PartialEq, Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub struct Expiry {
-    pub when: DateTime,
-}
-
-impl Expiry {
-    pub fn new<T>(when: T) -> Expiry
-    where
-        T: Into<DateTime>,
-    {
-        Expiry { when: when.into() }
-    }
-}
-
-impl Parse for Expiry {
-    type Output = Expiry;
-    type Error = Error;
-    fn parse<'a>(data: &'a [u8]) -> Result<(Self::Output, usize), Self::Error> {
-        let raw = NetworkEndian::read_u64(&data[0..8]);
-        let when = DateTime::from_secs(raw);
-
-        Ok((Expiry { when }, 8))
-    }
-}
-
-impl Encode for Expiry {
-    type Error = Error;
-    fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
-        NetworkEndian::write_u16(&mut data[0..2], option_kinds::EXPIRY);
-        NetworkEndian::write_u16(&mut data[2..4], 8);
-
-        NetworkEndian::write_u64(&mut data[4..12], self.when.as_secs());
-
-        Ok(OPTION_HEADER_LEN + 8)
-    }
-}
-
-#[derive(PartialEq, Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub struct Limit {
-    pub n: u32,
-}
-
-impl Limit {
-    pub fn new(n: u32) -> Self {
-        Self { n }
-    }
-}
-
-impl Parse for Limit {
-    type Output = Self;
-    type Error = Error;
-
-    fn parse<'a>(data: &'a [u8]) -> Result<(Self::Output, usize), Self::Error> {
-        Ok((
-            Self {
-                n: NetworkEndian::read_u32(data),
-            },
-            4,
-        ))
-    }
-}
-
-impl Encode for Limit {
-    type Error = Error;
-
-    fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
-        NetworkEndian::write_u16(&mut data[0..2], option_kinds::LIMIT);
-        NetworkEndian::write_u16(&mut data[2..4], 4);
-        NetworkEndian::write_u32(&mut data[4..8], self.n);
-
-        Ok(8)
     }
 }
 
@@ -883,42 +436,6 @@ pub struct Coordinates {
     pub lat: f32,
     pub lng: f32,
     pub alt: f32,
-}
-
-impl Coordinates {
-    pub fn new(lat: f32, lng: f32, alt: f32) -> Self {
-        Self { lat, lng, alt }
-    }
-}
-
-impl Parse for Coordinates {
-    type Output = Self;
-    type Error = Error;
-
-    fn parse<'a>(data: &'a [u8]) -> Result<(Self::Output, usize), Self::Error> {
-        Ok((
-            Self {
-                lat: NetworkEndian::read_f32(&data[0..]),
-                lng: NetworkEndian::read_f32(&data[4..]),
-                alt: NetworkEndian::read_f32(&data[8..]),
-            },
-            12,
-        ))
-    }
-}
-
-impl Encode for Coordinates {
-    type Error = Error;
-
-    fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
-        NetworkEndian::write_u16(&mut data[0..2], option_kinds::COORD);
-        NetworkEndian::write_u16(&mut data[2..4], 12);
-        NetworkEndian::write_f32(&mut data[4..8], self.lat);
-        NetworkEndian::write_f32(&mut data[8..12], self.lng);
-        NetworkEndian::write_f32(&mut data[12..16], self.alt);
-
-        Ok(8)
-    }
 }
 
 
@@ -932,11 +449,14 @@ mod tests {
 
     #[test]
     fn encode_decode_option_types() {
+        #[cfg(feature="simplelog")]
+        let _ = simplelog::SimpleLogger::init(simplelog::LevelFilter::Debug, simplelog::Config::default());
+
         let tests = [
-            Options::PubKey(PubKey::new([1u8; PUBLIC_KEY_LEN].into())),
-            Options::PeerId(PeerId::new([2u8; ID_LEN].into())),
-            Options::Kind(Kind::new("test-kind")),
-            Options::Name(Name::new("test-name")),
+            Options::PubKey([1u8; PUBLIC_KEY_LEN].into()),
+            Options::PeerId([2u8; ID_LEN].into()),
+            Options::Kind("test-kind".to_string()),
+            Options::Name("test-name".to_string()),
             Options::address_v4(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8080)),
             Options::address_v6(SocketAddrV6::new(
                 Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 1),
@@ -947,7 +467,7 @@ mod tests {
             Options::Metadata(Metadata::new("test-key", "test-value")),
             Options::issued(SystemTime::now()),
             Options::expiry(SystemTime::now()),
-            Options::Limit(Limit::new(13)),
+            Options::Limit(13),
         ];
 
         for o in tests.iter() {
@@ -971,12 +491,16 @@ mod tests {
 
     #[test]
     fn encode_decode_option_list() {
+        #[cfg(feature="simplelog")]
+        let _ = simplelog::SimpleLogger::init(simplelog::LevelFilter::Debug, simplelog::Config::default());
+
+
         let tests = vec![
-            Options::PubKey(PubKey::new([1u8; PUBLIC_KEY_LEN].into())),
-            Options::PeerId(PeerId::new([2u8; ID_LEN].into())),
-            Options::PrevSig(PrevSig::new([3u8; SIGNATURE_LEN].into())),
-            Options::Kind(Kind::new("test-kind")),
-            Options::Name(Name::new("test-name")),
+            Options::PubKey([1u8; PUBLIC_KEY_LEN].into()),
+            Options::PeerId([2u8; ID_LEN].into()),
+            Options::PrevSig([3u8; SIGNATURE_LEN].into()),
+            Options::Kind("test-kind".to_string()),
+            Options::Name("test-name".to_string()),
             Options::address_v4(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8080)),
             Options::address_v6(SocketAddrV6::new(
                 Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 1),

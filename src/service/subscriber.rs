@@ -1,6 +1,7 @@
 use core::convert::TryInto;
 
-
+#[cfg(feature="alloc")]
+use alloc::{vec::Vec};
 
 use crate::base::PageBody;
 use crate::crypto;
