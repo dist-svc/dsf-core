@@ -10,7 +10,7 @@ license = "MPL-2.0"
 edition = "2018"
 
 [features]
-std = [ "managed/std", "bytes/std", "base64/std", "byteorder/std", "sha2/std", "chrono/std", "strum", "strum_macros", "thiserror", "rand_core/std", "log/std", "simplelog" ]
+std = [ "alloc", "managed/std", "bytes/std", "base64/std", "byteorder/std", "sha2/std", "chrono/std", "strum", "strum_macros", "thiserror", "rand_core/std", "log/std", "simplelog" ]
 alloc = [ "base64/alloc", "chrono/alloc", "pretty-hex/alloc", "strum", "strum_macros" ]
 crypto-dalek = [ "ed25519-dalek" ]
 default = [ "std", "serde" ]

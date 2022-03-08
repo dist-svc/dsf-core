@@ -1,4 +1,4 @@
-#![cfg_attr(any(not(feature = "std"), not(test)), no_std)]
+#![cfg_attr(not(feature = "std"), no_std)]
 
 #![feature(test)]
 #![feature(const_generics_defaults)]

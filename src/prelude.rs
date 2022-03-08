@@ -1,5 +1,7 @@
 pub use crate::service::{Service, ServiceBuilder};
 
+pub use crate::wire::{Container, Builder as ContainerBuilder};
+
 pub use crate::service::Net as _;
 pub use crate::service::{DataOptions, Publisher as _, SecondaryOptions};
 pub use crate::service::Subscriber as _;

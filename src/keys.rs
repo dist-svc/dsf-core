@@ -3,6 +3,8 @@
 use crate::types::{Id, PrivateKey, PublicKey, SecretKey};
 use crate::crypto;
 
+use core::str::FromStr;
+
 /// Key object stored and returned by a KeySource
 #[derive(Clone, PartialEq, Debug)]
 #[cfg_attr(feature="structopt", derive(structopt::StructOpt))]
