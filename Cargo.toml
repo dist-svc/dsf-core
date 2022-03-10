@@ -10,10 +10,13 @@ license = "MPL-2.0"
 edition = "2018"
 
 [features]
-std = [ "alloc", "managed/std", "bytes/std", "base64/std", "byteorder/std", "sha2/std", "chrono/std", "strum", "strum_macros", "thiserror", "rand_core/std", "log/std", "simplelog" ]
+std = [ "alloc", "managed/std", "bytes/std", "base64/std", "byteorder/std", "sha2/std", "chrono/std", "strum", "strum_macros", "thiserror", "rand_core_0_5/std", "log/std", "simplelog", "getrandom/std" ]
 alloc = [ "base64/alloc", "chrono/alloc", "pretty-hex/alloc", "strum", "strum_macros" ]
-crypto-dalek = [ "ed25519-dalek" ]
-default = [ "std", "serde" ]
+
+crypto_rust = ["ed25519", "x25519-dalek", "ed25519-dalek", "curve25519-dalek", "xsalsa20poly1305", "chacha20poly1305", "crypto_kx", "aead", "blake2", "digest" ]
+crypto_sodium = ["sodiumoxide"]
+
+default = [ "std", "serde", "crypto_sodium" ]
 
 
 [dependencies]
@@ -32,7 +35,6 @@ byteorder = { version = "1.3.2", default_features = false }
 managed = { version = "0.7.1", default_features = false }
 sha2 = { version = "0.8.1", default_features = false }
 chrono = { version = "0.4.11", default_features = false }
-rand_core = { version = "0.6.3", default_features = false }
 
 pretty-hex = { version = "0.2.1", default_features = false }
 num_enum = { version = "0.5.4", default-features = false }
@@ -46,15 +48,40 @@ strum_macros = { version = "0.20.1", default_features = false, optional = true }
 no-std-net = { version = "0.3.0", optional = true }
 diesel = { version = "1.4.3", optional = true }
 modular-bitfield = "0.11.2"
+getrandom = { version = "0.2.5", optional = true, default_features = false }
 
-ed25519-dalek = { version = "1.0.0", optional = true }
 
 simplelog = { version = "0.10.2", optional = true }
+cfg-if = "1.0.0"
 
+ed25519 = { version = "1.4.0", optional=true, default_features = false}
+x25519-dalek = { version = "1.2.0", optional=true, default_features = false}
+ed25519-dalek = { version = "1.0.1", optional=true, default_features = false, features=[ "rand" ] }
+curve25519-dalek = { version = "3.2.1", optional=true, default_features = false}
+xsalsa20poly1305 = { version = "0.8.0", optional=true, default_features = false}
+chacha20poly1305 = { version = "0.9.0", optional=true, default_features = false}
+crypto_kx = { version = "0.0.2", optional=true, default_features = false}
+aead = { version = "0.4.3", optional=true, default_features = false, features = [ "rand_core" ] }
+
+blake2 = { version = "0.10.4", optional = true }
+digest = { version = "0.10.3", optional = true, features = [ "core-api", "rand_core" ] }
+
+
+[dependencies.rand_core_0_5]
+package = "rand_core"
+version = "0.5.1"
+default_features = false
+
+[dependencies.rand_core_0_6]
+package = "rand_core"
+version = "0.6.3"
+default_features = false
+features = [ "getrandom" ]
 
 [dependencies.sodiumoxide]
 version = "0.2.5"
 default_features = false
+optional = true
 
 
 [dependencies.serde]

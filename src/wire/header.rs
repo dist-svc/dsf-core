@@ -10,6 +10,12 @@ pub struct WireHeader<T: ImmutableData> {
     pub(crate) buff: T,
 }
 
+impl <T: ImmutableData> PartialEq for WireHeader<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.buff.as_ref() == other.buff.as_ref()
+    }
+}
+
 impl<T: ImmutableData> From<&WireHeader<T>> for Header {
     /// Build a base::Header object from a WireHeader
     fn from(wh: &WireHeader<T>) -> Header {

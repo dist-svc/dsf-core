@@ -186,6 +186,16 @@ impl <const N: usize> From<[u8; N]> for Array<N> {
     }
 }
 
+impl <const N: usize> From<&[u8; N]> for Array<N> {
+    fn from(data: &[u8; N]) -> Self {
+        let mut a = [0u8; N];
+
+        a.copy_from_slice(data);
+
+        a.into()
+    }
+}
+
 impl <const N: usize> Into<[u8; N]> for Array<N> {
     fn into(self) -> [u8; N] {
         self.0

@@ -6,8 +6,9 @@ use core::convert::TryFrom;
 use alloc::vec::Vec;
 
 use crate::base::PageBody;
+use crate::crypto::{Crypto, PubKey as _, SecKey as _, Hash as _};
 use crate::page::PageInfo;
-use crate::{types::*, crypto};
+use crate::{types::*};
 
 use crate::options::{Options, OptionsIter, Filters};
 use crate::error::Error;
@@ -257,7 +258,7 @@ impl<'a, T: ImmutableData> Container<T> {
         let h = self.header();
         let data = self.buff.as_ref();
 
-        if !h.flags().contains(Flags::ENCRYPTED) {
+        if !h.flags().contains(Flags::ENCRYPTED) || h.flags().contains(Flags::SYMMETRIC_MODE) {
             return None;
         }
 
@@ -317,8 +318,9 @@ impl<'a, T: ImmutableData> Container<T> {
     /// Return the total length of the object (from the header)
     pub fn len(&self) -> usize {
         let header = self.header();
+        let flags = header.flags();
 
-        let tag_len = if header.flags().contains(Flags::ENCRYPTED) {
+        let tag_len = if flags.contains(Flags::ENCRYPTED) && !flags.contains(Flags::SYMMETRIC_MODE) {
             SECRET_KEY_TAG_LEN
         } else {
             0
@@ -368,7 +370,7 @@ impl<'a, T: ImmutableData> Container<T> {
             };
 
             // Check public key and ID match
-            let hash: Id = crypto::hash(&public_key).unwrap();
+            let hash: Id = Crypto::hash(&public_key).unwrap();
             if &hash != &self.id() {
                 return Err(Error::KeyIdMismatch);
             }
@@ -464,10 +466,10 @@ impl<'a, T: MutableData> Container<T> {
         &mut data[offsets::BODY..][..s]
     }
 
-    // Decrypt an encrypted object, mutating the internal buffer
+    /// Decrypt private fields within an object (in place)
     pub fn decrypt(&mut self, sk: &SecretKey) -> Result<(), Error> {
         // TODO: skip if body + private options are empty...
-        debug!("SK Decrypt with key: {}", sk);
+        debug!("SK Decrypt body with key: {}", sk);
 
         // Check we're encrypted
         if !self.header().flags().contains(Flags::ENCRYPTED) || self.decrypted {
@@ -486,7 +488,7 @@ impl<'a, T: MutableData> Container<T> {
 
         // Perform decryption
         let c = self.cyphertext_mut();
-        if let Err(_) = crypto::sk_decrypt(sk, &tag, c) {
+        if let Err(_) = Crypto::sk_decrypt(sk, &tag, None, c) {
             debug!("Signature verification failed");
             return Err(Error::InvalidSignature);
         }
@@ -494,6 +496,32 @@ impl<'a, T: MutableData> Container<T> {
         self.decrypted = true;
 
         Ok(())
+    }
+
+    /// Decrypt a symmetric mode AEAD message
+    pub fn sk_decrypt(&mut self, secret_key: &SecretKey) -> Result<(), Error> {
+        
+        let sig_index = {
+            let h = self.header();
+            offsets::BODY + h.data_len() + h.private_options_len() + h.public_options_len()
+            
+        };
+        let sig = self.signature();
+
+        debug!("SK Verify/Decrypt (AEAD) with key: {} (Sig: {}, {} bytes)", secret_key, sig, sig_index);
+
+        let buff = self.buff.as_mut();
+
+        let (header, body) = buff[..sig_index].split_at_mut(HEADER_LEN+ID_LEN);
+
+        if let Err(e) = Crypto::sk_decrypt(secret_key, &sig[..40], Some(header), body) {
+            warn!("Failed AEAD decryption: {:?}", e);
+            return Err(Error::CryptoError)
+        }
+
+        self.decrypted = true;
+
+        return Ok(())
     }
 }
 
@@ -517,7 +545,7 @@ impl<'a, T: ImmutableData> Container<T> {
         let c = self.cyphertext();
         buff[..c.len()].copy_from_slice(c);
 
-        crypto::sk_decrypt(sk, &tag, &mut buff[..c.len()])
+        Crypto::sk_decrypt(sk, &tag, None, &mut buff[..c.len()])
             .map_err(|_e| Error::InvalidSignature)?;
 
         Ok((
@@ -533,5 +561,26 @@ impl<'a, T: ImmutableData> AsRef<[u8]> for  Container<T> {
     fn as_ref(&self) -> &[u8] {
         let n = self.len;
         &self.buff.as_ref()[..n]
+    }
+}
+
+
+impl <T: MutableData> core::ops::Deref for Container<T> {
+    type Target = [u8];
+
+    fn deref(&self) -> &[u8] {
+        let data = self.buff.as_ref();
+        let len = self.len();
+
+        &data[..len]
+    }
+}
+
+impl <T: MutableData> core::ops::DerefMut for Container<T> {
+    fn deref_mut(&mut self) -> &mut [u8] {
+        let len = self.len();
+        let data = self.buff.as_mut();        
+
+        &mut data[..len]
     }
 }

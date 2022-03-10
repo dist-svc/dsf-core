@@ -10,7 +10,7 @@ use core::ops::{DerefMut};
 use pretty_hex::*;
 
 use crate::base::{MaybeEncrypted};
-use crate::crypto;
+use crate::crypto::{Crypto, PubKey as _, SecKey as _, Hash as _};
 use crate::error::Error;
 use crate::options::{Options};
 use crate::types::*;
@@ -49,14 +49,15 @@ mod offsets {
 
 
 /// Helper for validating signatures in symmetric or asymmetric modes
-fn validate(
+fn validate<T: MutableData>(
+    signing_id: &Id,
     keys: &Keys,
-    id: &Id,
-    kind: Kind,
-    flags: Flags,
-    sig: &Signature,
-    data: &[u8],
+    container: &mut Container<T>
 ) -> Result<bool, Error> {
+    let header = container.header();
+    let flags = header.flags();
+    let kind = header.kind();
+
     // Attempt to use secret key mode if available
     let valid = if flags.contains(Flags::SYMMETRIC_MODE) {
         debug!("Using symmetric signing mode");
@@ -75,10 +76,13 @@ fn validate(
             }
         };
 
-        debug!("Verify with key: {}", sk);
+        debug!("Decrypt/Verify(AEAD) with key: {}", sk);
 
-        // Validate signature
-        crypto::sk_validate(sk, sig, data).map_err(|_e| Error::CryptoError)?
+        // Validate / decrypt object
+
+        container.sk_decrypt(sk).map_err(|_e| Error::CryptoError)?;
+
+        true
 
     // Otherwise use public key
     } else {
@@ -91,20 +95,20 @@ fn validate(
         };
         
         // Check ID matches public key
-        let h = crypto::hash(pub_key).unwrap();
-        if id != &h {
-            error!("Public key mismatch for object from {:?} ({})", id, h);
+        let h = Crypto::hash(pub_key).unwrap();
+        if signing_id != &h {
+            error!("Public key mismatch for object from {:?} ({})", signing_id, h);
             return Err(Error::KeyIdMismatch);
         }
 
         // Validate signature
-        crypto::pk_validate(pub_key, sig, data).map_err(|_e| Error::CryptoError)?
+        Crypto::pk_verify(pub_key, &container.signature(), container.signed()).map_err(|_e| Error::CryptoError)?
     };
 
     Ok(valid)
 }
 
-impl<'a, T: ImmutableData> Container<T> {
+impl<'a, T: MutableData> Container<T> {
     /// Parses a data array into a base object using the pub_key and sec_key functions to locate keys for validation and decryption
     pub fn parse<K>(data: T, key_source: &K) -> Result<Container<T>, Error>
     where
@@ -112,16 +116,15 @@ impl<'a, T: ImmutableData> Container<T> {
     {
         // Build container over buffer
         let (mut container, _n) = Container::from(data);
-        let header = container.header();
-        
+
         trace!("Parsing object: {:02x?}", container.hex_dump());
 
-        trace!("Parsed header: {:02x?}", header);
+        let (id, flags, kind, index) = {
+            let header = container.header();
+            trace!("Parsed header: {:02x?}", header);
 
-        // Fetch required fields
-        let flags = header.flags();
-        let kind = header.kind();
-        let id: Id = container.id();
+            (container.id(), header.flags(), header.kind(), header.index())
+        };
 
         debug!("Parse container: {:?}", container);
 
@@ -139,7 +142,7 @@ impl<'a, T: ImmutableData> Container<T> {
                 trace!("Early signature validate: {:02x?} using key: {:?}", signature.as_ref(), pub_key);
 
                 // Perform verification
-                verified = validate(&keys, &id, kind, flags, &signature, container.signed())?;
+                verified = validate(&id, &keys, &mut container)?;
 
                 // Stop processing if signature is invalid
                 if !verified {
@@ -191,7 +194,7 @@ impl<'a, T: ImmutableData> Container<T> {
             _ => {
                 warn!(
                     "Missing public key for message: {:?} signing id: {:?}",
-                    header.index(), signing_id
+                    index, signing_id
                 );
                 None
             }
@@ -203,7 +206,7 @@ impl<'a, T: ImmutableData> Container<T> {
         match (verified, keys) {
             (false, Some(keys)) => {
                 // Check signature
-                verified = validate(&keys, &signing_id, kind, flags, &signature, container.signed())?;
+                verified = validate(&signing_id, &keys,  &mut container)?;
 
                 // Stop processing on verification failure
                 if !verified {
@@ -258,7 +261,7 @@ pub(crate) fn decrypt(sk: &SecretKey, body: &mut MaybeEncrypted, private_opts: &
     };
 
     // Perform decryption
-    let _n = crypto::sk_decrypt(sk, tag, cyphertext.deref_mut())
+    let _n = Crypto::sk_decrypt(sk, tag, None, cyphertext.deref_mut())
             .map_err(|_e| Error::InvalidSignature)?;
 
     // Write-back decrypted data
@@ -344,13 +347,13 @@ mod test {
         let _ = simplelog::SimpleLogger::init(simplelog::LevelFilter::Trace, simplelog::Config::default());
 
         let (pub_key, pri_key) =
-            crypto::new_pk().expect("Error generating new public/private key pair");
+            Crypto::new_pk().expect("Error generating new public/private key pair");
 
-        let id = crypto::hash(&pub_key)
+        let id = Crypto::hash(&pub_key)
             .expect("Error generating new ID")
             .into();
 
-        let sec_key = crypto::new_sk().expect("Error generating new secret key");
+        let sec_key = Crypto::new_sk().expect("Error generating new secret key");
         (
             id,
             Keys {
@@ -532,7 +535,7 @@ mod test {
 
         // Generate target keys
         let (pub_key, _pri_key) =
-            crypto::new_pk().expect("Error generating new public/private key pair");
+            Crypto::new_pk().expect("Error generating new public/private key pair");
         let keys = keys.derive_peer(pub_key).unwrap();
 
 
@@ -548,24 +551,20 @@ mod test {
             .header(&header)
             .body(Body::Cleartext(data.clone())).unwrap()
             .private_options(&[]).unwrap()
-            .encrypt(keys.sym_keys.as_ref().map(|k| &k.1 ).unwrap()).unwrap()
+            .public()
             .public_options(&[
                 Options::peer_id(id.clone()),
             ]).unwrap()
-            .sign_sk(keys.sym_keys.as_ref().map(|k| &k.1 ).unwrap())
+            .encrypt_sk(keys.sym_keys.as_ref().map(|k| &k.1 ).unwrap())
             //.sign_pk(keys.pri_key.as_ref().unwrap())
             .expect("Error encoding message");
 
         let mut decoded = Container::parse(encoded.raw().to_vec(), &keys).expect("Error decoding page");
         
-        assert_eq!(encoded, decoded);
+        assert_eq!(encoded.header(), decoded.header());
 
-        // Check we're encrypted
-        assert_eq!(decoded.encrypted(), true);
-        assert_ne!(decoded.body_raw(), &data);
-
-        // Perform decryption
-        decoded.decrypt(keys.sym_keys.as_ref().map(|k| &k.1 ).unwrap()).unwrap();
+        // Check we're decrypted
+        assert_eq!(decoded.encrypted(), false);
         assert_eq!(decoded.body_raw(), &data);
     }
 
@@ -631,7 +630,7 @@ mod test {
         let (id, keys) = setup();
 
         let (pub_key, pri_key) =
-            crypto::new_pk().expect("Error generating new public/private key pair");
+            Crypto::new_pk().expect("Error generating new public/private key pair");
         let target = Keys{ pub_key: Some(pub_key), pri_key: Some(pri_key), ..Default::default() };
 
         let target = target.derive_peer(keys.pub_key.unwrap().clone()).unwrap();

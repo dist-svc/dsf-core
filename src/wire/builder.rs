@@ -7,7 +7,7 @@ use pretty_hex::*;
 
 use crate::base::{Header};
 use crate::base::{Encode};
-use crate::crypto::{self, sk_encrypt, sk_reencrypt};
+use crate::crypto::{Crypto, PubKey as _, SecKey as _, Hash as _};
 use crate::error::Error;
 use crate::options::{Options};
 use crate::types::*;
@@ -78,6 +78,11 @@ impl<S, T: MutableData> Builder<S, T> {
     /// Fetch a mutable instance of the object header
     pub fn header_ref(&self) -> WireHeader<&[u8]> {
         WireHeader::new(&self.buf.as_ref()[..HEADER_LEN])
+    }
+
+    /// Fetch the header bytes (including ID)
+    pub fn header_raw(&self) -> &[u8] {
+        &self.buf.as_ref()[..HEADER_LEN+ID_LEN]
     }
 }
 
@@ -239,7 +244,7 @@ impl<T: MutableData> Builder<Encrypt, T> {
     ) -> Result<Builder<SetPublicOptions, T>, Error> {
         // TODO: skip if body + private options are empty...
 
-        debug!("SK Encrypt with key: {}", secret_key);
+        debug!("SK body encrypt with key: {}", secret_key);
 
         // Calculate area to be encrypted
         let o = HEADER_LEN + ID_LEN;
@@ -252,7 +257,7 @@ impl<T: MutableData> Builder<Encrypt, T> {
         trace!("Encrypting block: {:?}", block.hex_dump());
 
         // Perform encryption
-        let tag = sk_encrypt(secret_key, block).unwrap();
+        let tag = Crypto::sk_encrypt(secret_key, None, block).unwrap();
 
         trace!("Encrypted block: {:?}", block.hex_dump());
         trace!("Encryption tag: {:?}", tag.hex_dump());
@@ -287,7 +292,7 @@ impl<T: MutableData> Builder<Encrypt, T> {
         let b = self.buf.as_mut();
 
         // Perform encryption
-        sk_reencrypt(secret_key, tag.as_ref(), &mut b[o..o+l]).unwrap();
+        Crypto::sk_reencrypt(secret_key, tag.as_ref(), None, &mut b[o..o+l]).unwrap();
 
         // Attach tag to object
         b[self.n..][..SECRET_KEY_TAG_LEN].copy_from_slice(&tag.as_ref());
@@ -391,7 +396,7 @@ impl<T: MutableData> Builder<SetPublicOptions, T> {
         let b = self.buf.as_mut();
 
         // Generate signature
-        let sig = crypto::pk_sign(signing_key, &b[..self.n]).unwrap();
+        let sig = Crypto::pk_sign(signing_key, &b[..self.n]).unwrap();
 
         trace!("Sign {} byte object, new index: {}", self.n, self.n + SIGNATURE_LEN);
 
@@ -417,13 +422,35 @@ impl<T: MutableData> Builder<SetPublicOptions, T> {
         debug!("Sign with key: {}", signing_key);
 
         // Generate signature
-        let sig = crypto::sk_sign(signing_key, &b[..self.n]).unwrap();
+        let sig = Crypto::sk_sign(signing_key, &b[..self.n]).unwrap();
 
         // Write to object
         (&mut b[self.n..self.n + SIGNATURE_LEN]).copy_from_slice(&sig);
         self.n += SIGNATURE_LEN;
 
         // Return base object
+        Ok(Container {
+            buff: self.buf,
+            len: self.n,
+            verified: true,
+            decrypted: false,
+        })
+    }
+
+    pub fn encrypt_sk(mut self, secret_key: &SecretKey) -> Result<Container<T>, Error> {
+
+        debug!("SK Sign/Encrypt (AEAD) with key: {} ({} bytes)", secret_key, self.n);
+
+        let buf = self.buf.as_mut();
+
+        let (header, body) = buf[..self.n].split_at_mut(HEADER_LEN+ID_LEN);
+        let tag = Crypto::sk_encrypt(secret_key, Some(header), body).unwrap();
+
+        debug!("MAC: {}", tag);
+
+        buf[self.n..][..tag.len()].copy_from_slice(&tag);
+        self.n += SIGNATURE_LEN;
+
         Ok(Container {
             buff: self.buf,
             len: self.n,

@@ -4,7 +4,7 @@
 //! subscribing to services, and sending messages respectively.
 
 use crate::base::{MaybeEncrypted, PageBody};
-use crate::crypto;
+use crate::crypto::{Crypto, PubKey as _, SecKey as _, Hash as _};
 use crate::error::Error;
 use crate::options::Options;
 use crate::types::*;
@@ -66,10 +66,10 @@ impl <B: PageBody> Default for Service<B> {
     /// Create a default / blank Service for further initialisation.
     fn default() -> Self {
         // Generate service key-pair
-        let (public_key, private_key) = crypto::new_pk().unwrap();
+        let (public_key, private_key) = Crypto::new_pk().unwrap();
 
         // Generate service ID from public key
-        let id = crypto::hash(&public_key).unwrap();
+        let id = Crypto::hash(&public_key).unwrap();
 
         // Create service object
         Service {
@@ -182,12 +182,10 @@ impl <B: PageBody> Service<B> {
 #[cfg(test)]
 mod test {
 
-    use core::convert::{TryFrom};
     use std::net::{Ipv4Addr, SocketAddrV4};
 
     use pretty_assertions::{assert_eq};
 
-    use crate::base::{Body};
     use crate::service::publisher::{DataOptions, Publisher, SecondaryOptions};
     use crate::service::subscriber::Subscriber;
     use crate::wire::Container;
@@ -216,7 +214,7 @@ mod test {
 
         debug!("page1: {:?}", page1);
 
-        let pp1 = Container::parse(page1.raw(), &keys).unwrap();
+        let pp1 = Container::parse(page1.raw().to_vec(), &keys).unwrap();
 
         debug!("pp1: {:?}", pp1);
 
@@ -229,7 +227,7 @@ mod test {
         println!("Decoding service page");
         let s = service.clone();
 
-        let base2 = Container::parse(page1.as_ref(), &keys).expect("Error parsing service page");
+        let base2 = Container::parse(page1.raw().to_vec(), &keys).expect("Error parsing service page");
         assert_eq!(n, base2.len());
         assert_eq!(pp1, base2);
 
@@ -249,7 +247,7 @@ mod test {
             .publish_primary_buff(Default::default())
             .expect("Error publishing primary page");
 
-        let pp3 = Container::parse(page3.as_ref(), &keys).unwrap();
+        let pp3 = Container::parse(page3.raw().to_vec(), &keys).unwrap();
 
         println!("Applying updated page to replica");
         replica
@@ -265,7 +263,7 @@ mod test {
 
         println!("Validating secondary page");
         // Convert secondary container to page
-        let b = Container::parse(secondary.as_ref(), &s.keys()).unwrap();
+        let b = Container::parse(secondary.raw().to_vec(), &s.keys()).unwrap();
         service
             .validate_secondary(&b)
             .expect("Error validating secondary page against publisher");
@@ -277,7 +275,7 @@ mod test {
             .expect("Error publishing data object");
 
         println!("Validating data object");
-        let b = Container::parse(data.as_ref(), &s.keys()).unwrap();
+        let b = Container::parse(data.raw().to_vec(), &s.keys()).unwrap();
         replica
             .validate_data(&b)
             .expect("Error validating data against replica");

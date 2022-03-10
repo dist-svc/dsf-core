@@ -4,7 +4,7 @@ use core::convert::TryInto;
 use alloc::{vec::Vec};
 
 use crate::base::PageBody;
-use crate::crypto;
+use crate::crypto::{Crypto, PubKey as _, SecKey as _, Hash as _};
 use crate::error::Error;
 use crate::page::{PageInfo};
 use crate::prelude::{MaybeEncrypted, Parse};
@@ -180,7 +180,7 @@ impl <B: PageBody> Service<B> {
         };
 
         // Check public key and ID match
-        if self.id != crypto::hash(&public_key).unwrap() {
+        if self.id != Crypto::hash(&public_key).unwrap() {
             return Err(Error::KeyIdMismatch);
         }
 

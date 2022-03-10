@@ -8,6 +8,7 @@ use crate::error::Error;
 use crate::prelude::{Header};
 use crate::types::{Id, Kind, PageKind, Flags, Queryable, DateTime, Signature, MutableData};
 use crate::wire::{Builder, Container};
+use crate::crypto::{Crypto, Hash as _};
 
 use super::Service;
 
@@ -81,7 +82,7 @@ impl <B: PageBody> Registry for Service<B> {
     /// Resolve an ID for a given hash
     fn resolve(&self, q: impl Queryable) -> Result<Id, Error>{
         // Generate ID for page lookup using this registry
-        match crate::crypto::hash_tid(self.id(), &self.keys(), q) {
+        match Crypto::hash_tid(self.id(), &self.keys(), q) {
             Ok(tid) => Ok(tid),
             Err(_) => Err(Error::CryptoError),
         }
@@ -96,7 +97,7 @@ impl <B: PageBody> Registry for Service<B> {
     ) -> Result<(usize, Container<T>), Error> {
 
         // Generate TID
-        let tid = match crate::crypto::hash_tid(self.id(), &self.keys(), q) {
+        let tid = match Crypto::hash_tid(self.id(), &self.keys(), q) {
             Ok(tid) => tid,
             Err(_) => return Err(Error::CryptoError),
         };

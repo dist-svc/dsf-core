@@ -90,10 +90,11 @@ impl <D: PageBody> Net for Service<D> {
         };
 
         // Attach options
-        let b = b.private_options(&[])?;
+        let b = b.private_options(&[])?
+            .public();
 
         // Encrypt if running symmetric mode
-        let b = self.encrypt_message(req.flags, keys, b)?;
+        //let b = self.encrypt_message(req.flags, keys, b)?;
 
         // Sign/encrypt object using provided keying
         let c = self.finalise_message(req.flags, &req.common, keys, b)?;
@@ -144,10 +145,11 @@ impl <D: PageBody> Net for Service<D> {
         };
 
         // Attach options
-        let b = b.private_options(&[])?;
+        let b = b.private_options(&[])?
+            .public();
 
         // Encrypt if running symmetric mode
-        let b = self.encrypt_message(resp.flags, keys, b)?;
+        //let b = self.encrypt_message(resp.flags, keys, b)?;
         
         // Sign/encrypt object using provided keying
         let c = self.finalise_message(resp.flags, &resp.common, keys, b)?;
@@ -217,8 +219,8 @@ impl <D: PageBody> Service<D> {
                 _ => panic!("Attempted to sign object with no secret key"),
             };
 
-            // Sign using secret key
-            b.sign_sk(sec_key)?
+            // Sign/Encrypt (AEAD) using secret key
+            b.encrypt_sk(sec_key)?
         };
 
         Ok(c)
@@ -236,7 +238,7 @@ mod test {
 
     fn setup() -> (Service, Service) {
         #[cfg(feature="simplelog")]
-        let _ = simplelog::SimpleLogger::init(simplelog::LevelFilter::Debug, simplelog::Config::default());
+        let _ = simplelog::SimpleLogger::init(simplelog::LevelFilter::Trace, simplelog::Config::default());
 
         let s = ServiceBuilder::generic().build().unwrap();
         let p = ServiceBuilder::generic().build().unwrap();

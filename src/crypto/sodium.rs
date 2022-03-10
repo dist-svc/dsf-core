@@ -1,253 +1,174 @@
 //! Crypto module provides cryptographic interfaces and implementations for DSF
 //!
 
-use sodiumoxide::crypto::auth;
-use sodiumoxide::crypto::hash::sha256;
 use sodiumoxide::crypto::kx;
-use sodiumoxide::crypto::secretbox;
 use sodiumoxide::crypto::sign;
 
-use sodiumoxide::crypto::secretbox::xsalsa20poly1305::Key as SodiumSecretKey;
-use sodiumoxide::crypto::secretbox::xsalsa20poly1305::Nonce as SodiumSecretNonce;
-use sodiumoxide::crypto::secretbox::xsalsa20poly1305::Tag as SodiumSecretTag;
-use sodiumoxide::crypto::secretbox::xsalsa20poly1305::{MACBYTES, NONCEBYTES};
-
-use crate::prelude::Keys;
 use crate::types::Array32;
 use crate::types::CryptoHasher;
-use crate::types::Id;
-use crate::types::Queryable;
-use crate::types::{CryptoHash, PrivateKey, PublicKey, SecretKey, Signature, SecretMeta};
+use crate::types::SECRET_KEY_TAG_LEN;
+use crate::types::{PrivateKey, PublicKey, SecretKey, Signature, SecretMeta};
 
-/// new_pk creates a new public/private key pair
-pub fn new_pk() -> Result<(PublicKey, PrivateKey), ()> {
-    let (public_key, private_key) = sign::gen_keypair();
-    Ok((public_key.0.into(), private_key.0.into()))
+use super::{PubKey, SecKey, Hash};
+
+pub struct SodiumCrypto;
+
+impl PubKey for SodiumCrypto {
+    type Error = ();
+
+    fn new_pk() -> Result<(PublicKey, PrivateKey), Self::Error> {
+        let (pub_key, pri_key) = sign::gen_keypair();
+        
+        Ok((pub_key.0.into(), pri_key.0.into()))
+    }
+
+    fn pk_sign(private_key: &PrivateKey, data: &[u8]) -> Result<Signature, Self::Error> {
+        // Parse key from provided slice
+        let private_key = sign::SecretKey::from_slice(private_key).unwrap();
+        // Generate signature
+        let sig = sign::sign_detached(data, &private_key);
+        // Return signature object
+        Ok(sig.to_bytes().into())
+    }
+
+    fn pk_verify(public_key: &PublicKey, signature: &Signature, data: &[u8]) -> Result<bool, Self::Error> {
+        // Parse key from provided slice
+        let public_key = sign::PublicKey::from_slice(public_key).unwrap();
+        // Parse signature from provided slice
+        let sig = sign::Signature::new(signature.clone().into());
+        // Verify signature (returns true or)
+        Ok(sign::verify_detached(&sig, data, &public_key))
+    }
+
+    fn kx(pub_key: &PublicKey, pri_key: &PrivateKey, remote: &PublicKey) -> Result<(SecretKey, SecretKey), Self::Error> {
+        // Convert to sodium signing keys
+        let pri_key = sign::SecretKey::from_slice(pri_key).unwrap();
+        let pub_key = sign::PublicKey::from_slice(pub_key).unwrap();
+        let remote = sign::PublicKey::from_slice(remote).unwrap();
+
+        // Convert signing keys to encryption keys
+        let pri_key = sign::to_curve25519_sk(&pri_key).unwrap();
+        let pub_key = sign::to_curve25519_pk(&pub_key).unwrap();
+        let remote = sign::to_curve25519_pk(&remote).unwrap();
+
+        // Convert encryption keys to kx
+        let pri_key = kx::SecretKey::from_slice(&pri_key.0).unwrap();
+        let pub_key = kx::PublicKey::from_slice(&pub_key.0).unwrap();
+        let remote = kx::PublicKey::from_slice(&remote.0).unwrap();
+
+        // Generate keys
+        let k1 = kx::server_session_keys(&pub_key, &pri_key, &remote).unwrap();
+        let k2 = kx::client_session_keys(&pub_key, &pri_key, &remote).unwrap();
+
+        Ok((k1.0 .0.into(), k2.1 .0.into()))
+    }
 }
 
-/// pk_sign generates a signature for the provided slice of data
-pub fn pk_sign(private_key: &PrivateKey, data: &[u8]) -> Result<Signature, ()> {
-    // Parse key from provided slice
-    let private_key = sign::SecretKey::from_slice(private_key).unwrap();
-    // Generate signature
-    let sig = sign::sign_detached(data, &private_key);
-    // Return signature object
-    Ok(sig.to_bytes().into())
+
+impl SecKey for SodiumCrypto {
+    type Error = ();
+
+    /// new_sk creates a new secret key for symmetric encryption and decryption
+    fn new_sk() -> Result<SecretKey, Self::Error> {
+        let key = sodiumoxide::crypto::aead::gen_key();
+        Ok(key.0.into())
+    }
+
+    fn sk_sign(secret_key: &SecretKey, message: &[u8]) -> Result<Signature, Self::Error> {
+        use sodiumoxide::crypto::auth;
+
+        let secret_key = auth::Key::from_slice(secret_key).unwrap();
+
+        let tag = auth::authenticate(message, &secret_key);
+
+        // Pack out tag to Signature size (TODO: variable sizes here?)
+        let mut r = [0u8; 64];
+        r[..32].copy_from_slice(&tag.0);
+
+        Ok(r.into())
+    }
+
+    fn sk_verify(secret_key: &PublicKey, signature: &Signature, data: &[u8]) -> Result<bool, Self::Error> {
+        use sodiumoxide::crypto::auth;
+
+        let secret_key = auth::Key::from_slice(secret_key).unwrap();
+        let tag = auth::Tag::from_slice(&signature[..auth::TAGBYTES]).unwrap();
+    
+        Ok(auth::verify(&tag, data, &secret_key))
+    }
+
+    fn sk_encrypt(secret_key: &SecretKey, assoc: Option<&[u8]>, message: &mut [u8]) -> Result<SecretMeta, Self::Error> {
+        use sodiumoxide::crypto::aead;
+
+        let secret_key = aead::Key::from_slice(secret_key).unwrap();
+        let nonce = aead::gen_nonce();
+
+        // Perform in-place encryption
+        let tag = aead::seal_detached(message, assoc, &nonce, &secret_key);
+
+        // Generate encryption metadata
+        let mut meta = [0u8; SECRET_KEY_TAG_LEN];
+        (&mut meta[..aead::TAGBYTES]).copy_from_slice(&tag.0);
+        (&mut meta[aead::TAGBYTES..]).copy_from_slice(&nonce.0);
+
+        Ok(meta.into())
+    }
+
+    fn sk_decrypt(secret_key: &SecretKey, meta: &[u8], assoc: Option<&[u8]>, message: &mut [u8]) -> Result<(), Self::Error> {
+        use sodiumoxide::crypto::aead;
+
+        let secret_key = aead::Key::from_slice(secret_key).unwrap();
+
+        // Parse encryption metadata
+        let tag = aead::Tag::from_slice(&meta[..aead::TAGBYTES]).unwrap();
+        let nonce = aead::Nonce::from_slice(&meta[aead::TAGBYTES..]).unwrap();
+
+        // Perform in-place decryption
+        aead::open_detached(message, assoc, &tag, &nonce, &secret_key)
+    }
+
+    fn sk_reencrypt(secret_key: &SecretKey, meta: &[u8], assoc: Option<&[u8]>, message: &mut [u8]) -> Result<SecretMeta, Self::Error> {
+        use sodiumoxide::crypto::aead;
+
+        let secret_key = aead::Key::from_slice(secret_key).unwrap();
+
+        let t1 = aead::Tag::from_slice(&meta[..aead::TAGBYTES]).unwrap();
+        let nonce = aead::Nonce::from_slice(&meta[aead::TAGBYTES..]).unwrap();
+
+        // Perform in-place encryption
+        let t2 = aead::seal_detached(message, assoc, &nonce, &secret_key);
+
+        assert_eq!(t1, t2);
+
+        // Generate encryption metadata
+        let mut meta = [0u8; SECRET_KEY_TAG_LEN];
+        (&mut meta[..aead::TAGBYTES]).copy_from_slice(&t2.0);
+        (&mut meta[aead::TAGBYTES..]).copy_from_slice(&nonce.0);
+
+        Ok(meta.into())
+    }
 }
 
-/// pk_validate checks a provided signature against a public key and slice of data
-pub fn pk_validate(public_key: &PublicKey, signature: &Signature, data: &[u8]) -> Result<bool, ()> {
-    // Parse key from provided slice
-    let public_key = sign::PublicKey::from_slice(public_key).unwrap();
-    // Parse signature from provided slice
-    let sig = sign::Signature::new(signature.clone().into());
-    // Verify signature (returns true or)
-    Ok(sign::verify_detached(&sig, data, &public_key))
+impl Hash for SodiumCrypto {
+    type Error = ();
+
+    fn kdf(key: Array32) -> Result<Array32, ()> { 
+        let mut derived: Array32 = Default::default();
+        
+        // We use a KDF here to ensure that knowing the hashed data cannot leak the app secret key
+        let sk = sodiumoxide::crypto::kdf::Key(key.into());
+        let _ = sodiumoxide::crypto::kdf::derive_from_key(&mut derived, DSF_NS_KDF_IDX, DSF_NS_KDF_CTX, &sk);
+        
+        Ok(derived)
+    }
 }
 
-/// pk_derive derives a public key from a provided private key
-pub fn pk_derive(private_key: &PrivateKey) -> Result<PublicKey, ()> {
-    // Parse key from slice
-    let private_key = sign::SecretKey::from_slice(private_key).unwrap();
-    let public_key = private_key.public_key();
-
-    Ok(public_key.0.into())
-}
-
-/// Derive secret keys for symmetric use from pub/pri keys
-/// Note that these must be swapped (rx->tx, tx->rx) depending on direction
-pub fn sk_derive(
-    pub_key: &PublicKey,
-    pri_key: &PrivateKey,
-    remote: &PublicKey,
-) -> Result<(SecretKey, SecretKey), ()> {
-    // Convert to sodium signing keys
-    let pri_key = sign::SecretKey::from_slice(pri_key).unwrap();
-    let pub_key = sign::PublicKey::from_slice(pub_key).unwrap();
-    let remote = sign::PublicKey::from_slice(remote).unwrap();
-
-    // Convert signing keys to encryption keys
-    let pri_key = sign::to_curve25519_sk(&pri_key).unwrap();
-    let pub_key = sign::to_curve25519_pk(&pub_key).unwrap();
-    let remote = sign::to_curve25519_pk(&remote).unwrap();
-
-    // Convert encryption keys to kx
-    let pri_key = kx::SecretKey::from_slice(&pri_key.0).unwrap();
-    let pub_key = kx::PublicKey::from_slice(&pub_key.0).unwrap();
-    let remote = kx::PublicKey::from_slice(&remote.0).unwrap();
-
-    // Generate keys
-    let k1 = kx::server_session_keys(&pub_key, &pri_key, &remote).unwrap();
-    let k2 = kx::client_session_keys(&pub_key, &pri_key, &remote).unwrap();
-
-    Ok((k1.0 .0.into(), k2.1 .0.into()))
-}
-
-pub const SK_META: usize = MACBYTES + NONCEBYTES;
-
-/// new_sk creates a new secret key for symmetric encryption and decryption
-pub fn new_sk() -> Result<SecretKey, ()> {
-    let key = secretbox::gen_key();
-    Ok(key.0.into())
-}
-
-pub fn sk_sign(secret_key: &SecretKey, message: &[u8]) -> Result<Signature, ()> {
-    let secret_key = auth::Key::from_slice(secret_key).unwrap();
-
-    let tag = auth::authenticate(message, &secret_key);
-
-    // Pack out tag to Signature size (TODO: variable sizes here?)
-    let mut r = [0u8; 64];
-    r[..32].copy_from_slice(&tag.0);
-
-    Ok(r.into())
-}
-
-pub fn sk_validate(secret_key: &PublicKey, signature: &Signature, data: &[u8]) -> Result<bool, ()> {
-    let secret_key = auth::Key::from_slice(secret_key).unwrap();
-    let tag = auth::Tag::from_slice(&signature[..32]).unwrap();
-
-    Ok(auth::verify(&tag, data, &secret_key))
-}
-
-pub fn sk_encrypt(secret_key: &SecretKey, message: &mut [u8]) -> Result<SecretMeta, ()> {
-    let secret_key = SodiumSecretKey::from_slice(secret_key).unwrap();
-    let nonce = secretbox::gen_nonce();
-
-    // Perform in-place encryption
-    let tag = secretbox::seal_detached(message, &nonce, &secret_key);
-
-    // Generate encryption metadata
-    let mut meta = [0u8; SK_META];
-    (&mut meta[..MACBYTES]).copy_from_slice(&tag.0);
-    (&mut meta[MACBYTES..]).copy_from_slice(&nonce.0);
-
-    Ok(meta.into())
-}
-
-pub fn sk_reencrypt(secret_key: &SecretKey, meta: &[u8], message: &mut [u8]) -> Result<SecretMeta, ()> {
-    let secret_key = SodiumSecretKey::from_slice(secret_key).unwrap();
-
-    let t1 = SodiumSecretTag::from_slice(&meta[..MACBYTES]).unwrap();
-    let nonce = SodiumSecretNonce::from_slice(&meta[MACBYTES..]).unwrap();
-
-    // Perform in-place encryption
-    let t2 = secretbox::seal_detached(message, &nonce, &secret_key);
-
-    assert_eq!(t1, t2);
-
-    // Generate encryption metadata
-    let mut meta = [0u8; SK_META];
-    (&mut meta[..MACBYTES]).copy_from_slice(&t2.0);
-    (&mut meta[MACBYTES..]).copy_from_slice(&nonce.0);
-
-    Ok(meta.into())
-}
-
-pub fn sk_decrypt(secret_key: &SecretKey, meta: &[u8], message: &mut [u8]) -> Result<(), ()> {
-    let secret_key = SodiumSecretKey::from_slice(secret_key).unwrap();
-
-    // Parse encryption metadata
-    let tag = SodiumSecretTag::from_slice(&meta[..MACBYTES]).unwrap();
-    let nonce = SodiumSecretNonce::from_slice(&meta[MACBYTES..]).unwrap();
-
-    // Perform in-place decryption
-    secretbox::open_detached(message, &tag, &nonce, &secret_key)
-}
-
-/// sk_encrypt2 encrypts data_len bytes of the data in-place in the provided buffer,
-/// appends NONCE and TAG information to the buffer, and returns the complete length (encrypted data + overheads)
-pub fn sk_encrypt2<T>(secret_key: &SecretKey, mut buff: T, data_len: usize) -> Result<usize, ()>
-where
-    T: AsRef<[u8]> + AsMut<[u8]>,
-{
-    let data = buff.as_mut();
-
-    let secret_key = SodiumSecretKey::from_slice(secret_key).unwrap();
-    let nonce = secretbox::gen_nonce();
-
-    // Perform in-place encryption
-    let tag = secretbox::seal_detached(&mut data[..data_len], &nonce, &secret_key);
-
-    // Append encryption metadata
-    let mut i = data_len;
-    (&mut data[i..i + MACBYTES]).copy_from_slice(&tag.0);
-    i += MACBYTES;
-    (&mut data[i..i + NONCEBYTES]).copy_from_slice(&nonce.0);
-
-    Ok(data_len + MACBYTES + NONCEBYTES)
-}
-
-/// sk_decrypt2 decrypts the data in-place in the provided buffer,
-/// this will strip NONCE and TAG information, and returns the data length (decrypted data w/out overheads)
-pub fn sk_decrypt2<T>(secret_key: &SecretKey, mut buff: T) -> Result<usize, ()>
-where
-    T: AsRef<[u8]> + AsMut<[u8]>,
-{
-    let data = buff.as_mut();
-    let len = data.len() - NONCEBYTES - MACBYTES;
-
-    let secret_key = SodiumSecretKey::from_slice(secret_key).unwrap();
-
-    // Parse encryption metadata
-    let mut i = len;
-    let tag = SodiumSecretTag::from_slice(&data[i..i + MACBYTES]).unwrap();
-    i += MACBYTES;
-    let nonce = SodiumSecretNonce::from_slice(&data[i..i + NONCEBYTES]).unwrap();
-
-    // Perform in-place decryption
-    secretbox::open_detached(&mut data[..len], &tag, &nonce, &secret_key)?;
-
-    Ok(len)
-}
-
-/// Hash performs a hash function over the provided slice
-pub fn hash(data: &[u8]) -> Result<CryptoHash, ()> {
-    let digest = sha256::hash(data);
-    Ok(digest.0.into())
-}
 
 /// Blake2b KDF context, randomly generated
 const DSF_NS_KDF_CTX: [u8; 8] = [208, 217, 2, 27, 15, 253, 70, 121];
 /// KDF derived key index, must not be reused for any other purpose
 const DSF_NS_KDF_IDX: u64 = 1;
 
-/// Hash function to generate tertiary IDs
-pub fn hash_tid(id: Id, keys: &Keys, o: impl Queryable) -> Result<CryptoHash, ()> {
-
-    let seed: Array32 = match (&keys.sec_key, &keys.pub_key) {
-        // If we have a secret key, derive a new key for hashing
-        (Some(sk), _) => {
-            let mut seed: Array32 = Default::default();
-            // We use a KDF here to ensure that knowing the hashed data cannot leak the app secret key
-            let sk = sodiumoxide::crypto::kdf::Key(sk.clone().into());
-            let _ = sodiumoxide::crypto::kdf::derive_from_key(&mut seed, DSF_NS_KDF_IDX, DSF_NS_KDF_CTX, &sk);
-            seed
-        },
-        // Otherwise use the public key
-        (_, Some(pk)) => {
-            pk.clone()
-        },
-        _ => todo!(),
-    };
-
-
-    // Generate new identity hash
-    let mut h = sodiumoxide::crypto::hash::sha256::State::new();
-    h.update(&seed);
-    
-    if !o.hash(&mut h) {
-        error!("Attempted to hash non-queryable type: {:?}", o);
-        return Err(())
-    }
-
-    let h = CryptoHash::from(h.finalize().0);
-
-    // XOR with ns ID to give new location
-    
-
-    Ok(h ^ id)
-}
 
 impl CryptoHasher for sodiumoxide::crypto::hash::sha256::State {
     fn update(&mut self, buff: &[u8]) {
@@ -265,147 +186,116 @@ mod test {
 
     #[test]
     fn test_sk_tag_lengths() {
-        assert_eq!(SECRET_KEY_TAG_LEN, NONCEBYTES + MACBYTES);
-    }
+        use sodiumoxide::crypto::aead;
 
-    /// Ensure encryption is reversible so we can decrypt/re-encrypt without
-    /// storing an additional copy of the data
-    #[test]
-    fn test_sk_encrypt_same_nonce() {
-        let mut d1 = [0xaa, 0xbb, 0xcc, 0xdd];
-        let mut d2 = d1.clone();
-
-        let key = secretbox::gen_key();
-        let nonce = secretbox::gen_nonce();
-
-        let t1 = secretbox::seal_detached(&mut d1, &nonce, &key);
-        let t2 = secretbox::seal_detached(&mut d2, &nonce, &key);
-
-        assert_eq!(d1, d2);
-        assert_eq!(t1, t2);
+        assert_eq!(SECRET_KEY_TAG_LEN, aead::TAGBYTES + aead::NONCEBYTES);
     }
 
     #[test]
     fn test_pk_sign_verify() {
-        let (public, private) = new_pk().expect("Error generating public/private keypair");
+        let (public, private) = SodiumCrypto::new_pk().expect("Error generating public/private keypair");
         let mut data = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 
-        let signature = pk_sign(&private, &data).expect("Error generating signature");
+        let signature = SodiumCrypto::pk_sign(&private, &data).expect("Error generating signature");
 
-        let valid = pk_validate(&public, &signature, &data).expect("Error validating signature");
+        let valid = SodiumCrypto::pk_verify(&public, &signature, &data).expect("Error validating signature");
         assert_eq!(true, valid);
 
         data[3] = 100;
-        let valid = pk_validate(&public, &signature, &data).expect("Error validating signature");
+        let valid = SodiumCrypto::pk_verify(&public, &signature, &data).expect("Error validating signature");
         assert_eq!(false, valid);
     }
 
     #[test]
     fn test_pk_sym_sign_verify() {
-        let (pub1, pri1) = new_pk().expect("Error generating public/private keypair");
-        let (pub2, pri2) = new_pk().expect("Error generating public/private keypair");
+        let (pub1, pri1) = SodiumCrypto::new_pk().expect("Error generating public/private keypair");
+        let (pub2, pri2) = SodiumCrypto::new_pk().expect("Error generating public/private keypair");
 
         let mut data = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 
-        let (s1, _) = sk_derive(&pub1, &pri1, &pub2).unwrap();
-        let (_, s2) = sk_derive(&pub2, &pri2, &pub1).unwrap();
+        let (s1, _) = SodiumCrypto::kx( &pub1, &pri1, &pub2).unwrap();
+        let (_, s2) = SodiumCrypto::kx( &pub2, &pri2, &pub1).unwrap();
 
         assert_eq!(s1, s2);
 
-        let signature = sk_sign(&s1, &data).expect("Error generating signature");
+        let signature = SodiumCrypto::sk_sign(&s1, &data).expect("Error generating signature");
 
-        let valid = sk_validate(&s2, &signature, &data).expect("Error validating signature");
+        let valid = SodiumCrypto::sk_verify(&s2, &signature, &data).expect("Error validating signature");
         assert_eq!(true, valid);
 
         data[3] = 100;
-        let valid = sk_validate(&s2, &signature, &data).expect("Error validating signature");
+        let valid = SodiumCrypto::sk_verify(&s2, &signature, &data).expect("Error validating signature");
         assert_eq!(false, valid);
     }
 
     #[test]
     fn test_sk_encrypt_decrypt() {
-        let secret = new_sk().expect("Error generating secret key");
+        let secret = SodiumCrypto::new_sk().expect("Error generating secret key");
         let data = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
         let mut message = data.clone();
 
-        let meta = sk_encrypt(&secret, &mut message).expect("Error encrypting data");
+        let meta = SodiumCrypto::sk_encrypt(&secret, None, &mut message).expect("Error encrypting data");
         assert!(data != message);
 
-        sk_decrypt(&secret, &meta, &mut message).expect("Error decrypting data");
+        SodiumCrypto::sk_decrypt(&secret, &meta, None, &mut message).expect("Error decrypting data");
         assert_eq!(data, message);
-    }
-
-    #[test]
-    fn test_encrypt_decrypt2() {
-        let secret = new_sk().expect("Error generating secret key");
-        let data = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
-
-        let mut buff = data.clone();
-        buff.append(&mut vec![0u8; 128]);
-
-        let n = sk_encrypt2(&secret, &mut buff, data.len()).expect("Error encrypting data");
-        assert_eq!(n, data.len() + NONCEBYTES + MACBYTES);
-        assert!(data != &buff[..data.len()]);
-
-        let m = sk_decrypt2(&secret, &mut buff[..n]).expect("Error decrypting data");
-        assert_eq!(m, data.len());
-        assert_eq!(data, &buff[..m]);
     }
 
     #[bench]
     fn bench_pk_sign(b: &mut Bencher) {
-        let (_public, private) = new_pk().expect("Error generating public/private keypair");
+        let (_public, private) = SodiumCrypto::new_pk().expect("Error generating public/private keypair");
         let data = [0xabu8; 256];
 
         b.iter(|| {
-            let _sig = pk_sign(&private, &data).expect("Error generating signature");
+            let _sig = SodiumCrypto::pk_sign(&private, &data).expect("Error generating signature");
         })
     }
 
     #[bench]
     fn bench_pk_verify(b: &mut Bencher) {
-        let (public, private) = new_pk().expect("Error generating public/private keypair");
+        let (public, private) = SodiumCrypto::new_pk().expect("Error generating public/private keypair");
         let data = [0xabu8; 256];
 
-        let signature = pk_sign(&private, &data).expect("Error generating signature");
+        let signature = SodiumCrypto::pk_sign(&private, &data).expect("Error generating signature");
 
         b.iter(|| {
             let valid =
-                pk_validate(&public, &signature, &data).expect("Error validating signature");
+                SodiumCrypto::pk_verify(&public, &signature, &data).expect("Error validating signature");
             assert_eq!(true, valid);
         })
     }
 
     #[bench]
     fn bench_pk_sk_convert(b: &mut Bencher) {
-        let (pub_key_a, pri_key_a) = new_pk().expect("Error generating public/private keypair");
-        let (pub_key_b, _pri_key_b) = new_pk().expect("Error generating public/private keypair");
+        let (pub_key_a, pri_key_a) = SodiumCrypto::new_pk().expect("Error generating public/private keypair");
+        let (pub_key_b, _pri_key_b) = SodiumCrypto::new_pk().expect("Error generating public/private keypair");
 
         b.iter(|| {
             let _ =
-                sk_derive(&pub_key_a, &pri_key_a, &pub_key_b).expect("Error deriving secret keys");
+                SodiumCrypto::kx(&pub_key_a, &pri_key_a, &pub_key_b).expect("Error deriving secret keys");
         });
     }
 
     #[bench]
     fn bench_sk_sign(b: &mut Bencher) {
-        let sec_key = new_sk().expect("Error generating secret key");
+        let sec_key = SodiumCrypto::new_sk().expect("Error generating secret key");
         let data = [0xabu8; 256];
 
         b.iter(|| {
-            let _sig = sk_sign(&sec_key, &data).expect("Error signing data");
+            let mut d = data.clone();
+            let _sig = SodiumCrypto::sk_encrypt(&sec_key, None, &mut d).expect("Error signing data");
         });
     }
 
     #[bench]
     fn bench_sk_verify(b: &mut Bencher) {
-        let sec_key = new_sk().expect("Error generating secret key");
-        let data = [0xabu8; 256];
-        let sig = sk_sign(&sec_key, &data).expect("Error signing data");
+        let sec_key = SodiumCrypto::new_sk().expect("Error generating secret key");
+        let mut data = [0xabu8; 256];
+        let sig = SodiumCrypto::sk_encrypt(&sec_key, None, &mut data).expect("Error signing data");
 
         b.iter(|| {
-            let v = sk_validate(&sec_key, &sig, &data).expect("Error validating data");
-            assert_eq!(v, true);
+            let mut d = data.clone();
+            let _v = SodiumCrypto::sk_decrypt(&sec_key, &sig, None, &mut d).expect("Error validating data");
         });
     }
 }

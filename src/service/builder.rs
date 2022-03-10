@@ -2,7 +2,7 @@
 use alloc::vec::{Vec};
 
 use crate::base::{MaybeEncrypted, PageBody};
-use crate::crypto;
+use crate::crypto::{Crypto, PubKey as _, SecKey as _, Hash as _};
 use crate::error::Error;
 use crate::options::Options;
 use crate::types::*;
@@ -161,7 +161,7 @@ impl <B: PageBody> ServiceBuilder<B> {
     /// Enable service encryption
     /// this is equivalent to .secret_key(crypto::new_sk().unwrap()).encrypted(true);
     pub fn encrypt(mut self) -> Self {
-        let secret_key = crypto::new_sk().unwrap();
+        let secret_key = Crypto::new_sk().unwrap();
         self.secret_key = Some(secret_key);
         self.encrypted = true;
         self
@@ -190,14 +190,14 @@ impl <B: PageBody> ServiceBuilder<B> {
             (Some(id), Some(public_key), private_key) => (id, public_key, private_key),
             (_, _, Some(private_key)) => {
                 // Regenerate public key and ID from private key
-                let public_key = crypto::pk_derive(&private_key).unwrap();
-                let id = crypto::hash(&public_key).unwrap();
+                let public_key = Crypto::get_public(&private_key);
+                let id = Crypto::hash(&public_key).unwrap();
                 (id, public_key, Some(private_key))
             }
             (None, None, None) => {
                 // Generate new keypair
-                let (public_key, private_key) = crypto::new_pk().unwrap();
-                let id = crypto::hash(&public_key).unwrap();
+                let (public_key, private_key) = Crypto::new_pk().unwrap();
+                let id = Crypto::hash(&public_key).unwrap();
                 (id, public_key, Some(private_key))
             }
             _ => panic!("Invalid service builder configuration"),

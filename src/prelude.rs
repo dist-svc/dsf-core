@@ -7,7 +7,7 @@ pub use crate::service::{DataOptions, Publisher as _, SecondaryOptions};
 pub use crate::service::Subscriber as _;
 
 pub use crate::types::{
-    Address, Data, DataKind, Flags, Id, Kind, PageKind, RequestId,
+    Address, Data, DataKind, Flags, Id, Kind, PageKind, RequestId, MutableData, ImmutableData
 };
 
 pub use crate::options::Options;
@@ -26,4 +26,3 @@ pub use crate::net::{
 };
 
 pub use crate::keys::{KeySource, Keys};
-

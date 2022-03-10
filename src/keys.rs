@@ -1,7 +1,7 @@
 
 
 use crate::types::{Id, PrivateKey, PublicKey, SecretKey};
-use crate::crypto;
+use crate::crypto::{Crypto, PubKey as _};
 
 use core::str::FromStr;
 
@@ -63,7 +63,7 @@ impl Keys {
             (Some(pub_key), _) => Some(pub_key.clone()),
             // Compute pub_key via pri_key if exists
             (_, Some(pri_key)) => {
-                self.pub_key = crypto::pk_derive(pri_key).ok();
+                self.pub_key = Some(Crypto::get_public(pri_key));
                 self.pub_key.clone()
             },
             // No pub_key available
@@ -80,7 +80,7 @@ impl Keys {
         };
 
         // Generate symmetric keys
-        let sym_keys = crypto::sk_derive(pub_key, pri_key, &peer_pub_key)?;
+        let sym_keys = Crypto::kx(pub_key, pri_key, &peer_pub_key)?;
 
         // Return generated key object for peer
         Ok(Keys {

@@ -3,6 +3,7 @@
 #![feature(test)]
 #![feature(const_generics_defaults)]
 #![feature(generic_associated_types)]
+#![feature(associated_type_defaults)]
 
 #[cfg(feature = "alloc")]
 #[macro_use]
@@ -19,9 +20,7 @@ extern crate base64;
 extern crate byteorder;
 extern crate bytes;
 extern crate managed;
-extern crate rand_core;
 extern crate slice_ext;
-extern crate sodiumoxide;
 
 #[cfg(feature = "serde")]
 extern crate serde;
