@@ -127,7 +127,7 @@ impl Message {
 }
 
 impl Message {
-    fn convert<T: ImmutableData, K: KeySource>(base: Container<T>, key_source: &K) -> Result<Message, Error> {
+    pub fn convert<T: ImmutableData, K: KeySource>(base: Container<T>, key_source: &K) -> Result<Message, Error> {
         let header = base.header();
         let app_id = header.application_id();
         let kind = header.kind();
