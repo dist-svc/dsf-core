@@ -10,10 +10,9 @@ use std::time::SystemTimeError;
 /// Error enum represents possible core errors
 /// 
 /// For serialisation add `serde`, `thiserror`, `strum`, and/or `defmt` features
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Debug, Clone, strum::EnumString, strum::Display)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "thiserror", derive(thiserror::Error))]
-#[cfg_attr(feature = "strum", derive(strum::Display))]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Error {
     IO,

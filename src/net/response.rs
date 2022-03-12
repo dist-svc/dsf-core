@@ -24,8 +24,7 @@ pub struct Response {
 }
 
 /// Response message kinds
-#[derive(Clone, PartialEq, Debug)]
-#[cfg_attr(feature = "strum", derive(strum::Display))]
+#[derive(Clone, PartialEq, Debug, strum::Display)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum ResponseBody {
     Status(Status),

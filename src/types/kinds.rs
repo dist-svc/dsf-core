@@ -85,9 +85,8 @@ pub enum KindError {
 }
 
 /// PageKind describes DSF-specific page kinds for encoding and decoding
-#[derive(PartialEq, Debug, Clone, Copy, IntoPrimitive, TryFromPrimitive)]
+#[derive(PartialEq, Debug, Clone, Copy, IntoPrimitive, TryFromPrimitive, strum::Display, strum::EnumString, strum::EnumVariantNames)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-#[cfg_attr(feature = "strum", derive(strum::Display, strum::EnumString, strum::EnumVariantNames))]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[repr(u16)]
 pub enum PageKind {
@@ -138,8 +137,7 @@ impl Into<Kind> for PageKind {
     }
 }
 
-#[derive(BitfieldSpecifier, Copy, Clone, PartialEq, Debug)]
-#[cfg_attr(feature = "strum", derive(strum::EnumString, strum::Display))]
+#[derive(BitfieldSpecifier, Copy, Clone, PartialEq, Debug, strum::EnumString, strum::Display)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[bits = 13]
@@ -179,8 +177,7 @@ impl TryFrom<Kind> for RequestKind {
 }
 
 
-#[derive(BitfieldSpecifier, Copy, Clone, PartialEq, Debug)]
-#[cfg_attr(feature = "strum", derive(strum::EnumString, strum::Display))]
+#[derive(BitfieldSpecifier, Copy, Clone, PartialEq, Debug, strum::EnumString, strum::Display)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[bits = 13]

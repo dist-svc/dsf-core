@@ -50,7 +50,7 @@ pub enum Options {
 
 
 #[derive(PartialEq, Debug, Clone, Copy, IntoPrimitive, TryFromPrimitive)]
-#[cfg_attr(feature = "strum", derive(strum::EnumString, strum::Display))]
+#[derive(strum::EnumString, strum::Display)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[repr(u16)]

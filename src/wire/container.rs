@@ -22,6 +22,7 @@ use super::Builder;
 /// Container object provides base field accessors over an arbitrary (mutable or immutable) buffers
 /// See <https://lab.whitequark.org/notes/2016-12-13/abstracting-over-mutability-in-rust/> for details
 #[derive(Clone)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct Container<T: ImmutableData = Vec<u8>> {
     /// Internal data buffer
     pub(crate) buff: T,
@@ -76,6 +77,7 @@ impl <T: ImmutableData> core::fmt::Debug for Container<T> {
         .finish()
     }
 }
+
 
 
 #[cfg(feature = "serde")]
