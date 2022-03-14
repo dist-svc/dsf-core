@@ -4,7 +4,7 @@ use core::fmt::Display;
 
 use crate::base::{Parse};
 use crate::types::{PublicKey, ImmutableData, Address, Signature, DateTime, Id};
-use super::{String, Options, OPTION_HEADER_LEN};
+use super::{String, Options, OPTION_HEADER_LEN, MAX_OPTION_LEN};
 
 
 /// Iterator for decoding options from the provided buffer
@@ -73,7 +73,7 @@ pub trait Filters {
     fn expiry(&self) -> Option<DateTime>;
     fn prev_sig(&self) -> Option<Signature>;
     fn address(&self) -> Option<Address>;
-    fn name(&self) -> Option<String>;
+    fn name(&self) -> Option<String<MAX_OPTION_LEN>>;
 }
 
 /// Filter implementation for [`OptionsIter`]
@@ -118,7 +118,7 @@ impl <T: AsRef<[u8]>> Filters for OptionsIter<T> {
         })
     }
 
-    fn name(&self) -> Option<String> {
+    fn name(&self) -> Option<String<MAX_OPTION_LEN>> {
         let mut s = OptionsIter{ index: 0, buff: self.buff.as_ref() };
         s.find_map(|o| match o {
             Options::Name(name) => Some(name.clone()),
@@ -173,7 +173,7 @@ impl <'a, T: Iterator<Item=&'a Options> + Clone> Filters for T {
         })
     }
 
-    fn name(&self) -> Option<String> {
+    fn name(&self) -> Option<String<MAX_OPTION_LEN>> {
         self.clone().find_map(|o| match o {
             Options::Name(name) => Some(name.clone()),
             _ => None,

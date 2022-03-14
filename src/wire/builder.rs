@@ -157,7 +157,7 @@ impl<T: MutableData> Builder<Init, T> {
     }
 
     pub fn no_body(
-        mut self,
+        self,
     ) -> Builder<SetPrivateOptions, T> {
         Builder {
             buf: self.buf,
@@ -183,9 +183,9 @@ impl<T: MutableData> Builder<Init, T> {
 impl<T: MutableData> Builder<SetPrivateOptions, T> {
     /// Encode private options
     /// This must be done in one pass as the entire options block is encrypted
-    pub fn private_options<C: AsRef<[Options]> + Debug>(
+    pub fn private_options<'a, C: IntoIterator<Item=&'a Options> + Debug>(
         mut self,
-        options: &C,
+        options: C,
     ) -> Result<Builder<Encrypt, T>, Error> {
         let b = self.buf.as_mut();
 
@@ -198,7 +198,7 @@ impl<T: MutableData> Builder<SetPrivateOptions, T> {
         let l = self.n - p;
         self.header_mut().set_private_options_len(l);
 
-        trace!("Add private options: {:02x?}, {} bytes, new index: {}", options, n, self.n);
+        trace!("Add private options {} bytes, new index: {}", n, self.n);
 
         Ok(Builder {
             buf: self.buf,
@@ -356,20 +356,20 @@ impl<T: MutableData> Builder<Encrypt, T> {
 
 impl<T: MutableData> Builder<SetPublicOptions, T> {
     /// Encode a list of public options
-    pub fn public_options<C: AsRef<[Options]> + Debug>(
+    pub fn public_options<'a, C: IntoIterator<Item=&'a Options> + Debug>(
         mut self,
         options: C,
     ) -> Result<Builder<SetPublicOptions, T>, Error> {
         let b = self.buf.as_mut();
 
-        let n = Options::encode_iter(options.as_ref(), &mut b[self.n..])?;
+        let n = Options::encode_iter(options, &mut b[self.n..])?;
         self.n += n;
         self.c += n;
         let c = self.c;
 
         self.header_mut().set_public_options_len(c);
 
-        trace!("Add public options: {:?}, {} bytes, new index: {}", options, n, self.n);
+        trace!("Add public options {} bytes, new index: {}", n, self.n);
 
         Ok(self)
     }

@@ -9,6 +9,7 @@ use slice_ext::SplitBefore;
 
 use crate::error::Error;
 use crate::options::{Options, Filters};
+use crate::prelude::Parse;
 use crate::types::*;
 use crate::keys::KeySource;
 use crate::wire::Container;
@@ -164,7 +165,8 @@ impl Response {
                 id.copy_from_slice(&body[..ID_LEN]);
 
                 // Build options array from body
-                let (options, _n) = Options::parse_vec(&body[ID_LEN..]).unwrap();
+                let options = Options::parse_iter(&body[ID_LEN..])
+                        .collect::<Result<Vec<Options>, Error>>().unwrap();
 
                 let nodes: Vec<_> = (&options[..])
                     .split_before(|o| match o {

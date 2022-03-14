@@ -1,7 +1,6 @@
 //! Base module provides a low-level structure for data encoding and decoding
 
 use core::marker::PhantomData;
-use core::fmt::Debug;
 use core::convert::{TryFrom, Infallible};
 
 #[cfg(feature = "alloc")]
@@ -13,6 +12,7 @@ pub use header::*;
 use crate::options::Options;
 use crate::types::{ImmutableData, Id, ID_LEN};
 use crate::error::Error;
+use crate::Debug;
 
 pub type Body = MaybeEncrypted;
 
@@ -37,6 +37,7 @@ pub trait Parse {
         }
     }
 }
+
 
 impl Parse for () {
     type Output = ();
@@ -114,7 +115,7 @@ pub trait Encode: Debug {
     }
 
     /// Encode a iterator of encodable objects
-    fn encode_iter<'a, V: Iterator<Item = &'a Self>>(
+    fn encode_iter<'a, V: IntoIterator<Item = &'a Self>>(
         vals: V,
         buff: &mut [u8],
     ) -> Result<usize, Self::Error>
@@ -123,7 +124,7 @@ pub trait Encode: Debug {
     {
         let mut index = 0;
 
-        for i in vals {
+        for i in vals.into_iter() {
             index += i.encode(&mut buff[index..])?;
         }
 

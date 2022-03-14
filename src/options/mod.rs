@@ -8,6 +8,8 @@ use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 use byteorder::{ByteOrder, NetworkEndian};
 
+use heapless::String;
+
 use crate::base::{Encode, Parse};
 use crate::error::Error;
 use crate::types::{Address, AddressV4, AddressV6, DateTime, ID_LEN, Id, Ip, PUBLIC_KEY_LEN, PublicKey, Queryable, SIGNATURE_LEN, Signature};
@@ -15,9 +17,12 @@ use crate::types::{Address, AddressV4, AddressV6, DateTime, ID_LEN, Id, Ip, PUBL
 mod helpers;
 pub use helpers::{OptionsIter, OptionsParseError, Filters};
 
+/// Option header length
+const OPTION_HEADER_LEN: usize = 4;
+
 pub const MAX_OPTION_LEN: usize = 64;
 
-pub type String = heapless::String<MAX_OPTION_LEN>;
+
 
 /// DSF defined option fields
 #[derive(PartialEq, Debug, Clone)]
@@ -28,8 +33,8 @@ pub enum Options {
     PubKey(PublicKey),
     PeerId(Id),
     PrevSig(Signature),
-    Kind(String),
-    Name(String),
+    Kind(heapless::String<MAX_OPTION_LEN>),
+    Name(heapless::String<MAX_OPTION_LEN>),
 
     IPv4(AddressV4),
     IPv6(AddressV6),
@@ -37,13 +42,13 @@ pub enum Options {
     Issued(DateTime),
     Expiry(DateTime),
     Limit(u32),
-    Metadata(Metadata),
+    Metadata{key: heapless::String<16>, value: heapless::String<48>},
     Coord(Coordinates),
 
-    Manufacturer(String),
-    Serial(String),
-    Building(String),
-    Room(String),
+    Manufacturer(heapless::String<MAX_OPTION_LEN>),
+    Serial(heapless::String<MAX_OPTION_LEN>),
+    Building(heapless::String<MAX_OPTION_LEN>),
+    Room(heapless::String<MAX_OPTION_LEN>),
 }
 
 
@@ -87,7 +92,7 @@ impl From<&Options> for OptionKind {
             Options::Issued(_) => OptionKind::Issued,
             Options::Expiry(_) => OptionKind::Expiry,
             Options::Limit(_) => OptionKind::Limit,
-            Options::Metadata(_) => OptionKind::Meta,
+            Options::Metadata{key: _, value: _} => OptionKind::Meta,
             Options::Coord(_) => OptionKind::Coord,
             Options::Building(_) => OptionKind::Building,
             Options::Room(_) => OptionKind::Room,
@@ -98,43 +103,11 @@ impl From<&Options> for OptionKind {
 }
 
 
-/// Option header length
-const OPTION_HEADER_LEN: usize = 4;
 
+
+
+/// Helpers to create options instances
 impl Options {
-    /// Parse a bounded list of options into a vector
-    pub fn parse_vec(data: &[u8]) -> Result<(Vec<Options>, usize), Error> {
-        let mut options = Vec::new();
-        let mut rem = data;
-        let mut i = 0;
-
-        while rem.len() >= OPTION_HEADER_LEN {
-            trace!("Parse option {} at offset {}", options.len(), i);
-
-            let (o, n) = Options::parse(rem)?;
-            i += n;
-
-            options.push(o);
-            rem = &data[i..];
-        }
-
-        Ok((options, i))
-    }
-
-    /// Encode a vector of options
-    pub fn encode_iter<O: AsRef<[Options]>>(options: O, data: &mut [u8]) -> Result<usize, Error> {
-        let mut i = 0;
-
-        for o in options.as_ref() {
-            i += o.encode(&mut data[i..])?;
-        }
-
-        Ok(i)
-    }
-}
-
-impl Options {
-    // Helper to generate name metadata
     pub fn name(value: &str) -> Options {
         Options::Name(String::from(value))
     }
@@ -148,7 +121,7 @@ impl Options {
     }
 
     pub fn meta(key: &str, value: &str) -> Options {
-        Options::Metadata(Metadata::new(key, value))
+        Options::Metadata{key: heapless::String::from(key), value: heapless::String::from(value)}
     }
 
     pub fn issued<T: Into<DateTime>>(now: T) -> Options {
@@ -188,7 +161,7 @@ impl Options {
         Options::PubKey(public_key)
     }
 
-    fn parse_string(d: &[u8]) -> Result<String, Error> {
+    fn parse_string(d: &[u8]) -> Result<String<MAX_OPTION_LEN>, Error> {
         let s = core::str::from_utf8(d).map_err(|_| Error::InvalidOption )?;
         Ok(String::from(s))
     }
@@ -251,7 +224,15 @@ impl Parse for Options {
                 Ok(Options::address_v6(AddressV6::new(ip, port)))
             },
 
-            OptionKind::Meta => Metadata::parse(d).map(|(o, _n) | Options::Metadata(o) ),
+            OptionKind::Meta => {
+                let s = core::str::from_utf8(d).map_err(|_| Error::InvalidOption )?;
+                let mut sp = s.split('|');
+
+                match (sp.next(), sp.next()) {
+                    (Some(key), Some(value)) => Ok(Options::meta(key, value)),
+                    _ => Err(Error::InvalidOption)
+                }
+            },
             
             OptionKind::Issued => Ok(Options::Issued(DateTime::from_secs(NetworkEndian::read_u64(d)))),
             OptionKind::Expiry => Ok(Options::Expiry(DateTime::from_secs(NetworkEndian::read_u64(d)))),
@@ -327,17 +308,17 @@ impl Encode for Options {
                 NetworkEndian::write_u64(&mut data[4..], v.as_secs());
                 8
             },
-            Options::Metadata(v) => {
+            Options::Metadata{key, value} => {
                 let mut n = 0;
                 
-                let key = v.key.as_bytes();
+                let key = key.as_bytes();
                 data[OPTION_HEADER_LEN+n..][..key.len()].copy_from_slice(key);
                 n += key.len();
 
                 data[OPTION_HEADER_LEN+n] = '|' as u8;
                 n += 1;
 
-                let val = v.value.as_bytes();
+                let val = value.as_bytes();
                 data[OPTION_HEADER_LEN+n..][..val.len()].copy_from_slice(val);
                 n += val.len();
 
@@ -382,50 +363,6 @@ impl Queryable for &Options {
     }
 }
 
-
-#[derive(PartialEq, Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub struct Metadata {
-    key: heapless::String<16>,
-    value: heapless::String<48>,
-}
-
-impl Metadata {
-    pub fn new(key: &str, value: &str) -> Metadata {
-        Metadata {
-            key: heapless::String::from(key),
-            value: heapless::String::from(value),
-        }
-    }
-}
-
-impl Parse for Metadata {
-    type Output = Metadata;
-    type Error = Error;
-
-    fn parse<'a>(data: &'a [u8]) -> Result<(Self::Output, usize), Self::Error> {
-        let kv = core::str::from_utf8(data).unwrap().to_owned();
-        let split: Vec<_> = kv.split('|').collect();
-        if split.len() != 2 {
-            return Err(Error::InvalidOption);
-        }
-
-        Ok((
-            Metadata {
-                key: heapless::String::from(split[0]),
-                value: heapless::String::from(split[1]),
-            },
-            data.len(),
-        ))
-    }
-}
-
-impl From<Metadata> for Options {
-    fn from(m: Metadata) -> Options {
-        Options::Metadata(m)
-    }
-}
 
 #[derive(PartialEq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
@@ -512,12 +449,12 @@ mod tests {
         ];
 
         let mut data = vec![0u8; 1024];
-        let n1 = Options::encode_iter(&tests, &mut data).expect("Error encoding options vector");
+        let n1 = Options::encode_iter(tests.iter(), &mut data).expect("Error encoding options vector");
 
         let encoded = &data[0..n1];
-        let (decoded, n2) = Options::parse_vec(encoded).expect("Error decoding options vector");
+        let decoded: Vec<_> = Options::parse_iter(encoded)
+            .collect::<Result<Vec<_>, Error>>().expect("Error decoding options vector");
 
-        assert_eq!(n1, n2, "Mismatch between encoded and decoded length");
         assert_eq!(
             &tests, &decoded,
             "Mismatch between original and decode vectors"

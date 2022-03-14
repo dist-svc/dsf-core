@@ -223,34 +223,34 @@ impl <B> Publisher for Service<B>
             MaybeEncrypted::None => b.no_body(),
         };
 
-        let b = b.private_options(&private_opts)?;
+        let b = b.private_options(private_opts.iter())?;
         
         // Apply internal encryption if enabled
         let mut b = self.encrypt(b)?;
 
         // Generate and append public options
-        b = b.public_options(&[
+        b = b.public_options([
             Options::pub_key(self.public_key.clone()),
-        ])?;
+        ].iter())?;
 
         // Attach last sig if available
         if let Some(last) = &self.last_sig {
-            b = b.public_options(&[Options::prev_sig(last)])?;
+            b = b.public_options([Options::prev_sig(last)].iter())?;
         }
 
         // Generate and append public options
 
         // Attach issued if provided
         if let Some(iss) = options.issued {
-            b = b.public_options(&[Options::expiry(iss)])?;
+            b = b.public_options([Options::expiry(iss)].iter())?;
         }
         // Attach expiry if provided
         if let Some(exp) = options.expiry {
-            b = b.public_options(&[Options::expiry(exp)])?;
+            b = b.public_options([Options::expiry(exp)].iter())?;
         }
         
         // Then finally attach public options
-        let b = b.public_options(&self.public_options)?;
+        let b = b.public_options(self.public_options.iter())?;
 
         // Sign generated object
         let c = self.sign(b)?;
@@ -294,30 +294,30 @@ impl <B> Publisher for Service<B>
             None => b.with_body(|_b| Ok(0) )?,
         };
 
-        let b = b.private_options(&options.private_options)?;
+        let b = b.private_options(options.private_options.iter())?;
 
         // Apply internal encryption if enabled
         let b = self.encrypt(b)?;
 
         // Generate and append public options
-        let mut b = b.public_options(&[
+        let mut b = b.public_options([
             Options::peer_id(self.id.clone()),
-        ])?;
+        ].iter())?;
 
         // Attach issued if provided
         if let Some(iss) = options.issued {
-            b = b.public_options(&[Options::expiry(iss)])?;
+            b = b.public_options([Options::expiry(iss)].iter())?;
         }
         // Attach expiry if provided
         if let Some(exp) = options.expiry {
-            b = b.public_options(&[Options::expiry(exp)])?;
+            b = b.public_options([Options::expiry(exp)].iter())?;
         }
         // Attach last sig if available
         if let Some(last) = &self.last_sig {
-            b = b.public_options(&[Options::prev_sig(last)])?;
+            b = b.public_options([Options::prev_sig(last)].iter())?;
         }
         // Then finally attach public options
-        let b = b.public_options(options.public_options)?;
+        let b = b.public_options(options.public_options.iter())?;
 
         // Sign generated object
         let c = self.sign(b)?;
@@ -358,7 +358,7 @@ impl <B> Publisher for Service<B>
             None => b.with_body(|_b| Ok(0) )?,
         };
     
-        let b = b.private_options(&options.private_options)?;
+        let b = b.private_options(options.private_options)?;
 
         // Apply internal encryption if enabled
         let mut b = self.encrypt(b)?;

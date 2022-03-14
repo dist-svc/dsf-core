@@ -20,10 +20,10 @@ use serde::{Deserializer, Serializer};
 pub use chrono::Duration;
 
 /// ImmutableData trait wraps AsRef<[u8]>
-pub trait ImmutableData: AsRef<[u8]> {}
+pub trait ImmutableData: AsRef<[u8]> + crate::Debug {}
 
 /// Generic impl of ImmutableData trait (since we don't have trait aliasing)
-impl<T: AsRef<[u8]>> ImmutableData for T {}
+impl<T: AsRef<[u8]> + crate::Debug > ImmutableData for T {}
 
 /// MutableData trait, wraps AsMut<[u8]> and ImmutableData traits
 pub trait MutableData: AsMut<[u8]> + ImmutableData {}

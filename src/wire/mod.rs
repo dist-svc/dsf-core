@@ -13,6 +13,7 @@ use crate::base::{MaybeEncrypted};
 use crate::crypto::{Crypto, PubKey as _, SecKey as _, Hash as _};
 use crate::error::Error;
 use crate::options::{Options};
+use crate::prelude::Parse;
 use crate::types::*;
 
 /// Header provides a low-cost header abstraction for encoding/decoding
@@ -270,7 +271,8 @@ pub(crate) fn decrypt(sk: &SecretKey, body: &mut MaybeEncrypted, private_opts: &
     }
 
     if private_opt_len > 0 {
-        let (opts, _n) = Options::parse_vec(&cyphertext[body_len..])?;
+        let o = Options::parse_iter(&cyphertext[body_len..]);
+        let opts: Vec<_> = o.collect::<Result<Vec<Options>, Error>>()?;
         *private_opts = MaybeEncrypted::Cleartext(opts);
     }
 

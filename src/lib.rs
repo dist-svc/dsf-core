@@ -1,9 +1,9 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #![feature(test)]
-#![feature(const_generics_defaults)]
 #![feature(generic_associated_types)]
 #![feature(associated_type_defaults)]
+#![feature(trait_alias)]
 
 #[cfg(feature = "alloc")]
 #[macro_use]
@@ -57,3 +57,9 @@ pub mod keys;
 pub mod api;
 
 pub mod prelude;
+
+#[cfg(feature = "defmt")] 
+pub trait Debug = core::fmt::Debug + defmt::Format;
+
+#[cfg(not(feature = "defmt"))]
+pub trait Debug = core::fmt::Debug;
