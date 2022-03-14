@@ -626,7 +626,7 @@ mod test {
     }
 
     #[bench]
-    fn bench_encode_message_signed_sk(b: &mut Bencher) {
+    fn bench_encode_message_encrypted_sk(b: &mut Bencher) {
         let (id, keys) = setup();
 
         let (pub_key, pri_key) =
@@ -655,7 +655,7 @@ mod test {
                 .public_options(&[
                     Options::peer_id(id.clone()),
                 ]).unwrap()
-                .sign_sk(target.sym_keys.as_ref().map(|k| &k.0).unwrap())
+                .encrypt_sk(target.sym_keys.as_ref().map(|k| &k.0).unwrap())
                 .expect("Error encoding page");
         });
     }

@@ -2,13 +2,9 @@ use core::str;
 use core::str::FromStr;
 use core::fmt::Display;
 
-// TODO: work out how to avoid owning well, everything ideally, so this works without alloc
-#[cfg(feature = "alloc")]
-use alloc::{string::String};
-
 use crate::base::{Parse};
 use crate::types::{PublicKey, ImmutableData, Address, Signature, DateTime, Id};
-use super::{Options, OPTION_HEADER_LEN};
+use super::{String, Options, OPTION_HEADER_LEN};
 
 
 /// Iterator for decoding options from the provided buffer

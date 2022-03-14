@@ -6,10 +6,6 @@ use core::fmt::Debug;
 
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
-// TODO: work out how to avoid owning well, everything ideally, so this works without alloc
-#[cfg(feature = "alloc")]
-use alloc::{vec::Vec, string::{String, ToString}, borrow::ToOwned};
-
 use byteorder::{ByteOrder, NetworkEndian};
 
 use crate::base::{Encode, Parse};
@@ -18,6 +14,10 @@ use crate::types::{Address, AddressV4, AddressV6, DateTime, ID_LEN, Id, Ip, PUBL
 
 mod helpers;
 pub use helpers::{OptionsIter, OptionsParseError, Filters};
+
+pub const MAX_OPTION_LEN: usize = 64;
+
+pub type String = heapless::String<MAX_OPTION_LEN>;
 
 /// DSF defined option fields
 #[derive(PartialEq, Debug, Clone)]
@@ -45,8 +45,6 @@ pub enum Options {
     Building(String),
     Room(String),
 }
-
-
 
 
 #[derive(PartialEq, Debug, Clone, Copy, IntoPrimitive, TryFromPrimitive)]
@@ -138,11 +136,11 @@ impl Options {
 impl Options {
     // Helper to generate name metadata
     pub fn name(value: &str) -> Options {
-        Options::Name(value.to_string())
+        Options::Name(String::from(value))
     }
 
     pub fn kind(value: &str) -> Options {
-        Options::Kind(value.to_string())
+        Options::Kind(String::from(value))
     }
 
     pub fn prev_sig(value: &Signature) -> Options {
@@ -192,7 +190,7 @@ impl Options {
 
     fn parse_string(d: &[u8]) -> Result<String, Error> {
         let s = core::str::from_utf8(d).map_err(|_| Error::InvalidOption )?;
-        Ok(s.to_owned())
+        Ok(String::from(s))
     }
 }
 
@@ -233,8 +231,8 @@ impl Parse for Options {
             OptionKind::PubKey => PublicKey::try_from(d).map(|v| Options::PubKey(v)),
             OptionKind::PeerId => Id::try_from(d).map(|v| Options::PeerId(v) ),
             OptionKind::PrevSig => Signature::try_from(d).map(|v| Options::PrevSig(v) ),
-            OptionKind::Kind => Self::parse_string(d).map(|v| Options::Kind(v.to_string()) ),
-            OptionKind::Name => Self::parse_string(d).map(|v| Options::Name(v.to_string()) ),
+            OptionKind::Kind => Self::parse_string(d).map(|v| Options::Kind(v) ),
+            OptionKind::Name => Self::parse_string(d).map(|v| Options::Name(v) ),
 
             OptionKind::IpAddrV4 => {
                 let mut ip = [0u8; 4];
@@ -265,10 +263,10 @@ impl Parse for Options {
                 alt: NetworkEndian::read_f32(&d[8..]),
             })),
 
-            OptionKind::Building => Self::parse_string(d).map(|v| Options::Building(v.to_string()) ),
-            OptionKind::Room => Self::parse_string(d).map(|v| Options::Room(v.to_string()) ),
-            OptionKind::Manufacturer => Self::parse_string(d).map(|v| Options::Manufacturer(v.to_string()) ),
-            OptionKind::Serial => Self::parse_string(d).map(|v| Options::Serial(v.to_string()) ),
+            OptionKind::Building => Self::parse_string(d).map(|v| Options::Building(v) ),
+            OptionKind::Room => Self::parse_string(d).map(|v| Options::Room(v) ),
+            OptionKind::Manufacturer => Self::parse_string(d).map(|v| Options::Manufacturer(v) ),
+            OptionKind::Serial => Self::parse_string(d).map(|v| Options::Serial(v) ),
         };
 
         let o = match r {
@@ -389,15 +387,15 @@ impl Queryable for &Options {
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct Metadata {
-    key: String,
-    value: String,
+    key: heapless::String<16>,
+    value: heapless::String<48>,
 }
 
 impl Metadata {
     pub fn new(key: &str, value: &str) -> Metadata {
         Metadata {
-            key: key.to_owned(),
-            value: value.to_owned(),
+            key: heapless::String::from(key),
+            value: heapless::String::from(value),
         }
     }
 }
@@ -415,8 +413,8 @@ impl Parse for Metadata {
 
         Ok((
             Metadata {
-                key: split[0].to_owned(),
-                value: split[1].to_owned(),
+                key: heapless::String::from(split[0]),
+                value: heapless::String::from(split[1]),
             },
             data.len(),
         ))
@@ -455,8 +453,8 @@ mod tests {
         let tests = [
             Options::PubKey([1u8; PUBLIC_KEY_LEN].into()),
             Options::PeerId([2u8; ID_LEN].into()),
-            Options::Kind("test-kind".to_string()),
-            Options::Name("test-name".to_string()),
+            Options::kind("test-kind"),
+            Options::name("test-name"),
             Options::address_v4(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8080)),
             Options::address_v6(SocketAddrV6::new(
                 Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 1),
@@ -464,7 +462,7 @@ mod tests {
                 0,
                 0,
             )),
-            Options::Metadata(Metadata::new("test-key", "test-value")),
+            Options::meta("test-key", "test-value"),
             Options::issued(SystemTime::now()),
             Options::expiry(SystemTime::now()),
             Options::Limit(13),
@@ -499,8 +497,8 @@ mod tests {
             Options::PubKey([1u8; PUBLIC_KEY_LEN].into()),
             Options::PeerId([2u8; ID_LEN].into()),
             Options::PrevSig([3u8; SIGNATURE_LEN].into()),
-            Options::Kind("test-kind".to_string()),
-            Options::Name("test-name".to_string()),
+            Options::kind("test-kind"),
+            Options::name("test-name"),
             Options::address_v4(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8080)),
             Options::address_v6(SocketAddrV6::new(
                 Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 1),
@@ -508,7 +506,7 @@ mod tests {
                 0,
                 0,
             )),
-            Options::Metadata(Metadata::new("test-key", "test-value")),
+            Options::meta("test-key", "test-value"),
             Options::issued(SystemTime::now()),
             Options::expiry(SystemTime::now()),
         ];

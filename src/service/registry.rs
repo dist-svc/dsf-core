@@ -154,18 +154,18 @@ mod test {
 
     fn registry_publish(mut r: Service) {
         // Build target service
-        let opt_name = "something".to_string();
-        let mut c = ServiceBuilder::<()>::generic().public_options(vec![Options::Name(opt_name.clone())]).build().unwrap();
+        let opt_name = "something";
+        let mut c = ServiceBuilder::<()>::generic().public_options(vec![Options::name(opt_name)]).build().unwrap();
         
         let (_n, _c) = c.publish_primary_buff(Default::default()).unwrap();
 
         // Generate page for name entry
-        let (_n, p1) = Registry::publish_tertiary_buff::<512, _>(&mut r, c.id().into(), TertiaryOptions::default(), &Options::Name(opt_name.clone())).unwrap();
+        let (_n, p1) = Registry::publish_tertiary_buff::<512, _>(&mut r, c.id().into(), TertiaryOptions::default(), &Options::name(opt_name)).unwrap();
 
         println!("Tertiary page: {:02x?}", p1);
 
         // Lookup TID for name
-        let tid_name = Registry::resolve(&r, &Options::Name(opt_name.clone())).unwrap();
+        let tid_name = Registry::resolve(&r, &Options::name(opt_name)).unwrap();
         assert_eq!(&p1.id(), &tid_name);
 
         // Check link to registry

@@ -85,10 +85,6 @@ pub trait SecKey {
 
     fn new_sk() -> Result<SecretKey, Self::Error>;
 
-    fn sk_sign(secret_key: &SecretKey, message: &[u8]) -> Result<Signature, Self::Error>;
-
-    fn sk_verify(secret_key: &PublicKey, signature: &Signature, data: &[u8]) -> Result<bool, Self::Error>;
-
     fn sk_encrypt(secret_key: &SecretKey, assoc: Option<&[u8]>, message: &mut [u8]) -> Result<SecretMeta, Self::Error>;
 
     fn sk_decrypt(secret_key: &SecretKey, meta: &[u8], assoc: Option<&[u8]>, message: &mut [u8]) -> Result<(), Self::Error>;

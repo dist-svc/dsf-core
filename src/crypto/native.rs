@@ -125,15 +125,6 @@ impl SecKey for RustCrypto {
         Ok(secret_key)
     }
 
-    fn sk_sign(secret_key: &SecretKey, message: &[u8]) -> Result<Signature, Self::Error> {
-        let secret_key = xsalsa20poly1305::Key::from_slice(secret_key);
-        todo!("implement sk_sign")
-    }
-
-    fn sk_verify(secret_key: &PublicKey, signature: &Signature, data: &[u8]) -> Result<bool, Self::Error> {
-        todo!("implement sk_verify")
-    }
-
     // TODO: When we can run this move to symmetric AEAD w/ header in place of symmetric signing...
 
     fn sk_encrypt(secret_key: &SecretKey, assoc: Option<&[u8]>, message: &mut [u8]) -> Result<SecretMeta, Self::Error> {
@@ -278,13 +269,6 @@ mod test {
     use super::*;
 
     #[test]
-    fn test_sk_tag_lengths() {
-        use sodiumoxide::crypto::aead;
-
-        assert_eq!(SECRET_KEY_TAG_LEN, aead::TAGBYTES + aead::NONCEBYTES);
-    }
-
-    #[test]
     fn test_pk_sign_verify() {
         let (public, private) = RustCrypto::new_pk().expect("Error generating public/private keypair");
         let mut data = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
@@ -296,29 +280,6 @@ mod test {
 
         data[3] = 100;
         let valid = RustCrypto::pk_verify(&public, &signature, &data).expect("Error validating signature");
-        assert_eq!(false, valid);
-    }
-
-    #[ignore = "symmetric sign/verify to be replaced with fully encrypted messages"]
-    #[test]
-    fn test_pk_sym_sign_verify() {
-        let (pub1, pri1) = RustCrypto::new_pk().expect("Error generating public/private keypair");
-        let (pub2, pri2) = RustCrypto::new_pk().expect("Error generating public/private keypair");
-
-        let mut data = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
-
-        let (s1, _) = RustCrypto::kx( &pub1, &pri1, &pub2).unwrap();
-        let (_, s2) = RustCrypto::kx( &pub2, &pri2, &pub1).unwrap();
-
-        assert_eq!(s1, s2);
-
-        let signature = RustCrypto::sk_sign(&s1, &data).expect("Error generating signature");
-
-        let valid = RustCrypto::sk_verify(&s2, &signature, &data).expect("Error validating signature");
-        assert_eq!(true, valid);
-
-        data[3] = 100;
-        let valid = RustCrypto::sk_verify(&s2, &signature, &data).expect("Error validating signature");
         assert_eq!(false, valid);
     }
 

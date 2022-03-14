@@ -415,28 +415,6 @@ impl<T: MutableData> Builder<SetPublicOptions, T> {
         })
     }
 
-    // Sign the builder object, returning a new signed container
-    pub fn sign_sk(mut self, signing_key: &SecretKey) -> Result<Container<T>, Error> {
-        let b = self.buf.as_mut();
-
-        debug!("Sign with key: {}", signing_key);
-
-        // Generate signature
-        let sig = Crypto::sk_sign(signing_key, &b[..self.n]).unwrap();
-
-        // Write to object
-        (&mut b[self.n..self.n + SIGNATURE_LEN]).copy_from_slice(&sig);
-        self.n += SIGNATURE_LEN;
-
-        // Return base object
-        Ok(Container {
-            buff: self.buf,
-            len: self.n,
-            verified: true,
-            decrypted: false,
-        })
-    }
-
     pub fn encrypt_sk(mut self, secret_key: &SecretKey) -> Result<Container<T>, Error> {
 
         debug!("SK Sign/Encrypt (AEAD) with key: {} ({} bytes)", secret_key, self.n);

@@ -10,13 +10,15 @@ license = "MPL-2.0"
 edition = "2018"
 
 [features]
+defmt-default = [ "defmt", "heapless/defmt-impl" ]
+
 std = [ "alloc", "managed/std", "bytes/std", "base64/std", "byteorder/std", "sha2/std", "chrono/std", "thiserror", "rand_core_0_5/std", "log/std", "simplelog", "getrandom/std" ]
 alloc = [ "base64/alloc", "chrono/alloc", "pretty-hex/alloc", "defmt/alloc" ]
 
 crypto_rust = ["ed25519", "x25519-dalek", "ed25519-dalek", "curve25519-dalek", "xsalsa20poly1305", "chacha20poly1305", "crypto_kx", "aead", "blake2", "digest" ]
 crypto_sodium = [ "sodiumoxide" ]
 
-default = [ "std", "serde", "crypto_rust" ]
+default = [ "std", "serde", "heapless/serde", "crypto_rust", "defmt-default" ]
 
 
 [dependencies]
@@ -65,6 +67,7 @@ crypto_kx = { version = "0.0.2", optional=true, default_features = false}
 aead = { version = "0.4.3", optional=true, default_features = false, features = [ "rand_core" ] }
 blake2 = { version = "0.10.4", default_features = false, optional = true }
 digest = { version = "0.10.3", default_features = false, optional = true, features = [ "core-api", "rand_core" ] }
+heapless = { version = "0.7.10" }
 
 
 [dependencies.rand_core_0_5]

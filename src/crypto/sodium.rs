@@ -74,29 +74,6 @@ impl SecKey for SodiumCrypto {
         Ok(key.0.into())
     }
 
-    fn sk_sign(secret_key: &SecretKey, message: &[u8]) -> Result<Signature, Self::Error> {
-        use sodiumoxide::crypto::auth;
-
-        let secret_key = auth::Key::from_slice(secret_key).unwrap();
-
-        let tag = auth::authenticate(message, &secret_key);
-
-        // Pack out tag to Signature size (TODO: variable sizes here?)
-        let mut r = [0u8; 64];
-        r[..32].copy_from_slice(&tag.0);
-
-        Ok(r.into())
-    }
-
-    fn sk_verify(secret_key: &PublicKey, signature: &Signature, data: &[u8]) -> Result<bool, Self::Error> {
-        use sodiumoxide::crypto::auth;
-
-        let secret_key = auth::Key::from_slice(secret_key).unwrap();
-        let tag = auth::Tag::from_slice(&signature[..auth::TAGBYTES]).unwrap();
-    
-        Ok(auth::verify(&tag, data, &secret_key))
-    }
-
     fn sk_encrypt(secret_key: &SecretKey, assoc: Option<&[u8]>, message: &mut [u8]) -> Result<SecretMeta, Self::Error> {
         use sodiumoxide::crypto::aead;
 
