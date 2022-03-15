@@ -64,7 +64,7 @@ impl <T: ImmutableData> core::fmt::Debug for Container<T> {
         };
 
         // TODO: there seems to be a fault in here which can lead to an infinite loop...
-        //d.field("public_opts", &self.public_options_iter());
+        d.field("public_opts", &self.public_options_iter());
         d.field("public_opts", &self.public_options_raw());
 
         d.field("tag", &self.tag())
@@ -234,7 +234,7 @@ impl<'a, T: ImmutableData> Container<T> {
         let h = self.header();
         let data = self.buff.as_ref();
 
-        let tag_len = if h.flags().contains(Flags::ENCRYPTED) {
+        let tag_len = if h.flags().contains(Flags::ENCRYPTED) && !h.flags().contains(Flags::SYMMETRIC_MODE) {
             SECRET_KEY_TAG_LEN
         } else {
             0
@@ -279,7 +279,7 @@ impl<'a, T: ImmutableData> Container<T> {
         let data = self.buff.as_ref();
         let header = self.header();
 
-        let tag_len = if header.flags().contains(Flags::ENCRYPTED) {
+        let tag_len = if header.flags().contains(Flags::ENCRYPTED) && !header.flags().contains(Flags::SYMMETRIC_MODE) {
             SECRET_KEY_TAG_LEN
         } else {
             0

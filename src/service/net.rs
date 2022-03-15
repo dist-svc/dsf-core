@@ -28,7 +28,7 @@ impl Default for MessageOptions {
     }
 }
 
-pub trait Net<const N: usize = 1024>{
+pub trait Net{
 
     /// Encode a request using the provided peer keys and buffer
     fn encode_request<B: MutableData>(&self, req: &Request, peer_keys: &Keys, buff: B) -> Result<Container<B>, Error>;
@@ -37,7 +37,7 @@ pub trait Net<const N: usize = 1024>{
     fn encode_response<B: MutableData>(&self, resp: &Response, peer_keys: &Keys, buff: B) -> Result<Container<B>, Error>;
 
     /// Helper to encode and sign a request using fixed size buffer
-    fn encode_request_buff(
+    fn encode_request_buff<const N: usize>(
         &self,
         req: &Request,
         peer_keys: &Keys,
@@ -46,7 +46,7 @@ pub trait Net<const N: usize = 1024>{
     }
 
     /// Helper to encode and sign a response using fixed size buffer
-    fn encode_response_buff(
+    fn encode_response_buff<const N: usize>(
         &self,
         resp: &Response,
         peer_keys: &Keys,

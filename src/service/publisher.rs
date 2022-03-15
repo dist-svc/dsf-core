@@ -306,7 +306,7 @@ impl <B> Publisher for Service<B>
 
         // Attach issued if provided
         if let Some(iss) = options.issued {
-            b = b.public_options([Options::expiry(iss)].iter())?;
+            b = b.public_options([Options::issued(iss)].iter())?;
         }
         // Attach expiry if provided
         if let Some(exp) = options.expiry {

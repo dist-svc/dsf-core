@@ -8,6 +8,8 @@ use core::str::FromStr;
 /// Key object stored and returned by a KeySource
 #[derive(Clone, PartialEq, Debug)]
 #[cfg_attr(feature="structopt", derive(structopt::StructOpt))]
+#[cfg_attr(feature="defmt", derive(defmt::Format))]
+
 pub struct Keys {
     /// Service public key
     #[cfg_attr(feature="structopt", structopt(long))]

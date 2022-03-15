@@ -111,11 +111,14 @@ impl <B: PageBody + Parse<Output=B>> Subscriber<B> for Service<B> {
 
         self.validate_primary(update)?;
 
-        if header.index() == self.version {
-            return Ok(false);
-        }
-        if header.index() <= self.version {
-            return Err(Error::InvalidServiceVersion);
+        // Skip index checks for zero index (reset service)
+        if header.index() != 0 {
+            if header.index() == self.version {
+                return Ok(false);
+            }
+            if header.index() <= self.version {
+                return Err(Error::InvalidServiceVersion);
+            }
         }
 
         self.version = header.index();

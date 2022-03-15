@@ -13,12 +13,12 @@ edition = "2018"
 defmt-default = [ "defmt", "heapless/defmt-impl" ]
 
 std = [ "alloc", "managed/std", "bytes/std", "base64/std", "byteorder/std", "sha2/std", "chrono/std", "thiserror", "rand_core_0_5/std", "log/std", "simplelog", "getrandom/std" ]
-alloc = [ "base64/alloc", "chrono/alloc", "pretty-hex/alloc", "defmt/alloc" ]
+alloc = [ "base64/alloc", "chrono/alloc", "pretty-hex/alloc" ]
 
 crypto_rust = ["ed25519", "x25519-dalek", "ed25519-dalek", "curve25519-dalek", "xsalsa20poly1305", "chacha20poly1305", "crypto_kx", "aead", "blake2", "digest" ]
 crypto_sodium = [ "sodiumoxide" ]
 
-default = [ "std", "serde", "heapless/serde", "crypto_rust", "defmt-default" ]
+default = [ "std", "serde", "heapless/serde", "crypto_rust" ]
 
 
 [dependencies]

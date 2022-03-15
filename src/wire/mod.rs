@@ -287,9 +287,14 @@ impl<T: ImmutableData> Container<T> {
             // TODO: is there any way to have an invalid (non-signed/verified) container here?
             // if so, handle this case
             let b = p.raw();
+
+            // Check we have space
+            if b.len() >= buff.len() - i {
+                return Err(Error::BufferLength)
+            }
     
             // Convert and encode, note these must be pre-signed / encrypted
-            buff[i..b.len()].copy_from_slice(b);
+            buff[i..][..b.len()].copy_from_slice(b);
     
             i += b.len();
         }

@@ -140,6 +140,8 @@ impl<T: MutableData> Builder<Init, T> {
         let b = self.buf.as_mut();
         self.n = offsets::BODY;
 
+        info!("Writing body, available bytes: {}", b.len() - HEADER_LEN - SIGNATURE_LEN);
+
         let n = f(&mut b[offsets::BODY..])?;
         self.n += n;
 

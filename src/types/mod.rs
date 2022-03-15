@@ -23,7 +23,7 @@ pub use chrono::Duration;
 pub trait ImmutableData: AsRef<[u8]> + crate::Debug {}
 
 /// Generic impl of ImmutableData trait (since we don't have trait aliasing)
-impl<T: AsRef<[u8]> + crate::Debug > ImmutableData for T {}
+impl<T: AsRef<[u8]> + crate::Debug> ImmutableData for T {}
 
 /// MutableData trait, wraps AsMut<[u8]> and ImmutableData traits
 pub trait MutableData: AsMut<[u8]> + ImmutableData {}
