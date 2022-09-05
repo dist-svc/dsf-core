@@ -68,17 +68,6 @@ impl Queryable for CryptoHash {
     }
 }
 
-
-/// Encode an ID directly into a buffer
-impl Encode for Id {
-    type Error = Infallible;
-
-    fn encode(&self, buff: &mut [u8]) -> Result<usize, Self::Error> {
-        buff[..ID_LEN].copy_from_slice(&self.0);
-        Ok(ID_LEN)
-    }
-}
-
 pub const REQUEST_ID_LEN: usize = 2;
 /// Request ID type
 pub type RequestId = u16;
@@ -204,6 +193,37 @@ impl <K, const N: usize> PartialOrd for Array<K, N> {
     }
 }
 
+impl <K, const N: usize> crate::base::Encode for Array<K, N> {
+    type Error = DsfError;
+
+    fn encode(&self, buff: &mut [u8]) -> Result<usize, Self::Error> {
+        if buff.len() < N {
+            return Err(DsfError::BufferLength);
+        }
+
+        buff[..N].copy_from_slice(&self.0);
+        
+        Ok(N)
+    }
+}
+
+impl <K, const N: usize> crate::base::Parse for Array<K, N> {
+    type Output = Self;
+
+    type Error = DsfError;
+
+    fn parse<'a>(buff: &'a[u8]) -> Result<(Self::Output, usize), Self::Error> {
+        if buff.len() < N {
+            return Err(DsfError::BufferLength);
+        }
+
+        let mut d = [0u8; N];
+        d.copy_from_slice(buff);
+
+        Ok((Self(d, PhantomData), N))
+    }
+}
+
 impl <K, const N: usize> TryFrom<&[u8]> for Array<K, N> {
     type Error = DsfError;
 
@@ -304,8 +324,9 @@ impl <K, const N: usize> FromStr for Array<K, N> {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut data = [0u8; N];
-        let decoded = base64::decode_config(s, base64::URL_SAFE)?;
-        data.clone_from_slice(&decoded);
+        let _decoded = base64::decode_config_slice(s, base64::URL_SAFE, &mut data)?;
+        // TODO: check decoded length
+
         Ok(data.into())
     }
 }
@@ -316,8 +337,7 @@ impl <K, const N: usize> serde::Serialize for Array<K, N> {
     where
         S: Serializer,
     {
-        let encoded = self.to_string();
-        serializer.serialize_str(&encoded)
+        serializer.collect_str(self)
     }
 }
 

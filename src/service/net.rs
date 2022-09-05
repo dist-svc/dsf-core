@@ -85,7 +85,7 @@ impl <D: PageBody> Net for Service<D> {
             },
             // TODO: filter on options here too
             RequestBody::Discover(body, _opts) => {
-                b.body(body)?
+                b.body(body.as_slice())?
             },
         };
 

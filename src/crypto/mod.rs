@@ -11,23 +11,10 @@ use sha2::digest::FixedOutput;
 use crate::prelude::Keys;
 use crate::types::*;
 
-#[cfg(feature = "crypto_sodium")]
-mod sodium;
-
-#[cfg(feature = "crypto_rust")]
 pub mod native;
 
-#[cfg(not(any(feature = "crypto_sodium", feature = "crypto_rust")))]
-compile_error!("crypto_sodium or crypto_rust features are required");
 
-cfg_if::cfg_if!{
-    if #[cfg(feature = "crypto_sodium")] {
-        pub type Crypto = sodium::SodiumCrypto;
-    } else if #[cfg(feature = "crypto_rust")] {
-        pub type Crypto = native::RustCrypto;
-    }
-}
-
+pub type Crypto = native::RustCrypto;
 /// Signer trait, used for generating page signatures
 pub trait Signer {
     type Error;

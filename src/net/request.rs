@@ -1,22 +1,25 @@
 use core::convert::TryFrom;
+use core::marker::PhantomData;
 use core::ops::Deref;
 
 #[cfg(feature = "alloc")]
 use alloc::vec::{Vec};
 
+use crate::base::{Parse, Encode};
+
 use crate::error::Error;
 use crate::options::{Options, Filters};
 use crate::types::*;
 use crate::keys::KeySource;
-use crate::wire::Container;
+use crate::wire::{Container, Builder};
 
 use super::Common;
 
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub struct Request {
+pub struct Request<D = RequestBody> {
     pub common: Common,
-    pub data: RequestBody,
+    pub data: D,
 }
 
 impl Deref for Request {
@@ -25,6 +28,26 @@ impl Deref for Request {
     fn deref(&self) -> &Common {
         &self.common
     }
+}
+
+/// Builder for request objects
+pub struct RequestBuilder2<'a> {
+    _p: PhantomData<&'a ()>,
+}
+
+impl <'a>RequestBuilder2<'a> {
+    /// Create a new request builder
+    pub fn new() -> Self {
+        Self{ _p: PhantomData }
+    }
+}
+
+pub trait RequestBuilder {
+
+}
+
+impl <S, T: MutableData> RequestBuilder for Builder<S, T> {
+    
 }
 
 #[derive(Clone, PartialEq, Debug, strum::Display)]
@@ -47,6 +70,50 @@ pub enum RequestBody {
     Discover(Vec<u8>, Vec<Options>),
 }
 
+#[derive(Debug, Parse)]
+pub struct Hello;
+
+
+#[derive(Debug, Parse, Encode)]
+pub struct Ping;
+
+
+#[derive(Debug, Parse, Encode)]
+pub struct FindNode(pub Id);
+
+#[derive(Debug, Parse, Encode)]
+pub struct FindValue(pub Id);
+
+pub struct Store<C: Iterator<Item = Container>>(pub Id, C);
+
+#[derive(Debug, Parse, Encode)]
+pub struct Locate(pub Id);
+
+#[derive(Debug, Parse, Encode)]
+pub struct Subscribe(pub Id);
+
+#[derive(Debug, Parse, Encode)]
+pub struct Unsubscribe(pub Id);
+
+#[derive(Debug, Parse, Encode)]
+pub struct Query(pub Id);
+
+#[derive(Debug)]
+pub struct PushData<C: Iterator<Item = Container>>(pub Id, pub C);
+
+
+#[derive(Debug)]
+pub struct Register<C: Iterator<Item = Container>>(pub Id, pub C);
+
+#[derive(Debug, Parse, Encode)]
+pub struct Unregister(pub Id);
+
+
+#[derive(Debug)]
+pub struct Discover(pub Vec<u8>, pub Vec<Options>);
+
+
+
 /// Convert request kind containers to protocol message enumerations
 impl From<&RequestBody> for RequestKind {
     fn from(r: &RequestBody) -> Self {
@@ -68,8 +135,8 @@ impl From<&RequestBody> for RequestKind {
     }
 }
 
-impl Request {
-    pub fn new(from: Id, request_id: u16, data: RequestBody, flags: Flags) -> Request {
+impl <D> Request<D> {
+    pub fn new(from: Id, request_id: u16, data: D, flags: Flags) -> Self {
         let common = Common {
             from,
             id: request_id,

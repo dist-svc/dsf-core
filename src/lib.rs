@@ -36,8 +36,6 @@ extern crate chrono;
 
 pub mod types;
 
-pub mod error;
-
 pub mod crypto;
 
 pub mod options;
@@ -57,6 +55,8 @@ pub mod keys;
 pub mod api;
 
 pub mod prelude;
+
+pub use dsf_core_base::error;
 
 #[cfg(feature = "defmt")] 
 pub trait Debug = core::fmt::Debug + defmt::Format;

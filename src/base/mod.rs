@@ -16,202 +16,10 @@ use crate::Debug;
 
 pub type Body = MaybeEncrypted;
 
-/// Parse trait for building parse-able objects
-pub trait Parse {
-    /// Output type returned from parsing
-    type Output: Debug;
-    
-    /// Error type returned on parse error
-    type Error: Debug;
+/// Re-export base traits
+pub use dsf_core_base::*;
 
-    /// Parse method consumes a slice and returns an object and the remaining slice.
-    fn parse<'a>(buff: &'a[u8]) -> Result<(Self::Output, usize), Self::Error>;
-
-    /// Parse iter consumes a slice and returns an iterator over decoded objects
-    fn parse_iter<'a>(buff: &'a [u8]) -> ParseIter<'a, Self::Output, Self::Error> {
-        ParseIter {
-            buff,
-            index: 0,
-            _t: PhantomData,
-            _e: PhantomData,
-        }
-    }
-}
-
-
-impl Parse for () {
-    type Output = ();
-
-    type Error = Infallible;
-
-    fn parse<'a>(_buff: &'a [u8]) -> Result<(Self::Output, usize), Self::Error> {
-        Ok(((), 0))
-    }
-}
-
-#[cfg(nope)]
-impl Parse for &[u8] {
-    type Output = &[u8];
-
-    type Error = Infallible;
-
-    fn parse<'a>(buff: &'a [u8]) -> Result<(Self::Output, usize), Self::Error> {
-        Ok((buff, buff.len()))
-    }
-}
-
-impl Parse for Id {
-    type Output = Id;
-
-    type Error = Error;
-
-    fn parse<'a>(buff: &'a [u8]) -> Result<(Self::Output, usize), Self::Error> {
-        let id = Id::try_from(buff).map_err(|_| Error::BufferLength )?;
-        Ok((id, ID_LEN))
-    }
-}
-
-/// Iterative parser object, constructed with `Parse::parse_iter` for types implementing `Parse`
-pub struct ParseIter<'a, T, E> {
-    buff: &'a [u8],
-    index: usize,
-    _t: PhantomData<T>,
-    _e: PhantomData<E>,
-}
-
-impl<'a, T, E> Iterator for ParseIter<'a, T, E>
-where
-    T: Parse<Output = T, Error = E>,
-{
-    type Item = Result<T, E>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.index == self.buff.len() {
-            return None;
-        }
-
-        let (v, n) = match T::parse(&self.buff[self.index..]) {
-            Ok((v, n)) => (v, n),
-            Err(e) => return Some(Err(e)),
-        };
-
-        self.index += n;
-
-        Some(Ok(v))
-    }
-}
-
-/// Encode trait for building encodable objects
-pub trait Encode: Debug {
-    /// Error type returned on parse error
-    type Error: Debug;
-
-    /// Encode method writes object data to the provided writer
-    fn encode(&self, buff: &mut [u8]) -> Result<usize, Self::Error>;
-
-    /// Encode len fetches expected encoded length for an object
-    fn encode_len(&self) -> Result<usize, Self::Error> {
-        todo!()
-    }
-
-    /// Encode a iterator of encodable objects
-    fn encode_iter<'a, V: IntoIterator<Item = &'a Self>>(
-        vals: V,
-        buff: &mut [u8],
-    ) -> Result<usize, Self::Error>
-    where
-        Self: 'static,
-    {
-        let mut index = 0;
-
-        for i in vals.into_iter() {
-            index += i.encode(&mut buff[index..])?;
-        }
-
-        Ok(index)
-    }
-
-    /// Encode into a fixed size buffer
-    fn encode_buff<const N: usize>(&self) -> Result<([u8; N], usize), Self::Error> {
-        let mut b = [0u8; N];
-        let n = self.encode(&mut b)?;
-        Ok((b, n))
-    }
-}
-
-/// Encode for pointers to encodable types
-impl <T: Encode> Encode for &T {
-    type Error = <T as Encode>::Error;
-
-    fn encode(&self, buff: &mut [u8]) -> Result<usize, Self::Error> {
-        T::encode(self, buff)
-    }
-}
-
-impl Encode for () {
-    type Error = Infallible;
-
-    fn encode(&self, _buff: &mut [u8]) -> Result<usize, Self::Error> {
-        Ok(0)
-    }
-}
-
-/// Encode for arrays of encodable types
-impl <T: Encode> Encode for &[T] {
-    type Error = <T as Encode>::Error;
-
-    fn encode(&self, buff: &mut [u8]) -> Result<usize, Self::Error> {
-        let mut index = 0;
-
-        for i in *self {
-            index += i.encode(&mut buff[index..])?;
-        }
-
-        Ok(index)
-    }
-}
-
-/// Encode for raw slices
-impl Encode for &[u8] {
-    type Error = Infallible;
-
-    fn encode(&self, buff: &mut [u8]) -> Result<usize, Self::Error> {
-        buff[..self.len()].copy_from_slice(*self);
-        Ok(self.len())
-    }
-}
-
-/// Encode for empty raw slices
-impl Encode for &[u8; 0] {
-    type Error = Infallible;
-
-    fn encode(&self, _buff: &mut [u8]) -> Result<usize, Self::Error> {
-        Ok(0)
-    }
-}
-
-#[cfg(feature = "alloc")]
-impl Parse for Vec<u8> {
-    type Output = Vec<u8>;
-    type Error = Error;
-
-    fn parse<'a>(data: &'a [u8]) -> Result<(Self::Output, usize), Self::Error> {
-        let value = Vec::from(data);
-
-        Ok((value, data.len()))
-    }
-}
-
-#[cfg(feature = "alloc")]
-impl Encode for alloc::vec::Vec<u8> {
-    type Error = Error;
-
-    fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
-        data[..self.len()].copy_from_slice(self);
-
-        Ok(self.len())
-    }
-}
+pub use dsf_core_macros::*;
 
 
 /// Marker trait for page body types
@@ -219,6 +27,7 @@ pub trait PageBody: Encode {}
 
 impl PageBody for &[u8] {}
 
+#[cfg(feature = "alloc")]
 impl PageBody for Vec<u8> {}
 
 impl PageBody for Id {}
@@ -231,6 +40,7 @@ pub trait DataBody: Encode {}
 
 impl DataBody for &[u8] {}
 
+#[cfg(feature = "alloc")]
 impl DataBody for Vec<u8> {}
 
 impl DataBody for () {}
@@ -311,6 +121,7 @@ where
     }
 }
 
+#[cfg(feature = "alloc")]
 impl From<Vec<u8>> for MaybeEncrypted<Vec<u8>, Vec<u8>> {
     fn from(o: Vec<u8>) -> Self {
         if !o.is_empty() {

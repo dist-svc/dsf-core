@@ -1,0 +1,22 @@
+[package]
+name = "dsf-core-base"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+std = []
+alloc = []
+
+thiserror = [ "dep:thiserror"]
+serde = [ "dep:serde" ]
+defmt = [ "dep:defmt" ]
+strum = [ "dep:strum" ]
+
+
+[dependencies]
+strum = { version = "*", optional = true, default_features = false}
+thiserror = { version = "*", optional = true, default_features = false }
+serde = { version = "*", optional = true, default_features = false, features = [ "derive" ] }
+defmt = { version = "*", optional = true }
