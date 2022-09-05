@@ -183,7 +183,7 @@ impl <B: PageBody> Service<B> {
         };
 
         // Check public key and ID match
-        if self.id != Crypto::hash(&public_key).unwrap() {
+        if self.id.as_bytes() != Crypto::hash(&public_key).unwrap().as_bytes() {
             return Err(Error::KeyIdMismatch);
         }
 

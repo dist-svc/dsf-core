@@ -73,7 +73,7 @@ impl <B: PageBody> Default for Service<B> {
 
         // Create service object
         Service {
-            id,
+            id: Id::from(id.as_bytes()),
             application_id: 0,
             kind: PageKind::Generic,
             version: 0,

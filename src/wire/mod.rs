@@ -97,7 +97,7 @@ fn validate<T: MutableData>(
         
         // Check ID matches public key
         let h = Crypto::hash(pub_key).unwrap();
-        if signing_id != &h {
+        if signing_id.as_bytes() != h.as_bytes() {
             error!("Public key mismatch for object from {:?} ({})", signing_id, h);
             return Err(Error::KeyIdMismatch);
         }
@@ -356,9 +356,9 @@ mod test {
         let (pub_key, pri_key) =
             Crypto::new_pk().expect("Error generating new public/private key pair");
 
-        let id = Crypto::hash(&pub_key)
+        let id = Id::from(Crypto::hash(&pub_key)
             .expect("Error generating new ID")
-            .into();
+            .as_bytes());
 
         let sec_key = Crypto::new_sk().expect("Error generating new secret key");
         (

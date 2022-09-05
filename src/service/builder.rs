@@ -192,13 +192,13 @@ impl <B: PageBody> ServiceBuilder<B> {
                 // Regenerate public key and ID from private key
                 let public_key = Crypto::get_public(&private_key);
                 let id = Crypto::hash(&public_key).unwrap();
-                (id, public_key, Some(private_key))
+                (Id::from(id.as_bytes()), public_key, Some(private_key))
             }
             (None, None, None) => {
                 // Generate new keypair
                 let (public_key, private_key) = Crypto::new_pk().unwrap();
                 let id = Crypto::hash(&public_key).unwrap();
-                (id, public_key, Some(private_key))
+                (Id::from(id.as_bytes()), public_key, Some(private_key))
             }
             _ => panic!("Invalid service builder configuration"),
         };

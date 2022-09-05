@@ -83,7 +83,7 @@ impl <B: PageBody> Registry for Service<B> {
     fn resolve(&self, q: impl Queryable) -> Result<Id, Error>{
         // Generate ID for page lookup using this registry
         match Crypto::hash_tid(self.id(), &self.keys(), q) {
-            Ok(tid) => Ok(tid),
+            Ok(tid) => Ok(Id::from(tid.as_bytes())),
             Err(_) => Err(Error::CryptoError),
         }
     }
@@ -98,7 +98,7 @@ impl <B: PageBody> Registry for Service<B> {
 
         // Generate TID
         let tid = match Crypto::hash_tid(self.id(), &self.keys(), q) {
-            Ok(tid) => tid,
+            Ok(tid) => Id::from(tid.as_bytes()),
             Err(_) => return Err(Error::CryptoError),
         };
 

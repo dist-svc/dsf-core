@@ -63,8 +63,8 @@ impl <T: ImmutableData> core::fmt::Debug for Container<T> {
             false => d.field("private_opts", &self.private_options_iter()),
         };
 
-        // TODO: there seems to be a fault in here which can lead to an infinite loop...
-        d.field("public_opts", &self.public_options_iter());
+        // TODO: there seems to be a fault in here which can lead to an infinite loop!?
+        //d.field("public_opts", &self.public_options_iter());
         d.field("public_opts", &self.public_options_raw());
 
         d.field("tag", &self.tag())
@@ -288,8 +288,6 @@ impl<'a, T: ImmutableData> Container<T> {
         let n = HEADER_LEN + ID_LEN + header.data_len() + header.private_options_len() + tag_len;
         let s = header.public_options_len();
 
-        debug!("OptionsIter offset: {} len: {}", n, s);
-
         OptionsIter::new(&data[n..n + s])
     }
 
@@ -372,7 +370,7 @@ impl<'a, T: ImmutableData> Container<T> {
             };
 
             // Check public key and ID match
-            let hash: Id = Crypto::hash(&public_key).unwrap();
+            let hash: Id = Id::from(Crypto::hash(&public_key).unwrap().as_bytes());
             if &hash != &self.id() {
                 return Err(Error::KeyIdMismatch);
             }

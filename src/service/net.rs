@@ -312,9 +312,13 @@ mod test {
             let enc = source.encode_request(&r,  &target.keys(), &mut buff)
                 .expect("Error encoding request");
 
+            println!("Encoded to {:?} ({} bytes)", enc, enc.raw().len());
+
             // Parse back and check objects match
             let (r2, _) = Message::parse(enc.raw().to_vec(), &source.keys())
                 .expect("error parsing message");
+
+            println!("Decoded: {:?}", r2);
 
             assert_eq!(Message::request(r), r2);
         }
@@ -341,11 +345,13 @@ mod test {
             let enc = source.encode_request( &r, &source_keys, &mut buff)
                 .expect("Error encoding request");
 
-            println!("Decoding: {:?}", enc);
+            println!("Encoded to {:?} ({} bytes)", enc, enc.raw().len());
 
             // Parse back and check objects match
             let (r2, _) = Message::parse(enc.raw().to_vec(), &target_keys)
                 .expect("error parsing message");
+
+            println!("Decoded: {:?}", r2);
 
             assert_eq!(Message::request(r), r2);
         }

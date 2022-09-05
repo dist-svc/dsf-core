@@ -101,16 +101,16 @@ pub trait Hash {
     }
 
     /// Blake2b key derivation function via libsodium
-    fn kdf(seed: Array32) -> Result<Array32, ()> { todo!() }
+    fn kdf(seed: &[u8]) -> Result<CryptoHash, ()> { todo!() }
 
     /// Hasher to generate TIDs for a given ID and keyset
     fn hash_tid(id: Id, keys: &Keys, o: impl Queryable) -> Result<CryptoHash, ()> {
-        // Generate seed for tertiary hash
-        let seed: Array32 = match (&keys.sec_key, &keys.pub_key) {
+        // Generate seed for tertiary hash based on secret or public
+        let seed: CryptoHash = match (&keys.sec_key, &keys.pub_key) {
             // If we have a secret key, derive a new key for hashing
-            (Some(sk), _) => Self::kdf(sk.clone())?,
+            (Some(sk), _) => Self::kdf(&sk)?,
             // Otherwise use the public key
-            (_, Some(pk)) => pk.clone(),
+            (_, Some(pk)) => Self::kdf(&pk)?,
             _ => todo!(),
         };
     
@@ -128,7 +128,7 @@ pub trait Hash {
         let d = CryptoHash::try_from(d.deref()).unwrap();
     
         // XOR with ns ID to give new location
-        Ok(d ^ id)
+        Ok(d ^ CryptoHash::from(id.as_bytes()))
     }
 }
 
@@ -136,107 +136,4 @@ impl CryptoHasher for sha2::Sha512Trunc256 {
     fn update(&mut self, buff: &[u8]) {
         self.input( buff)
     }
-}
-
-/// Compatibility tests, only included if both `crypto_sodium` and `crypto_rust` are enabled
-#[cfg(all(test, feature="crypto_sodium", feature="crypto_rust"))]
-mod test {
-    use super::{PubKey, SecKey, Hash, native::RustCrypto, sodium::SodiumCrypto};
-
-    fn setup() {
-        #[cfg(feature="simplelog")]
-        let _ = simplelog::SimpleLogger::init(simplelog::LevelFilter::Debug, simplelog::Config::default());
-    }
-
-    #[test]
-    fn test_pk_sodium_dalek_sig() {
-        setup();
-
-        let (public, private) = SodiumCrypto::new_pk().unwrap();
-        let mut data = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
-
-        let signature = SodiumCrypto::pk_sign(&private, &data).unwrap();
-
-        let valid = RustCrypto::pk_verify(&public, &signature, &data).unwrap();
-        assert_eq!(valid, true);
-
-        data[0] = data[0] + 1;
-        let valid = RustCrypto::pk_verify(&public, &signature, &data).unwrap();
-        assert_eq!(valid, false);
-    }
-
-    #[test]
-    fn test_pk_dalek_sodium_sig() {
-        setup();
-
-        let (public, private) = RustCrypto::new_pk().unwrap();
-        let mut data = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
-
-        let signature = RustCrypto::pk_sign(&private, &data).unwrap();
-
-        let valid = SodiumCrypto::pk_verify(&public, &signature, &data).unwrap();
-        assert_eq!(valid, true);
-
-        data[0] = data[0] + 1;
-        let valid = SodiumCrypto::pk_verify(&public, &signature, &data).unwrap();
-        assert_eq!(valid, false);
-    }
-
-    #[test]
-    fn test_sk_dalek_sodium_enc() {
-        setup();
-
-        let sk = SodiumCrypto::new_sk().unwrap();
-        let data = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
-        let mut d1 = data.clone();
-
-        let meta = RustCrypto::sk_encrypt(&sk, None, &mut d1).unwrap();
-
-        println!("Encrypted with tag: {}", meta);
-
-        SodiumCrypto::sk_decrypt(&sk, &meta, None, &mut d1).unwrap();
-        assert_eq!(data, d1);
-    }
-
-    #[test]
-    fn test_sk_sodium_dalek_enc() {
-        setup();
-
-        let sk = RustCrypto::new_sk().unwrap();
-        let data = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
-        let mut d1 = data.clone();
-
-        let meta = SodiumCrypto::sk_encrypt(&sk, None, &mut d1).unwrap();
-
-        println!("Encrypted with tag: {}", meta);
-
-        RustCrypto::sk_decrypt(&sk, &meta, None, &mut d1).unwrap();
-        assert_eq!(data, d1);
-    }
-
-    #[test]
-    fn test_pk_dalek_sodium_kx() {
-        let (pub1, pri1) = RustCrypto::new_pk().expect("Error generating public/private keypair");
-        let (pub2, pri2) = SodiumCrypto::new_pk().expect("Error generating public/private keypair");
-
-        let (a1, a2) = RustCrypto::kx( &pub1, &pri1, &pub2).unwrap();
-        let (b1, b2) = SodiumCrypto::kx( &pub2, &pri2, &pub1).unwrap();
-
-        println!("A1: {} A2: {}", a1, a2);
-        println!("B1: {} B2: {}", b1, b2);
-
-        assert_eq!(a1, b1);
-        assert_eq!(a2, b2);
-    }
-
-    #[test]
-    fn test_rust_sodium_kdf() {
-        let (pub1, _pri1) = RustCrypto::new_pk().expect("Error generating public/private keypair");
-        
-        let derived1 = RustCrypto::kdf(pub1.clone());
-        let derived2 = SodiumCrypto::kdf(pub1.clone());
-
-        assert_eq!(derived1, derived2)
-    }
-
 }

@@ -91,12 +91,10 @@ impl PubKey for RustCrypto {
 
         // Parse initial keys
         let our_pri_key = ed25519_dalek::Keypair::from_bytes(&pri_key).unwrap();
-        let our_pub_key = ed25519_dalek::PublicKey::from_bytes(&pub_key).unwrap();
         let their_pub_key = ed25519_dalek::PublicKey::from_bytes(&remote).unwrap();
 
         // Convert into kx form
         let our_pri_key = pri_ed26619_to_x25519(&our_pri_key.secret).unwrap();
-        let our_pub_key = pub_ed26619_to_x25519(&our_pub_key).unwrap();
         let their_pub_key = pub_ed26619_to_x25519(&their_pub_key).unwrap();
 
         let our_keys = crypto_kx::KeyPair::from(our_pri_key);
@@ -199,7 +197,7 @@ impl Hash for RustCrypto {
 
     // https://docs.rs/blake2/latest/blake2/struct.Blake2bMac.html
     // https://libsodium.gitbook.io/doc/key_derivation#key-derivation-with-libsodium-less-than-1.0.1
-    fn kdf(key: Array32) -> Result<Array32, ()> { 
+    fn kdf(key: &[u8]) -> Result<CryptoHash, ()> { 
         use blake2::digest::{FixedOutput, consts::U32};
 
         let salt = DSF_NS_KDF_IDX.to_le_bytes();
@@ -209,7 +207,7 @@ impl Hash for RustCrypto {
     
         let derived = inst.finalize_fixed();
     
-        Ok(Array32::from(derived.as_ref()))
+        Ok(CryptoHash::from(derived.as_ref()))
     }
 }
 
