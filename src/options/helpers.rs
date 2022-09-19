@@ -2,9 +2,10 @@ use core::str;
 use core::str::FromStr;
 use core::fmt::Display;
 
-use crate::base::{Parse};
+use encdec::{Encode, Decode};
+
 use crate::types::{PublicKey, ImmutableData, Address, Signature, DateTime, Id};
-use super::{String, Options, OPTION_HEADER_LEN, MAX_OPTION_LEN};
+use super::{String, Options, OPTION_HEADER_LEN, MAX_OPTION_LEN, OptionString};
 
 
 /// Iterator for decoding options from the provided buffer
@@ -50,7 +51,7 @@ where
             return None;
         }
 
-        let (o, n) = match Options::parse(rem) {
+        let (o, n) = match Options::decode(rem) {
             Ok(v) => v,
             Err(e) => {
                 error!("Option parsing error: {:?}", e);
@@ -73,7 +74,7 @@ pub trait Filters {
     fn expiry(&self) -> Option<DateTime>;
     fn prev_sig(&self) -> Option<Signature>;
     fn address(&self) -> Option<Address>;
-    fn name(&self) -> Option<String<MAX_OPTION_LEN>>;
+    fn name(&self) -> Option<OptionString>;
 }
 
 /// Filter implementation for [`OptionsIter`]
@@ -118,7 +119,7 @@ impl <T: AsRef<[u8]>> Filters for OptionsIter<T> {
         })
     }
 
-    fn name(&self) -> Option<String<MAX_OPTION_LEN>> {
+    fn name(&self) -> Option<OptionString> {
         let mut s = OptionsIter{ index: 0, buff: self.buff.as_ref() };
         s.find_map(|o| match o {
             Options::Name(name) => Some(name.clone()),
@@ -173,7 +174,7 @@ impl <'a, T: Iterator<Item=&'a Options> + Clone> Filters for T {
         })
     }
 
-    fn name(&self) -> Option<String<MAX_OPTION_LEN>> {
+    fn name(&self) -> Option<OptionString> {
         self.clone().find_map(|o| match o {
             Options::Name(name) => Some(name.clone()),
             _ => None,

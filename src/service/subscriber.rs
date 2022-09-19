@@ -1,16 +1,20 @@
 use core::convert::TryInto;
 
+use encdec::{Encode, Decode};
+
 #[cfg(feature="alloc")]
 use alloc::{vec::Vec};
 
-use crate::base::PageBody;
-use crate::crypto::{Crypto, PubKey as _, SecKey as _, Hash as _};
-use crate::error::Error;
-use crate::page::{PageInfo};
-use crate::prelude::{MaybeEncrypted, Parse};
-use crate::service::Service;
-use crate::types::*;
-use crate::wire::Container;
+use crate::{
+    base::PageBody,
+    crypto::{Crypto, PubKey as _, SecKey as _, Hash as _},
+    error::Error,
+    page::{PageInfo},
+    prelude::{MaybeEncrypted},
+    service::Service,
+    types::*,
+    wire::Container,
+};
 
 pub trait Subscriber<B: PageBody> {
     /// Create a service instance (or replica) from a given primary service page
@@ -26,7 +30,7 @@ pub trait Subscriber<B: PageBody> {
     fn validate_block<T: ImmutableData>(&mut self, _block: &Container<T>) -> Result<(), Error> { todo!() }
 }
 
-impl <B: PageBody + Parse<Output=B>> Subscriber<B> for Service<B> {
+impl <'a, B: PageBody + Decode<'a, Output=B>> Subscriber<B> for Service<B> {
     /// Create a service instance from a given page
     fn load<T: ImmutableData>(page: &Container<T>) -> Result<Service<B>, Error> {
         let header = page.header();
@@ -44,7 +48,7 @@ impl <B: PageBody + Parse<Output=B>> Subscriber<B> for Service<B> {
             _ if page.header().data_len() == 0 => MaybeEncrypted::None,
             true => MaybeEncrypted::Encrypted(page.body_raw().to_vec()),
             false => {
-                let (info, _n) = B::parse(page.body_raw())
+                let (info, _n) = B::decode(page.body_raw())
                     .map_err(|e| {
                         error!("Failed to parse body: {:?}", e);
                         Error::EncodeFailed
@@ -94,7 +98,7 @@ impl <B: PageBody + Parse<Output=B>> Subscriber<B> for Service<B> {
             _ if update.header().data_len() == 0 => MaybeEncrypted::None,
             true => MaybeEncrypted::Encrypted(update.body_raw().to_vec()),
             false => {
-                let (info, _n) = B::parse(update.body_raw())
+                let (info, _n) = B::decode(update.body_raw())
                     .map_err(|e| {
                         error!("Failed to parse body: {:?}", e);
                         Error::EncodeFailed

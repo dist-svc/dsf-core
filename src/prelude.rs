@@ -16,7 +16,7 @@ pub use crate::error::Error as DsfError;
 
 pub use crate::types::{PrivateKey, PublicKey, SecretKey, Signature};
 
-pub use crate::base::{Body, Encode, Header, Parse, MaybeEncrypted};
+pub use crate::base::{Body, Header, MaybeEncrypted};
 
 pub use crate::page::{PageInfo};
 

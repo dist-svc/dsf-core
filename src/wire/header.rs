@@ -1,8 +1,8 @@
 use byteorder::{ByteOrder, NetworkEndian};
 
 use crate::base::{Header};
-use crate::types::{Flags, ImmutableData, Kind, MutableData};
-use super::{offsets, SECRET_KEY_TAG_LEN};
+use crate::types::{Flags, ImmutableData, Kind, MutableData, ID_LEN, SIGNATURE_LEN};
+use super::{offsets, SECRET_KEY_TAG_LEN, HEADER_LEN};
 
 /// Header generic over arbitrary storage for wire encoding
 // TODO: decide what to do with the high / low level impls
@@ -88,6 +88,24 @@ impl<T: ImmutableData> WireHeader<T> {
 
     pub fn signature_offset(&self) -> usize {
         self.public_options_offset() + self.public_options_len()
+    }
+
+    pub fn encoded_len(&self) -> usize {
+        let flags = self.flags();
+
+        let tag_len = if flags.contains(Flags::ENCRYPTED) && !flags.contains(Flags::SYMMETRIC_MODE) {
+            SECRET_KEY_TAG_LEN
+        } else {
+            0
+        };
+
+        HEADER_LEN
+            + ID_LEN
+            + self.data_len()
+            + self.private_options_len()
+            + tag_len
+            + self.public_options_len()
+            + SIGNATURE_LEN
     }
 }
 

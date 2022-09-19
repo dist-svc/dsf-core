@@ -2,11 +2,10 @@ use core::marker::PhantomData;
 use core::fmt::Debug;
 
 use log::trace;
-
+use encdec::{Encode, Decode, EncodeExt, DecodeExt};
 use pretty_hex::*;
 
 use crate::base::{Header};
-use crate::base::{Encode};
 use crate::crypto::{Crypto, PubKey as _, SecKey as _, Hash as _};
 use crate::error::Error;
 use crate::options::{Options};
@@ -191,7 +190,7 @@ impl<T: MutableData> Builder<SetPrivateOptions, T> {
     ) -> Result<Builder<Encrypt, T>, Error> {
         let b = self.buf.as_mut();
 
-        let n = Options::encode_iter(options, &mut b[self.n..])?;
+        let n = Options::encode_iter(options.into_iter(), &mut b[self.n..])?;
         self.n += n;
 
         trace!("Encoded private options: {:02x?}", &b[self.n-n..][..n]);
@@ -364,7 +363,7 @@ impl<T: MutableData> Builder<SetPublicOptions, T> {
     ) -> Result<Builder<SetPublicOptions, T>, Error> {
         let b = self.buf.as_mut();
 
-        let n = Options::encode_iter(options, &mut b[self.n..])?;
+        let n = Options::encode_iter(options.into_iter(), &mut b[self.n..])?;
         self.n += n;
         self.c += n;
         let c = self.c;

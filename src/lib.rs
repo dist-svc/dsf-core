@@ -56,7 +56,7 @@ pub mod api;
 
 pub mod prelude;
 
-pub use dsf_core_base::error;
+pub mod error;
 
 #[cfg(feature = "defmt")] 
 pub trait Debug = core::fmt::Debug + defmt::Format;

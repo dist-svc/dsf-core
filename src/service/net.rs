@@ -1,13 +1,20 @@
 use byteorder::{NetworkEndian, ByteOrder};
-use crate::base::{Encode, PageBody};
-use crate::error::Error;
-use crate::net::{Request, RequestBody, Response, ResponseBody, Common};
-use crate::options::Options;
-use crate::prelude::{Header, Keys};
-use crate::service::Service;
-use crate::types::{MutableData, RequestKind, ResponseKind, Address, Flags, Kind};
-use crate::wire::builder::{SetPublicOptions, Encrypt};
-use crate::wire::{Container, Builder};
+
+use encdec::{Encode, Decode, EncodeExt, DecodeExt};
+
+use crate::{
+    base::{PageBody, Empty},
+    error::Error,
+    net::{Request, RequestBody, Response, ResponseBody, Common},
+    options::Options,
+    prelude::{Header, Keys},
+    service::Service,
+    types::{MutableData, RequestKind, ResponseKind, Address, Flags, Kind},
+    wire::{
+        Container, Builder,
+        builder::{SetPublicOptions, Encrypt}
+    },
+};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct MessageOptions {
@@ -74,7 +81,7 @@ impl <D: PageBody> Net for Service<D> {
 
         // Encode body
         let b = match &req.data {
-            RequestBody::Hello | RequestBody::Ping => b.body(&[])?,
+            RequestBody::Hello | RequestBody::Ping => b.body(Empty)?,
             RequestBody::FindNode(id) | RequestBody::FindValue(id) | RequestBody::Subscribe(id) | RequestBody::Unsubscribe(id) | RequestBody::Query(id) | RequestBody::Locate(id) | RequestBody::Unregister(id) => b.body(id.as_ref())?,
             RequestBody::Store(id, pages) | RequestBody::PushData(id, pages) | RequestBody::Register(id, pages) => {
                 b.with_body(|buff| {
@@ -126,11 +133,11 @@ impl <D: PageBody> Net for Service<D> {
             ResponseBody::NodesFound(id, nodes) => b.with_body(|buff| {
                     let mut i = id.encode(buff)?;
                     for n in nodes {
-                        i += Options::encode_iter(&[
+                        i += [
                             Options::peer_id(n.0.clone()),
                             Options::address(n.1),
                             Options::pub_key(n.2.clone())
-                        ], &mut buff[i..])?
+                        ].encode(&mut buff[i..])?;
                     }
                     Ok(i)
             })?,
@@ -141,7 +148,7 @@ impl <D: PageBody> Net for Service<D> {
                     Ok(i)
                 })?
             },
-            ResponseBody::NoResult => b.body(&[])?,
+            ResponseBody::NoResult => b.body(Empty)?,
         };
 
         // Attach options

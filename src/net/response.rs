@@ -6,10 +6,11 @@ use alloc::vec::{Vec};
 
 use byteorder::{ByteOrder, NetworkEndian};
 use slice_ext::SplitBefore;
+use encdec::{Encode, EncodeExt, Decode, DecodeExt};
 
+use crate::base::Message;
 use crate::error::Error;
 use crate::options::{Options, Filters};
-use crate::prelude::Parse;
 use crate::types::*;
 use crate::keys::KeySource;
 use crate::wire::Container;
@@ -33,6 +34,27 @@ pub enum ResponseBody {
     ValuesFound(Id, Vec<Container>),
     NoResult,
     PullData(Id, Vec<Container>),
+}
+
+#[derive(Clone, Debug, Encode, Decode)]
+pub struct Status2 {
+
+}
+#[derive(Clone, Debug, Encode, Decode)]
+pub struct NodesFound {
+
+}
+#[derive(Clone, Debug, Encode, Decode)]
+pub struct ValuesFound {
+
+}
+#[derive(Clone, Debug, Encode, Decode)]
+pub struct NoResult {
+
+}
+#[derive(Clone, Debug, Encode, Decode)]
+pub struct PullData {
+
 }
 
 /// Convert response kind object to protocol message enumeration
@@ -165,7 +187,7 @@ impl Response {
                 id.copy_from_slice(&body[..ID_LEN]);
 
                 // Build options array from body
-                let options = Options::parse_iter(&body[ID_LEN..])
+                let options = Options::decode_iter(&body[ID_LEN..])
                         .collect::<Result<Vec<Options>, Error>>().unwrap();
 
                 let nodes: Vec<_> = (&options[..])

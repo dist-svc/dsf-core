@@ -1,19 +1,20 @@
 //! Wire provides a container type to map byte data to fixed fields (and vice versa)
 //! to support wire encoding and decoding.
 
-#[cfg(feature = "alloc")]
-use alloc::vec::{Vec};
 
 use core::ops::{DerefMut};
 
 
+#[cfg(feature = "alloc")]
+use alloc::vec::{Vec};
+
+use encdec::{Encode, Decode, EncodeExt, DecodeExt};
 use pretty_hex::*;
 
 use crate::base::{MaybeEncrypted};
 use crate::crypto::{Crypto, PubKey as _, SecKey as _, Hash as _};
 use crate::error::Error;
 use crate::options::{Options};
-use crate::prelude::Parse;
 use crate::types::*;
 
 /// Header provides a low-cost header abstraction for encoding/decoding
@@ -271,7 +272,7 @@ pub(crate) fn decrypt(sk: &SecretKey, body: &mut MaybeEncrypted, private_opts: &
     }
 
     if private_opt_len > 0 {
-        let o = Options::parse_iter(&cyphertext[body_len..]);
+        let o = Options::decode_iter(&cyphertext[body_len..]);
         let opts: Vec<_> = o.collect::<Result<Vec<Options>, Error>>()?;
         *private_opts = MaybeEncrypted::Cleartext(opts);
     }

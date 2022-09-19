@@ -1,13 +1,18 @@
 use core::ops::Add;
 
-use crate::base::{Header, MaybeEncrypted, DataBody, PageBody};
-use crate::error::Error;
-use crate::options::Options;
-use crate::prelude::Encode;
-use crate::service::Service;
-use crate::types::*;
-use crate::wire::builder::{Encrypt, SetPublicOptions};
-use crate::wire::{Builder, Container};
+use encdec::{Encode, Decode};
+
+use crate::{
+    base::{Header, MaybeEncrypted, DataBody, PageBody},
+    error::Error,
+    options::Options,
+    service::Service,
+    types::*,
+    wire::{
+        Builder, Container,
+        builder::{Encrypt, SetPublicOptions}
+    },
+};
 
 /// Publisher trait allows services to generate primary, data, and secondary pages
 /// as well as to encode (and sign and optionally encrypt) generated pages

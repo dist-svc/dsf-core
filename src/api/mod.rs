@@ -2,18 +2,20 @@
 //! This allows for limited capability devices to perform network operations via
 //! a full-featured device
 
-use crate::{types::Id, base::{PageBody, DataBody}, prelude::Parse};
+use encdec::Decode;
+
+use crate::{types::Id, base::{PageBody, DataBody}};
 
 /// Application object used to describe a DSF application
-pub trait Application {
+pub trait Application<'a> {
     /// DSF Application ID
     const APPLICATION_ID: u16;
 
     /// Service information (page body) encoding
-    type Info: PageBody + Parse<Output=Self::Info> + core::fmt::Debug;
+    type Info: PageBody + Decode<'a, Output=Self::Info> + core::fmt::Debug;
 
     /// Service data (block body) encoding
-    type Data: DataBody + Parse<Output=Self::Data> + core::fmt::Debug;
+    type Data: DataBody + Decode<'a, Output=Self::Data> + core::fmt::Debug;
 
     /// Helper function for info matching to support discovery
     fn matches(_info: &Self::Info, _req: &[u8]) -> bool { false }

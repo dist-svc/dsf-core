@@ -5,12 +5,10 @@ use core::convert::TryFrom;
 use core::fmt::Debug;
 
 use num_enum::{IntoPrimitive, TryFromPrimitive};
-
 use byteorder::{ByteOrder, NetworkEndian};
-
 use heapless::String;
+use encdec::{Encode, Decode, EncodeExt, DecodeExt};
 
-use crate::base::{Encode, Parse};
 use crate::error::Error;
 use crate::types::{Address, AddressV4, AddressV6, DateTime, ID_LEN, Id, Ip, PUBLIC_KEY_LEN, PublicKey, Queryable, SIGNATURE_LEN, Signature};
 
@@ -33,8 +31,8 @@ pub enum Options {
     PubKey(PublicKey),
     PeerId(Id),
     PrevSig(Signature),
-    Kind(heapless::String<MAX_OPTION_LEN>),
-    Name(heapless::String<MAX_OPTION_LEN>),
+    Kind(OptionString),
+    Name(OptionString),
 
     IPv4(AddressV4),
     IPv6(AddressV6),
@@ -42,14 +40,16 @@ pub enum Options {
     Issued(DateTime),
     Expiry(DateTime),
     Limit(u32),
-    Metadata{key: heapless::String<16>, value: heapless::String<48>},
+    Metadata(Metadata),
     Coord(Coordinates),
 
-    Manufacturer(heapless::String<MAX_OPTION_LEN>),
-    Serial(heapless::String<MAX_OPTION_LEN>),
-    Building(heapless::String<MAX_OPTION_LEN>),
-    Room(heapless::String<MAX_OPTION_LEN>),
+    Manufacturer(OptionString),
+    Serial(OptionString),
+    Building(OptionString),
+    Room(OptionString),
 }
+
+
 
 
 #[derive(PartialEq, Debug, Clone, Copy, IntoPrimitive, TryFromPrimitive)]
@@ -92,7 +92,7 @@ impl From<&Options> for OptionKind {
             Options::Issued(_) => OptionKind::Issued,
             Options::Expiry(_) => OptionKind::Expiry,
             Options::Limit(_) => OptionKind::Limit,
-            Options::Metadata{key: _, value: _} => OptionKind::Meta,
+            Options::Metadata(_) => OptionKind::Meta,
             Options::Coord(_) => OptionKind::Coord,
             Options::Building(_) => OptionKind::Building,
             Options::Room(_) => OptionKind::Room,
@@ -109,11 +109,11 @@ impl From<&Options> for OptionKind {
 /// Helpers to create options instances
 impl Options {
     pub fn name(value: &str) -> Options {
-        Options::Name(String::from(value))
+        Options::Name(value.into())
     }
 
     pub fn kind(value: &str) -> Options {
-        Options::Kind(String::from(value))
+        Options::Kind(value.into())
     }
 
     pub fn prev_sig(value: &Signature) -> Options {
@@ -121,7 +121,7 @@ impl Options {
     }
 
     pub fn meta(key: &str, value: &str) -> Options {
-        Options::Metadata{key: heapless::String::from(key), value: heapless::String::from(value)}
+        Options::Metadata(Metadata{key: heapless::String::from(key), value: heapless::String::from(value)})
     }
 
     pub fn issued<T: Into<DateTime>>(now: T) -> Options {
@@ -168,11 +168,11 @@ impl Options {
 }
 
 /// Parse parses a control option from the given scope
-impl Parse for Options {
+impl <'a> Decode<'a> for Options {
     type Output = Options;
     type Error = Error;
 
-    fn parse<'a>(data: &'a [u8]) -> Result<(Self::Output, usize), Self::Error> {
+    fn decode(data: &'a [u8]) -> Result<(Self::Output, usize), Self::Error> {
         if data.len() < OPTION_HEADER_LEN {
             return Err(Error::InvalidOptionLength);
         }
@@ -204,8 +204,8 @@ impl Parse for Options {
             OptionKind::PubKey => PublicKey::try_from(d).map(|v| Options::PubKey(v)),
             OptionKind::PeerId => Id::try_from(d).map(|v| Options::PeerId(v) ),
             OptionKind::PrevSig => Signature::try_from(d).map(|v| Options::PrevSig(v) ),
-            OptionKind::Kind => Self::parse_string(d).map(|v| Options::Kind(v) ),
-            OptionKind::Name => Self::parse_string(d).map(|v| Options::Name(v) ),
+            OptionKind::Kind => OptionString::decode(d).map(|(v, _)| Options::Kind(v) ),
+            OptionKind::Name => OptionString::decode(d).map(|(v, _)| Options::Name(v) ),
 
             OptionKind::IpAddrV4 => {
                 let mut ip = [0u8; 4];
@@ -244,10 +244,10 @@ impl Parse for Options {
                 alt: NetworkEndian::read_f32(&d[8..]),
             })),
 
-            OptionKind::Building => Self::parse_string(d).map(|v| Options::Building(v) ),
-            OptionKind::Room => Self::parse_string(d).map(|v| Options::Room(v) ),
-            OptionKind::Manufacturer => Self::parse_string(d).map(|v| Options::Manufacturer(v) ),
-            OptionKind::Serial => Self::parse_string(d).map(|v| Options::Serial(v) ),
+            OptionKind::Building => OptionString::decode(d).map(|(v, _)| Options::Building(v) ),
+            OptionKind::Room => OptionString::decode(d).map(|(v, _)| Options::Room(v) ),
+            OptionKind::Manufacturer => OptionString::decode(d).map(|(v, _)| Options::Manufacturer(v) ),
+            OptionKind::Serial => OptionString::decode(d).map(|(v, _)| Options::Serial(v) ),
         };
 
         let o = match r {
@@ -262,8 +262,29 @@ impl Parse for Options {
     }
 }
 
+
 impl Encode for Options {
     type Error = Error;
+
+    fn encode_len(&self) -> Result<usize, Self::Error> {
+        let n = match self {
+            Options::None => 0,
+            Options::PubKey(_) => PUBLIC_KEY_LEN,
+            Options::PeerId(_) => ID_LEN,
+            Options::PrevSig(_) => SIGNATURE_LEN,
+            Options::Kind(s) | Options::Name(s) | Options::Building(s) | Options::Room(s) | Options::Manufacturer(s) | Options::Serial(s) => {
+                s.as_bytes().len()
+            },
+            Options::IPv4(_) => 6,
+            Options::IPv6(_) => 18,
+            Options::Issued(_) | Options::Expiry(_) => 8,
+            Options::Limit(_) => 4,
+            Options::Metadata(m) => m.key.len() + m.value.len() + 1,
+            Options::Coord(_) => 3 * 4,
+        };
+
+        Ok(OPTION_HEADER_LEN + n)
+    }
 
     fn encode(&self, data: &mut [u8]) -> Result<usize, Self::Error> {
         // Set kind
@@ -308,7 +329,7 @@ impl Encode for Options {
                 NetworkEndian::write_u64(&mut data[4..], v.as_secs());
                 8
             },
-            Options::Metadata{key, value} => {
+            Options::Metadata(Metadata{key, value}) => {
                 let mut n = 0;
                 
                 let key = key.as_bytes();
@@ -343,6 +364,7 @@ impl Encode for Options {
     }
 }
 
+
 /// Implementation for queryable options
 impl Queryable for &Options {
     fn hash<H: crate::types::CryptoHasher>(&self, h: &mut H) -> bool {
@@ -353,7 +375,7 @@ impl Queryable for &Options {
         match self {
             // String based options
             Options::Name(v) | Options::Kind(v) | Options::Manufacturer(v) | Options::Serial(v) | Options::Building(v) | Options::Room(v) => {
-                h.update(&(v.len() as u16).to_le_bytes());
+                h.update(&(v.as_bytes().len() as u16).to_le_bytes());
                 h.update(v.as_bytes());
                 true
             }
@@ -373,6 +395,87 @@ pub struct Coordinates {
     pub alt: f32,
 }
 
+#[derive(PartialEq, Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+pub struct Metadata {
+    pub key: heapless::String<16>,
+    pub value: heapless::String<48>,
+}
+
+#[cfg(feature = "defmt")]
+impl defmt::Format for Metadata {
+    fn format(&self, fmt: defmt::Formatter) {
+        let (k, v): (&str, &str) = (&self.key, &self.value);
+        defmt::write!(fmt, "{}:{}", k, v)
+    }
+}
+
+#[derive(PartialEq, Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+pub struct OptionString(heapless::String<MAX_OPTION_LEN>);
+
+impl OptionString {
+    pub fn as_bytes(&self) -> &[u8] {
+        self.0.as_bytes()
+    }
+}
+
+impl From<&str> for OptionString {
+    fn from(s: &str) -> Self {
+        Self(String::from(s))
+    }
+}
+
+impl AsRef<str> for OptionString {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl core::fmt::Display for OptionString {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl Encode for OptionString {
+    type Error = Error;
+
+    fn encode_len(&self) -> Result<usize, Self::Error> {
+        Ok(self.0.as_bytes().len())
+    }
+
+    fn encode(&self, buff: &mut [u8]) -> Result<usize, Self::Error> {
+        let b = self.0.as_bytes();
+        if buff.len() < b.len() {
+            return Err(Error::BufferLength);
+        }
+
+        buff[..b.len()].copy_from_slice(b);
+
+        Ok(b.len())
+    }
+}
+
+impl <'a> Decode<'a> for OptionString {
+    type Output = Self;
+
+    type Error = Error;
+
+    fn decode(buff: &'a [u8]) -> Result<(Self::Output, usize), Self::Error> {
+        let s = core::str::from_utf8(buff)
+            .map_err(|_| Error::InvalidOption )?;
+        Ok((Self(s.into()), s.as_bytes().len()))
+    }
+}
+
+#[cfg(feature = "defmt")]
+impl defmt::Format for OptionString {
+    fn format(&self, fmt: defmt::Formatter) {
+        let s: &str = &self.0;
+        defmt::write!(fmt, "{}", s)
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -381,6 +484,8 @@ mod tests {
 
     use std::net::{Ipv4Addr, Ipv6Addr, SocketAddrV4, SocketAddrV6};
     use std::time::SystemTime;
+
+    use encdec::{encode::EncodeExt, decode::DecodeExt};
 
     #[test]
     fn encode_decode_option_types() {
@@ -413,7 +518,7 @@ mod tests {
                 .encode(&mut data)
                 .expect(&format!("Error encoding {:?}", o));
 
-            let (decoded, n2) = Options::parse(&data).expect(&format!("Error decoding {:?}", o));
+            let (decoded, n2) = Options::decode(&data).expect(&format!("Error decoding {:?}", o));
 
             assert_eq!(
                 n1, n2,
@@ -452,7 +557,7 @@ mod tests {
         let n1 = Options::encode_iter(tests.iter(), &mut data).expect("Error encoding options vector");
 
         let encoded = &data[0..n1];
-        let decoded: Vec<_> = Options::parse_iter(encoded)
+        let decoded: Vec<_> = Options::decode_iter(encoded)
             .collect::<Result<Vec<_>, Error>>().expect("Error decoding options vector");
 
         assert_eq!(

@@ -11,13 +11,19 @@ use core::marker::PhantomData;
 use core::ops::BitXor;
 use core::convert::{Infallible, TryFrom};
 
+use encdec::{Encode, Decode};
+
 #[cfg(feature = "serde")]
-use serde::de::{self, Visitor};
-#[cfg(feature = "serde")]
-use serde::{Deserializer, Serializer};
+use serde::{
+    de::{self, Visitor},
+    Deserializer, Serializer,
+};
 
 #[cfg(feature = "std")]
 pub use chrono::Duration;
+
+use crate::error::Error;
+
 
 /// ImmutableData trait wraps AsRef<[u8]>
 pub trait ImmutableData: AsRef<[u8]> + crate::Debug {}
@@ -45,6 +51,8 @@ pub const ID_LEN: usize = 32;
 /// ID type
 pub type Id = Array<IdTy, ID_LEN>;
 
+#[derive(Copy, Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct IdTy {}
 
 impl From<CryptoHash> for Id {
@@ -76,30 +84,40 @@ pub const PUBLIC_KEY_LEN: usize = 32;
 /// Public key type
 pub type PublicKey = Array<PublicKeyTy, PUBLIC_KEY_LEN>;
 
+#[derive(Copy, Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct PublicKeyTy {}
 
 pub const PRIVATE_KEY_LEN: usize = 64;
 /// Private key type
 pub type PrivateKey = Array<PrivateKeyTy, PRIVATE_KEY_LEN>;
 
+#[derive(Copy, Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct PrivateKeyTy {}
 
 pub const SIGNATURE_LEN: usize = 64;
 /// Signature type
 pub type Signature = Array<SignatureTy, SIGNATURE_LEN>;
 
+#[derive(Copy, Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct SignatureTy {}
 
 pub const SECRET_KEY_LEN: usize = 32;
 /// Secret key type
 pub type SecretKey = Array<SecretKeyTy, SECRET_KEY_LEN>;
 
+#[derive(Copy, Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct SecretKeyTy {}
 
 pub const SECRET_KEY_TAG_LEN: usize = 40;
 /// Secret key encryption metadata (tag and nonce)
 pub type SecretMeta = Array<SecretMetaTy, SECRET_KEY_TAG_LEN>;
 
+#[derive(Copy, Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct SecretMetaTy {}
 
 
@@ -107,11 +125,11 @@ pub const HASH_LEN: usize = 32;
 /// Cryptographic hash value
 pub type CryptoHash = Array<CryptoHashTy, HASH_LEN>;
 
+#[derive(Copy, Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct CryptoHashTy {}
 
-use crate::prelude::{Encode, DsfError};
-use crate::wire::Container;
-pub type Data = Container;
+pub type Data = crate::wire::Container;
 
 pub mod kinds;
 pub use self::kinds::*;
@@ -193,12 +211,16 @@ impl <K, const N: usize> PartialOrd for Array<K, N> {
     }
 }
 
-impl <K, const N: usize> crate::base::Encode for Array<K, N> {
-    type Error = DsfError;
+impl <K, const N: usize> Encode for Array<K, N> {
+    type Error = encdec::Error;
+
+    fn encode_len(&self) -> Result<usize, Self::Error> {
+        Ok(N)
+    }
 
     fn encode(&self, buff: &mut [u8]) -> Result<usize, Self::Error> {
         if buff.len() < N {
-            return Err(DsfError::BufferLength);
+            return Err(encdec::Error::BufferOverrun);
         }
 
         buff[..N].copy_from_slice(&self.0);
@@ -207,14 +229,14 @@ impl <K, const N: usize> crate::base::Encode for Array<K, N> {
     }
 }
 
-impl <K, const N: usize> crate::base::Parse for Array<K, N> {
+impl <'a, K, const N: usize> Decode<'a> for Array<K, N> {
     type Output = Self;
 
-    type Error = DsfError;
+    type Error = encdec::Error;
 
-    fn parse<'a>(buff: &'a[u8]) -> Result<(Self::Output, usize), Self::Error> {
+    fn decode(buff: &'a[u8]) -> Result<(Self::Output, usize), Self::Error> {
         if buff.len() < N {
-            return Err(DsfError::BufferLength);
+            return Err(encdec::Error::BufferOverrun);
         }
 
         let mut d = [0u8; N];
@@ -225,13 +247,13 @@ impl <K, const N: usize> crate::base::Parse for Array<K, N> {
 }
 
 impl <K, const N: usize> TryFrom<&[u8]> for Array<K, N> {
-    type Error = DsfError;
+    type Error = Error;
 
     fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
         let mut a = [0u8; N];
 
         if data.len() != N {
-            return Err(DsfError::BufferLength);
+            return Err(Error::BufferLength);
         }
 
         a.copy_from_slice(data);

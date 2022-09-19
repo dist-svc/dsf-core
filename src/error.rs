@@ -3,8 +3,7 @@
 /// Error enum represents possible core errors
 /// 
 /// For serialisation add `serde`, `thiserror`, `strum`, and/or `defmt` features
-#[derive(PartialEq, Debug, Clone)]
-#[cfg_attr(feature = "strum", derive(strum::EnumString, strum::Display))]
+#[derive(PartialEq, Debug, Clone, strum::EnumString, strum::Display)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "thiserror", derive(thiserror::Error))]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
@@ -53,12 +52,12 @@ pub enum Error {
     Unknown,
     EncodeFailed,
     BufferLength,
+    InvalidUtf8,
 }
 
 #[cfg(feature = "std")]
 impl From<std::io::Error> for Error {
     fn from(e: std::io::Error) -> Error {
-        error!("io error: {}", e);
         Error::IO
     }
 }
@@ -70,3 +69,11 @@ impl From<std::time::SystemTimeError> for Error {
     }
 }
 
+impl From<encdec::Error> for Error {
+    fn from(e: encdec::Error) -> Self {
+        match e {
+            encdec::Error::BufferOverrun => Error::BufferLength,
+            encdec::Error::Utf8Error => Error::InvalidUtf8,
+        }
+    }
+}

@@ -1,10 +1,10 @@
 
-use core::fmt::Debug;
 use core::convert::TryFrom;
 
 #[cfg(feature = "alloc")]
 use alloc::vec::Vec;
 
+use crate::Debug;
 use crate::base::PageBody;
 use crate::crypto::{Crypto, PubKey as _, SecKey as _, Hash as _};
 use crate::page::PageInfo;
@@ -58,6 +58,7 @@ impl <T: ImmutableData> core::fmt::Debug for Container<T> {
             false => d.field("body (cleartext)", &self.body_raw()),
         };
         
+        #[cfg(disabled)]
         match self.encrypted() {
             true => d.field("private_opts", &self.private_options_raw()),
             false => d.field("private_opts", &self.private_options_iter()),
@@ -78,7 +79,49 @@ impl <T: ImmutableData> core::fmt::Debug for Container<T> {
     }
 }
 
+/// Decode a container from the provided buffer
+/// 
+/// NOTE THIS DOES NOT PERFORM ANY VALIDATION
+impl <'a> encdec::Decode<'a> for Container<&'a [u8]> {
+    type Output = Container<&'a [u8]>;
+    type Error = Error;
 
+    fn decode(buff: &'a[u8]) -> Result<(Self::Output, usize), Self::Error> {
+        // Read header
+        let header = WireHeader::new(buff);
+
+        // Computed encoded object length
+        let len = header.encoded_len();
+
+        // Build container
+        let c = Container { buff: &buff[..len], len, verified: false, decrypted: false };
+
+        Ok((c, len))
+    }
+}
+
+/// Encode a container to the provided buffer
+impl <T: ImmutableData> encdec::Encode for Container<T> {
+    type Error = Error;
+
+    fn encode_len(&self) -> Result<usize, Self::Error> {
+        Ok(self.raw().len())
+    }
+
+    fn encode(&self, buff: &mut [u8]) -> Result<usize, Self::Error> {
+        // TODO: fail if encryption flag set but not encrypted, sig missing, etc...
+        
+        let raw = self.raw();
+
+        if buff.len() < raw.len() {
+            return Err(Error::BufferLength);
+        }
+        
+        buff[..raw.len()].copy_from_slice(raw);
+
+        Ok(raw.len())
+    }
+}
 
 #[cfg(feature = "serde")]
 impl <T: ImmutableData> serde::Serialize for Container<T> {
@@ -139,9 +182,13 @@ impl <'a> TryFrom<&'a [u8]> for Container<&'a [u8]> {
     // TODO: check basic container info
     type Error = ();
 
-    fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
-        let c = Container::from(value);
-        Ok(c.0)
+    fn try_from(buff: &'a [u8]) -> Result<Self, Self::Error> {
+        let h = WireHeader::new(buff);
+        let len = h.encoded_len();
+        
+        let c = Container { buff: &buff[..len], len, verified: false, decrypted: false };
+
+        Ok(c)
     }
 }
 
@@ -221,7 +268,7 @@ impl<'a, T: ImmutableData> Container<T> {
 
     /// Iterate over private options
     /// NOTE: ONLY VALID FOR DECRYPTED OBJECTS
-    pub fn private_options_iter(&self) -> impl Iterator<Item = Options> + Clone + Debug + '_ {
+    pub fn private_options_iter(&self) -> impl Iterator<Item = Options> + Clone + '_ {
         let data = self.buff.as_ref();
         let n = offsets::BODY + self.header().data_len();
         let s = self.header().private_options_len();

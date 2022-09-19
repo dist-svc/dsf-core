@@ -147,6 +147,7 @@ impl <B: PageBody> Registry for Service<B> {
 
 #[cfg(test)]
 mod test {
+    use crate::base::Empty;
     use crate::{prelude::*, service::Publisher};
     use crate::options::{Options, Filters};
 
@@ -155,7 +156,7 @@ mod test {
     fn registry_publish(mut r: Service) {
         // Build target service
         let opt_name = "something";
-        let mut c = ServiceBuilder::<()>::generic().public_options(vec![Options::name(opt_name)]).build().unwrap();
+        let mut c = ServiceBuilder::<Empty>::generic().public_options(vec![Options::name(opt_name)]).build().unwrap();
         
         let (_n, _c) = c.publish_primary_buff(Default::default()).unwrap();
 
