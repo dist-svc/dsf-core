@@ -13,11 +13,10 @@ edition = "2018"
 defmt-default = [ "defmt", "heapless/defmt-impl" ]
 
 std = [ "alloc", "managed/std", "bytes/std", "base64/std", "byteorder/std", "sha2/std", "chrono/std", "thiserror", "rand_core_0_5/std", "log/std", "simplelog", "getrandom/std" ]
-
 alloc = [ "base64/alloc", "chrono/alloc", "pretty-hex/alloc", "encdec/alloc", "defmt/alloc" ]
 serde = [ "dep:serde", "heapless/serde" ]
 
-default = [ "serde" ]
+default = [ "std", "alloc", "serde" ]
 
 
 [dependencies]
@@ -54,7 +53,7 @@ getrandom = { version = "0.2.5", optional = true, default_features = false }
 
 simplelog = { version = "0.10.2", optional = true }
 cfg-if = "1.0.0"
-encdec = "0.5.0"
+encdec = "0.7.0"
 
 # libsodium replacements...
 ed25519 = { version = "1.4.0", default_features = false}

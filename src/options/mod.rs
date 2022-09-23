@@ -484,6 +484,7 @@ mod tests {
 
     use std::net::{Ipv4Addr, Ipv6Addr, SocketAddrV4, SocketAddrV6};
     use std::time::SystemTime;
+    use std::vec::Vec;
 
     use encdec::{encode::EncodeExt, decode::DecodeExt};
 

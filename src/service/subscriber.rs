@@ -1,6 +1,6 @@
 use core::convert::TryInto;
 
-use encdec::{Encode, Decode};
+use encdec::{Encode, Decode, decode::DecodeOwned};
 
 #[cfg(feature="alloc")]
 use alloc::{vec::Vec};
@@ -30,7 +30,7 @@ pub trait Subscriber<B: PageBody> {
     fn validate_block<T: ImmutableData>(&mut self, _block: &Container<T>) -> Result<(), Error> { todo!() }
 }
 
-impl <'a, B: PageBody + Decode<'a, Output=B>> Subscriber<B> for Service<B> {
+impl <'a, B: PageBody + DecodeOwned<Output=B>> Subscriber<B> for Service<B> {
     /// Create a service instance from a given page
     fn load<T: ImmutableData>(page: &Container<T>) -> Result<Service<B>, Error> {
         let header = page.header();

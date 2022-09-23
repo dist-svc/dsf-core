@@ -182,6 +182,7 @@ impl <B: PageBody> Service<B> {
 #[cfg(test)]
 mod test {
 
+    use std::vec::Vec;
     use std::net::{Ipv4Addr, SocketAddrV4};
 
     use pretty_assertions::{assert_eq};
