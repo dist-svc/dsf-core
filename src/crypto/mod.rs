@@ -5,8 +5,8 @@ use core::fmt::Debug;
 use core::ops::Deref;
 use core::convert::TryFrom;
 
-use sha2::Digest;
-use sha2::digest::FixedOutput;
+use blake2::{Blake2b512};
+use sha2::{Sha512Trunc256, digest::FixedOutput};
 
 use crate::prelude::Keys;
 use crate::types::*;
@@ -15,6 +15,7 @@ pub mod native;
 
 
 pub type Crypto = native::RustCrypto;
+
 /// Signer trait, used for generating page signatures
 pub trait Signer {
     type Error;
@@ -79,31 +80,40 @@ pub trait SecKey {
     fn sk_reencrypt(secret_key: &SecretKey, meta: &[u8], assoc: Option<&[u8]>, message: &mut [u8]) -> Result<SecretMeta, Self::Error>;
 }
 
+/// Blake2b KDF context for tertiary ID seed derivation
+const DSF_KDF_CTX: [u8; 8] = [208, 217, 2, 27, 15, 253, 70, 121];
+
 pub trait Hash {
     type Error: Debug;
 
+    /// Hash data via [Sha512Trunc256]
     fn hash(data: &[u8]) -> Result<CryptoHash, ()> {
-        let h = sha2::Sha512Trunc256::digest(data);
+        use sha2::Digest;
+
+        let h = Sha512Trunc256::digest(data);
         Ok(CryptoHash::try_from(h.deref()).unwrap())
     }
 
-    /// Blake2b key derivation function via libsodium
-    fn kdf(seed: &[u8]) -> Result<CryptoHash, ()> { todo!() }
+    /// Derive hash via [Blake2b512]
+    fn kdf(seed: &[u8]) -> Result<CryptoHash, ()>;
 
-    /// Hasher to generate TIDs for a given ID and keyset
+    /// Hasher to generate TIDs for a given ID and keyset using [Hash::kdf]
     fn hash_tid(id: Id, keys: &Keys, o: impl Queryable) -> Result<CryptoHash, ()> {
-        // Generate seed for tertiary hash based on secret or public
+        use sha2::Digest;
+
+        // Generate seed for tertiary hash depending on whether the service is public or secret
+        // TODO: is hashing the key reasonable / are there better ways?
+        // (like, curves and point multiplication..?)
         let seed: CryptoHash = match (&keys.sec_key, &keys.pub_key) {
-            // If we have a secret key, derive a new key for hashing
+            // Private service, use secret key
             (Some(sk), _) => Self::kdf(&sk)?,
-            // Otherwise use the public key
+            // Public service, use public key
             (_, Some(pk)) => Self::kdf(&pk)?,
             _ => todo!(),
-        };
-    
+        };    
     
         // Generate new identity hash
-        let mut h = sha2::Sha512Trunc256::new();
+        let mut h = Sha512Trunc256::new();
         h.input(&seed);
         
         if !o.hash(&mut h) {
@@ -119,8 +129,71 @@ pub trait Hash {
     }
 }
 
-impl CryptoHasher for sha2::Sha512Trunc256 {
+impl CryptoHasher for Sha512Trunc256 {
     fn update(&mut self, buff: &[u8]) {
+        use sha2::Digest;
+
         self.input( buff)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        service::ServiceBuilder,
+        options::Options,
+        base::Empty,
+    };
+    use super::{Crypto, Hash, SecKey};
+
+    #[test]
+    fn test_tid_match_public() {
+        let s1 = ServiceBuilder::<Empty>::generic().build().unwrap();
+
+        let d = Options::name("who knows");
+
+        let h1 = Crypto::hash_tid(s1.id(), &s1.keys(), &d);
+        let h2 = Crypto::hash_tid(s1.id(), &s1.keys(), &d);
+
+        assert_eq!(h1, h2)
+    }
+
+    #[test]
+    fn test_tid_match_private() {
+        let s1 = ServiceBuilder::<Empty>::generic().encrypt().build().unwrap();
+
+        let d = Options::name("who knows");
+
+        let h1 = Crypto::hash_tid(s1.id(), &s1.keys(), &d);
+        let h2 = Crypto::hash_tid(s1.id(), &s1.keys(), &d);
+
+        assert_eq!(h1, h2)
+    }
+
+    #[test]
+    fn test_ns_tid_orthogonal_public() {
+        let s1 = ServiceBuilder::<Empty>::generic().build().unwrap();
+        let s2 = ServiceBuilder::<Empty>::generic().build().unwrap();
+
+        let d = Options::name("who knows");
+
+        let h1 = Crypto::hash_tid(s1.id(), &s1.keys(), &d);
+        let h2 = Crypto::hash_tid(s2.id(), &s2.keys(), &d);
+
+        assert_ne!(h1, h2)
+    }
+
+    #[test]
+    fn test_ns_tid_orthogonal_private() {
+        let s1 = ServiceBuilder::<Empty>::generic().build().unwrap();
+        let mut s2 = s1.clone();
+        s2.set_secret_key(Some(Crypto::new_sk().unwrap()));
+
+        let d = Options::name("who knows");
+
+        let h1 = Crypto::hash_tid(s1.id(), &s1.keys(), &d);
+        let h2 = Crypto::hash_tid(s2.id(), &s2.keys(), &d);
+
+        assert_ne!(h1, h2)
     }
 }

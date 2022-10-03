@@ -72,8 +72,8 @@ impl From<std::time::SystemTimeError> for Error {
 impl From<encdec::Error> for Error {
     fn from(e: encdec::Error) -> Self {
         match e {
-            encdec::Error::BufferOverrun => Error::BufferLength,
-            encdec::Error::Utf8Error => Error::InvalidUtf8,
+            encdec::Error::Length => Error::BufferLength,
+            encdec::Error::Utf8 => Error::InvalidUtf8,
         }
     }
 }

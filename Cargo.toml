@@ -53,7 +53,7 @@ getrandom = { version = "0.2.5", optional = true, default_features = false }
 
 simplelog = { version = "0.10.2", optional = true }
 cfg-if = "1.0.0"
-encdec = "0.7.0"
+encdec = "0.8.0"
 
 # libsodium replacements...
 ed25519 = { version = "1.4.0", default_features = false}
