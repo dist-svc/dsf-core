@@ -61,6 +61,8 @@ pub enum MaybeEncrypted<O: Encode = Vec<u8>, E: ImmutableData = Vec<u8>> {
     None,
 }
 
+impl PageBody for MaybeEncrypted {}
+
 impl <O: Encode + Debug, E: ImmutableData> MaybeEncrypted<O, E> {
     pub fn cleartext(o: O) -> Self {
         Self::Cleartext(o)

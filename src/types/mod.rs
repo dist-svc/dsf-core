@@ -28,10 +28,10 @@ pub use self::address::{Address, AddressV4, AddressV6, Ip};
 
 
 /// ImmutableData trait wraps AsRef<[u8]>
-pub trait ImmutableData: AsRef<[u8]> + crate::Debug {}
+pub trait ImmutableData: AsRef<[u8]> + core::fmt::Debug {}
 
 /// Generic impl of ImmutableData trait (since we don't have trait aliasing)
-impl<T: AsRef<[u8]> + crate::Debug> ImmutableData for T {}
+impl<T: AsRef<[u8]> + core::fmt::Debug> ImmutableData for T {}
 
 /// MutableData trait, wraps AsMut<[u8]> and ImmutableData traits
 pub trait MutableData: AsMut<[u8]> + ImmutableData {}
@@ -42,6 +42,13 @@ impl<T: AsMut<[u8]> + ImmutableData> MutableData for T {}
 /// Queryable trait for name resolution services
 pub trait Queryable: core::fmt::Debug {
     fn hash<H: CryptoHasher>(&self, h: &mut H) -> bool;
+}
+
+/// Automatic impl on references to Queryable types
+impl <T: Queryable> Queryable for &T {
+    fn hash<H: CryptoHasher>(&self, h: &mut H) -> bool {
+        <T as Queryable>::hash(self, h)
+    }
 }
 
 pub trait CryptoHasher {

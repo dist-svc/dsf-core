@@ -108,8 +108,8 @@ impl From<&Options> for OptionKind {
 
 /// Helpers to create options instances
 impl Options {
-    pub fn name(value: &str) -> Options {
-        Options::Name(value.into())
+    pub fn name(value: impl AsRef<str>) -> Options {
+        Options::Name(value.as_ref().into())
     }
 
     pub fn kind(value: &str) -> Options {
@@ -366,10 +366,10 @@ impl Encode for Options {
 
 
 /// Implementation for queryable options
-impl Queryable for &Options {
+impl Queryable for Options {
     fn hash<H: crate::types::CryptoHasher>(&self, h: &mut H) -> bool {
         // First by option kind
-        h.update(&(OptionKind::from(*self) as u16).to_le_bytes());
+        h.update(&(OptionKind::from(self) as u16).to_le_bytes());
 
         // Then by option data
         match self {
@@ -384,7 +384,6 @@ impl Queryable for &Options {
 
     }
 }
-
 
 #[derive(PartialEq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]

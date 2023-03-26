@@ -97,7 +97,7 @@ impl Message {
         K: KeySource,
     {
         // Parse container, verifying sigs etc.
-        let mut c = Container::parse(data, key_source)?;
+        let c = Container::parse(data, key_source)?;
         let n = c.len();
 
         // Decrypt symmetric encrypted objects if enabled

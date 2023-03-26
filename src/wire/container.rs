@@ -25,6 +25,7 @@ use super::Builder;
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct Container<T: ImmutableData = Vec<u8>> {
     /// Internal data buffer
+    #[cfg_attr(feature = "defmt", defmt(Debug2Format))]
     pub(crate) buff: T,
     /// Length of object in container buffer
     pub(crate) len: usize,
