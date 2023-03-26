@@ -1,14 +1,13 @@
-
 use core::ops::Add;
 
 use crate::base::PageBody;
 use crate::options::Options;
 
-use crate::error::Error;
-use crate::prelude::{Header};
-use crate::types::{Id, Kind, PageKind, Flags, Queryable, DateTime, Signature, MutableData};
-use crate::wire::{Builder, Container};
 use crate::crypto::{Crypto, Hash as _};
+use crate::error::Error;
+use crate::prelude::Header;
+use crate::types::{DateTime, Flags, Id, Kind, MutableData, PageKind, Queryable, Signature};
+use crate::wire::{Builder, Container};
 
 use super::Service;
 
@@ -17,16 +16,16 @@ pub trait Registry {
     fn resolve(&self, q: impl Queryable) -> Result<Id, Error>;
 
     /// Generates a tertiary page for the provided service ID and options
-    fn publish_tertiary<Q: Queryable, T: MutableData> (
+    fn publish_tertiary<Q: Queryable, T: MutableData>(
         &mut self,
         link: TertiaryLink,
         opts: TertiaryOptions,
         q: Q,
-        buff: T
+        buff: T,
     ) -> Result<(usize, Container<T>), Error>;
 
     /// Generates a tertiary page for the provided service ID and options
-    fn publish_tertiary_buff<const N: usize, Q: Queryable> (
+    fn publish_tertiary_buff<const N: usize, Q: Queryable>(
         &mut self,
         link: TertiaryLink,
         opts: TertiaryOptions,
@@ -55,7 +54,6 @@ impl From<Signature> for TertiaryLink {
     }
 }
 
-
 /// Tertiary page configuration options
 #[derive(Clone, PartialEq, Debug)]
 pub struct TertiaryOptions {
@@ -64,23 +62,25 @@ pub struct TertiaryOptions {
     pub expiry: DateTime,
 }
 
-#[cfg(feature="std")]
+#[cfg(feature = "std")]
 impl Default for TertiaryOptions {
     /// Create a tertiary page with default 1 day expiry
     fn default() -> Self {
         let now = std::time::SystemTime::now();
 
-        Self { 
+        Self {
             index: 0,
-            issued: now.into(), 
-            expiry: now.add(core::time::Duration::from_secs(24 * 60 * 60)).into(),
+            issued: now.into(),
+            expiry: now
+                .add(core::time::Duration::from_secs(24 * 60 * 60))
+                .into(),
         }
     }
 }
 
-impl <B: PageBody> Registry for Service<B> {
+impl<B: PageBody> Registry for Service<B> {
     /// Resolve an ID for a given hash
-    fn resolve(&self, q: impl Queryable) -> Result<Id, Error>{
+    fn resolve(&self, q: impl Queryable) -> Result<Id, Error> {
         // Generate ID for page lookup using this registry
         match Crypto::hash_tid(self.id(), &self.keys(), q) {
             Ok(tid) => Ok(Id::from(tid.as_bytes())),
@@ -95,7 +95,6 @@ impl <B: PageBody> Registry for Service<B> {
         q: Q,
         buff: T,
     ) -> Result<(usize, Container<T>), Error> {
-
         // Generate TID
         let tid = match Crypto::hash_tid(self.id(), &self.keys(), q) {
             Ok(tid) => Id::from(tid.as_bytes()),
@@ -144,24 +143,32 @@ impl <B: PageBody> Registry for Service<B> {
     }
 }
 
-
 #[cfg(test)]
 mod test {
     use crate::base::Empty;
+    use crate::options::{Filters, Options};
     use crate::{prelude::*, service::Publisher};
-    use crate::options::{Options, Filters};
 
     use super::*;
 
     fn registry_publish(mut r: Service) {
         // Build target service
         let opt_name = "something";
-        let mut c = ServiceBuilder::<Empty>::generic().public_options(vec![Options::name(opt_name)]).build().unwrap();
-        
+        let mut c = ServiceBuilder::<Empty>::generic()
+            .public_options(vec![Options::name(opt_name)])
+            .build()
+            .unwrap();
+
         let (_n, _c) = c.publish_primary_buff(Default::default()).unwrap();
 
         // Generate page for name entry
-        let (_n, p1) = Registry::publish_tertiary_buff::<512, _>(&mut r, c.id().into(), TertiaryOptions::default(), &Options::name(opt_name)).unwrap();
+        let (_n, p1) = Registry::publish_tertiary_buff::<512, _>(
+            &mut r,
+            c.id().into(),
+            TertiaryOptions::default(),
+            &Options::name(opt_name),
+        )
+        .unwrap();
 
         println!("Tertiary page: {:02x?}", p1);
 
@@ -177,19 +184,19 @@ mod test {
         // Check link to service
         #[cfg(todo)]
         {
-        let pi = match p1.info() {
-            PageInfo::Tertiary(t) => Some(t),
-            _ => None,
-        }.unwrap();
-        assert_eq!(pi.target_id, c.id());
-    }
+            let pi = match p1.info() {
+                PageInfo::Tertiary(t) => Some(t),
+                _ => None,
+            }
+            .unwrap();
+            assert_eq!(pi.target_id, c.id());
+        }
     }
 
     #[test]
     fn registry_publish_public() {
         // Build registry service
-        let r = ServiceBuilder::ns("test.com")
-            .build().unwrap();
+        let r = ServiceBuilder::ns("test.com").build().unwrap();
 
         // Test publishing
         registry_publish(r);
@@ -198,8 +205,7 @@ mod test {
     #[test]
     fn registry_publish_private() {
         // Build registry service
-        let r = ServiceBuilder::ns("test.com")
-            .encrypt().build().unwrap();
+        let r = ServiceBuilder::ns("test.com").encrypt().build().unwrap();
 
         // Test publishing
         registry_publish(r);

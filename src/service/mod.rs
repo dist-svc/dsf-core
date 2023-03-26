@@ -4,19 +4,19 @@
 //! subscribing to services, and sending messages respectively.
 
 use crate::base::{MaybeEncrypted, PageBody};
-use crate::crypto::{Crypto, PubKey as _, SecKey as _, Hash as _};
+use crate::crypto::{Crypto, Hash as _, PubKey as _, SecKey as _};
 use crate::error::Error;
 use crate::options::Options;
 use crate::types::*;
 
 #[cfg(feature = "alloc")]
-use alloc::vec::{Vec};
+use alloc::vec::Vec;
 
 mod kinds;
 pub use kinds::*;
 // Service extensions
 mod publisher;
-pub use publisher::{Publisher, DataOptions, SecondaryOptions};
+pub use publisher::{DataOptions, Publisher, SecondaryOptions};
 
 mod subscriber;
 pub use subscriber::Subscriber;
@@ -62,7 +62,7 @@ pub struct Service<B: PageBody = Vec<u8>> {
     last_sig: Option<Signature>,
 }
 
-impl <B: PageBody> Default for Service<B> {
+impl<B: PageBody> Default for Service<B> {
     /// Create a default / blank Service for further initialisation.
     fn default() -> Self {
         // Generate service key-pair
@@ -90,7 +90,7 @@ impl <B: PageBody> Default for Service<B> {
     }
 }
 
-impl <B: PageBody> Service<B> {
+impl<B: PageBody> Service<B> {
     pub fn id(&self) -> Id {
         self.id.clone()
     }
@@ -182,10 +182,10 @@ impl <B: PageBody> Service<B> {
 #[cfg(test)]
 mod test {
 
-    use std::vec::Vec;
     use std::net::{Ipv4Addr, SocketAddrV4};
+    use std::vec::Vec;
 
-    use pretty_assertions::{assert_eq};
+    use pretty_assertions::assert_eq;
 
     use crate::service::publisher::{DataOptions, Publisher, SecondaryOptions};
     use crate::service::subscriber::Subscriber;
@@ -228,12 +228,14 @@ mod test {
         println!("Decoding service page");
         let s = service.clone();
 
-        let base2 = Container::parse(page1.raw().to_vec(), &keys).expect("Error parsing service page");
+        let base2 =
+            Container::parse(page1.raw().to_vec(), &keys).expect("Error parsing service page");
         assert_eq!(n, base2.len());
         assert_eq!(pp1, base2);
 
         println!("Generating service replica");
-        let mut replica = Service::<Vec<u8>>::load(&base2).expect("Error generating service replica");
+        let mut replica =
+            Service::<Vec<u8>>::load(&base2).expect("Error generating service replica");
 
         println!("Updating service");
         service

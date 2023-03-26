@@ -22,11 +22,11 @@ impl PageInfo {
     }
 
     pub fn service_link(target_id: Id, peer_id: Id) -> Self {
-        PageInfo::ServiceLink(ServiceLink{ target_id, peer_id })
+        PageInfo::ServiceLink(ServiceLink { target_id, peer_id })
     }
 
     pub fn block_link(block_sig: Signature, peer_id: Id) -> Self {
-        PageInfo::BlockLink(BlockLink{ block_sig, peer_id })
+        PageInfo::BlockLink(BlockLink { block_sig, peer_id })
     }
 
     pub fn is_primary(&self) -> bool {

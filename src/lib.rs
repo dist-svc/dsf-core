@@ -1,5 +1,4 @@
 #![cfg_attr(not(feature = "std"), no_std)]
-
 #![feature(test)]
 #![feature(generic_associated_types)]
 #![feature(associated_type_defaults)]
@@ -58,7 +57,7 @@ pub mod prelude;
 
 pub mod error;
 
-#[cfg(feature = "defmt")] 
+#[cfg(feature = "defmt")]
 pub trait Debug = core::fmt::Debug + defmt::Format;
 
 #[cfg(not(feature = "defmt"))]

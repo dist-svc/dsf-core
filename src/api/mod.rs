@@ -4,7 +4,10 @@
 
 use encdec::DecodeOwned;
 
-use crate::{types::Id, base::{PageBody, DataBody}};
+use crate::{
+    base::{DataBody, PageBody},
+    types::Id,
+};
 
 /// Application object used to describe a DSF application
 pub trait Application {
@@ -12,13 +15,15 @@ pub trait Application {
     const APPLICATION_ID: u16;
 
     /// Service information (page body) encoding
-    type Info: PageBody + DecodeOwned<Output=Self::Info> + core::fmt::Debug;
+    type Info: PageBody + DecodeOwned<Output = Self::Info> + core::fmt::Debug;
 
     /// Service data (block body) encoding
-    type Data: DataBody + DecodeOwned<Output=Self::Data> + core::fmt::Debug;
+    type Data: DataBody + DecodeOwned<Output = Self::Data> + core::fmt::Debug;
 
     /// Helper function for info matching to support discovery
-    fn matches(_info: &Self::Info, _req: &[u8]) -> bool { false }
+    fn matches(_info: &Self::Info, _req: &[u8]) -> bool {
+        false
+    }
 }
 
 /// ServiceHandle objects are used to pass around instances of a service

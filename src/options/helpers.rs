@@ -1,12 +1,11 @@
+use core::fmt::Display;
 use core::str;
 use core::str::FromStr;
-use core::fmt::Display;
 
-use encdec::{Encode, Decode};
+use encdec::{Decode, Encode};
 
-use crate::types::{PublicKey, ImmutableData, Address, Signature, DateTime, Id};
-use super::{String, Options, OPTION_HEADER_LEN, MAX_OPTION_LEN, OptionString};
-
+use super::{OptionString, Options, String, MAX_OPTION_LEN, OPTION_HEADER_LEN};
+use crate::types::{Address, DateTime, Id, ImmutableData, PublicKey, Signature};
 
 /// Iterator for decoding options from the provided buffer
 pub struct OptionsIter<T> {
@@ -14,16 +13,19 @@ pub struct OptionsIter<T> {
     buff: T,
 }
 
-impl <T: ImmutableData> core::fmt::Debug for OptionsIter<T> {
+impl<T: ImmutableData> core::fmt::Debug for OptionsIter<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let i = OptionsIter::new(&self.buff);
         f.debug_list().entries(i).finish()
     }
 }
 
-impl <T: ImmutableData + Clone> Clone for OptionsIter<T> {
+impl<T: ImmutableData + Clone> Clone for OptionsIter<T> {
     fn clone(&self) -> Self {
-        Self { index: 0, buff: self.buff.clone() }
+        Self {
+            index: 0,
+            buff: self.buff.clone(),
+        }
     }
 }
 
@@ -65,7 +67,6 @@ where
     }
 }
 
-
 /// Filter helpers for option iterators
 pub trait Filters {
     fn pub_key(&self) -> Option<PublicKey>;
@@ -78,9 +79,12 @@ pub trait Filters {
 }
 
 /// Filter implementation for [`OptionsIter`]
-impl <T: AsRef<[u8]>> Filters for OptionsIter<T> {
+impl<T: AsRef<[u8]>> Filters for OptionsIter<T> {
     fn pub_key(&self) -> Option<PublicKey> {
-        let mut s = OptionsIter{ index: 0, buff: self.buff.as_ref() };
+        let mut s = OptionsIter {
+            index: 0,
+            buff: self.buff.as_ref(),
+        };
         s.find_map(|o| match o {
             Options::PubKey(pk) => Some(pk.clone()),
             _ => None,
@@ -88,7 +92,10 @@ impl <T: AsRef<[u8]>> Filters for OptionsIter<T> {
     }
 
     fn peer_id(&self) -> Option<Id> {
-        let mut s = OptionsIter{ index: 0, buff: self.buff.as_ref() };
+        let mut s = OptionsIter {
+            index: 0,
+            buff: self.buff.as_ref(),
+        };
         s.find_map(|o| match o {
             Options::PeerId(peer_id) => Some(peer_id.clone()),
             _ => None,
@@ -96,7 +103,10 @@ impl <T: AsRef<[u8]>> Filters for OptionsIter<T> {
     }
 
     fn issued(&self) -> Option<DateTime> {
-        let mut s = OptionsIter{ index: 0, buff: self.buff.as_ref() };
+        let mut s = OptionsIter {
+            index: 0,
+            buff: self.buff.as_ref(),
+        };
         s.find_map(|o| match o {
             Options::Issued(t) => Some(t),
             _ => None,
@@ -104,7 +114,10 @@ impl <T: AsRef<[u8]>> Filters for OptionsIter<T> {
     }
 
     fn expiry(&self) -> Option<DateTime> {
-        let mut s = OptionsIter{ index: 0, buff: self.buff.as_ref() };
+        let mut s = OptionsIter {
+            index: 0,
+            buff: self.buff.as_ref(),
+        };
         s.find_map(|o| match o {
             Options::Expiry(t) => Some(t),
             _ => None,
@@ -112,7 +125,10 @@ impl <T: AsRef<[u8]>> Filters for OptionsIter<T> {
     }
 
     fn prev_sig(&self) -> Option<Signature> {
-        let mut s = OptionsIter{ index: 0, buff: self.buff.as_ref() };
+        let mut s = OptionsIter {
+            index: 0,
+            buff: self.buff.as_ref(),
+        };
         s.find_map(|o| match o {
             Options::PrevSig(s) => Some(s.clone()),
             _ => None,
@@ -120,7 +136,10 @@ impl <T: AsRef<[u8]>> Filters for OptionsIter<T> {
     }
 
     fn name(&self) -> Option<OptionString> {
-        let mut s = OptionsIter{ index: 0, buff: self.buff.as_ref() };
+        let mut s = OptionsIter {
+            index: 0,
+            buff: self.buff.as_ref(),
+        };
         s.find_map(|o| match o {
             Options::Name(name) => Some(name.clone()),
             _ => None,
@@ -128,7 +147,10 @@ impl <T: AsRef<[u8]>> Filters for OptionsIter<T> {
     }
 
     fn address(&self) -> Option<Address> {
-        let mut s = OptionsIter{ index: 0, buff: self.buff.as_ref() };
+        let mut s = OptionsIter {
+            index: 0,
+            buff: self.buff.as_ref(),
+        };
         s.find_map(|o| match o {
             Options::IPv4(addr) => Some((addr).into()),
             Options::IPv6(addr) => Some((addr).into()),
@@ -138,7 +160,7 @@ impl <T: AsRef<[u8]>> Filters for OptionsIter<T> {
 }
 
 /// [`Filters`] implementation for types implementing Iterator over Options
-impl <'a, T: Iterator<Item=&'a Options> + Clone> Filters for T {
+impl<'a, T: Iterator<Item = &'a Options> + Clone> Filters for T {
     fn pub_key(&self) -> Option<PublicKey> {
         self.clone().find_map(|o| match o {
             Options::PubKey(pk) => Some(pk.clone()),
@@ -191,15 +213,18 @@ impl <'a, T: Iterator<Item=&'a Options> + Clone> Filters for T {
 }
 
 #[derive(Debug, Clone)]
-#[cfg_attr(feature="thiserror", derive(thiserror::Error))]
+#[cfg_attr(feature = "thiserror", derive(thiserror::Error))]
 pub enum OptionsParseError {
-    #[cfg_attr(feature="thiserror", error("Invalid format (expected key:value)"))]
+    #[cfg_attr(feature = "thiserror", error("Invalid format (expected key:value)"))]
     InvalidFormat,
-    
-    #[cfg_attr(feature="thiserror", error("String encode/decode not supported for this option kind"))]
+
+    #[cfg_attr(
+        feature = "thiserror",
+        error("String encode/decode not supported for this option kind")
+    )]
     Unsupported,
 
-    #[cfg_attr(feature="thiserror", error("Base64 decode error: {0}"))]
+    #[cfg_attr(feature = "thiserror", error("Base64 decode error: {0}"))]
     B64(base64::DecodeError),
 }
 
@@ -221,7 +246,7 @@ impl FromStr for Options {
             "kind" => Options::kind(&data),
             _ => return Err(Unsupported),
         };
-        
+
         todo!()
     }
 }
@@ -242,9 +267,5 @@ impl Display for Options {
 #[cfg(test)]
 mod test {
     #[test]
-    fn test_options_parsing() {
-
-
-    }
-
+    fn test_options_parsing() {}
 }

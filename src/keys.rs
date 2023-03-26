@@ -1,40 +1,38 @@
-
-
-use crate::types::{Id, PrivateKey, PublicKey, SecretKey};
 use crate::crypto::{Crypto, PubKey as _};
+use crate::types::{Id, PrivateKey, PublicKey, SecretKey};
 
 use core::str::FromStr;
 
 /// Key object stored and returned by a KeySource
 #[derive(Clone, PartialEq, Debug)]
-#[cfg_attr(feature="structopt", derive(structopt::StructOpt))]
-#[cfg_attr(feature="defmt", derive(defmt::Format))]
+#[cfg_attr(feature = "structopt", derive(structopt::StructOpt))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 
 pub struct Keys {
     /// Service public key
-    #[cfg_attr(feature="structopt", structopt(long))]
+    #[cfg_attr(feature = "structopt", structopt(long))]
     pub pub_key: Option<PublicKey>,
 
     /// Service private key
-    #[cfg_attr(feature="structopt", structopt(long))]
+    #[cfg_attr(feature = "structopt", structopt(long))]
     pub pri_key: Option<PrivateKey>,
 
     /// Secret key for data encryption
-    #[cfg_attr(feature="structopt", structopt(long))]
+    #[cfg_attr(feature = "structopt", structopt(long))]
     pub sec_key: Option<SecretKey>,
 
     /// Symmetric keys for p2p message signing / verification
-    #[cfg_attr(feature="structopt", structopt(skip))]
+    #[cfg_attr(feature = "structopt", structopt(skip))]
     pub sym_keys: Option<(SecretKey, SecretKey)>,
 }
 
 impl Default for Keys {
     fn default() -> Self {
-        Self { 
-            pub_key: None, 
-            pri_key: None, 
-            sec_key: None, 
-            sym_keys: None
+        Self {
+            pub_key: None,
+            pri_key: None,
+            sec_key: None,
+            sym_keys: None,
         }
     }
 }
@@ -67,7 +65,7 @@ impl Keys {
             (_, Some(pri_key)) => {
                 self.pub_key = Some(Crypto::get_public(pri_key));
                 self.pub_key.clone()
-            },
+            }
             // No pub_key available
             _ => None,
         }
@@ -101,17 +99,17 @@ pub trait KeySource: Sized {
 
     /// Fetch public key
     fn pub_key(&self, id: &Id) -> Option<PublicKey> {
-        self.keys(id).map(|k| k.pub_key ).flatten()
+        self.keys(id).map(|k| k.pub_key).flatten()
     }
 
     /// Fetch private key
     fn pri_key(&self, id: &Id) -> Option<PrivateKey> {
-        self.keys(id).map(|k| k.pri_key ).flatten()
+        self.keys(id).map(|k| k.pri_key).flatten()
     }
 
     /// Fetch secret key
     fn sec_key(&self, id: &Id) -> Option<SecretKey> {
-        self.keys(id).map(|k| k.sec_key ).flatten()
+        self.keys(id).map(|k| k.sec_key).flatten()
     }
 
     /// Update keys for the specified ID (optional)
@@ -133,7 +131,6 @@ pub trait KeySource: Sized {
     }
 }
 
-
 impl KeySource for Keys {
     fn keys(&self, _id: &Id) -> Option<Keys> {
         Some(self.clone())
@@ -148,11 +145,9 @@ impl KeySource for Option<Keys> {
 
 impl KeySource for Option<SecretKey> {
     fn keys(&self, _id: &Id) -> Option<Keys> {
-        self.as_ref().map(|v| {
-            Keys{
-                sec_key: Some(v.clone()),
-                ..Default::default()
-            }
+        self.as_ref().map(|v| Keys {
+            sec_key: Some(v.clone()),
+            ..Default::default()
         })
     }
 
@@ -160,7 +155,6 @@ impl KeySource for Option<SecretKey> {
         self.as_ref().cloned()
     }
 }
-
 
 /// Wrapper to cache a KeySource with a value for immediate lookup
 pub struct CachedKeySource<'a, K: KeySource + Sized> {

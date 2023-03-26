@@ -1,6 +1,6 @@
 // TODO: work out how to avoid owning well, everything ideally, so this works without alloc
 #[cfg(feature = "alloc")]
-use alloc::{vec::Vec, string::String};
+use alloc::{string::String, vec::Vec};
 
 #[derive(PartialEq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]

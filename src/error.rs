@@ -1,7 +1,7 @@
 //! Error types for DSF Core
 
 /// Error enum represents possible core errors
-/// 
+///
 /// For serialisation add `serde`, `thiserror`, `strum`, and/or `defmt` features
 #[derive(PartialEq, Debug, Clone, strum::EnumString, strum::Display)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]

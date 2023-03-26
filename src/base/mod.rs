@@ -1,7 +1,7 @@
 //! Base module provides a low-level structure for data encoding and decoding
 
+use core::convert::{Infallible, TryFrom};
 use core::marker::PhantomData;
-use core::convert::{TryFrom, Infallible};
 
 #[cfg(feature = "alloc")]
 use alloc::vec::Vec;
@@ -10,15 +10,14 @@ mod header;
 use encdec::EncDec;
 pub use header::*;
 
-use crate::options::Options;
-use crate::types::{ImmutableData, Id, ID_LEN};
 use crate::error::Error;
+use crate::options::Options;
+use crate::types::{Id, ImmutableData, ID_LEN};
 use crate::Debug;
 
 pub type Body = MaybeEncrypted;
 
-
-pub use encdec::{Encode, Decode};
+pub use encdec::{Decode, Encode};
 
 pub trait Message<'a>: Decode<'a> + Encode {
     const KIND: u16;
@@ -50,7 +49,6 @@ impl DataBody for Empty {}
 #[derive(Clone, PartialEq, Debug, Encode, Decode)]
 pub struct Empty;
 
-
 /// Container for objects / collections that may be encrypted
 #[derive(PartialEq, Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
@@ -63,7 +61,7 @@ pub enum MaybeEncrypted<O: Encode = Vec<u8>, E: ImmutableData = Vec<u8>> {
 
 impl PageBody for MaybeEncrypted {}
 
-impl <O: Encode + Debug, E: ImmutableData> MaybeEncrypted<O, E> {
+impl<O: Encode + Debug, E: ImmutableData> MaybeEncrypted<O, E> {
     pub fn cleartext(o: O) -> Self {
         Self::Cleartext(o)
     }
@@ -73,9 +71,7 @@ impl <O: Encode + Debug, E: ImmutableData> MaybeEncrypted<O, E> {
     }
 }
 
-
-impl <O: Encode + Debug, E: ImmutableData + Debug> Encode for MaybeEncrypted<O, E> 
-{
+impl<O: Encode + Debug, E: ImmutableData + Debug> Encode for MaybeEncrypted<O, E> {
     type Error = <O as Encode>::Error;
 
     fn encode_len(&self) -> Result<usize, Self::Error> {
@@ -90,15 +86,14 @@ impl <O: Encode + Debug, E: ImmutableData + Debug> Encode for MaybeEncrypted<O, 
     /// Encode a MaybeEncrypted object, writing data directly if encrypted or
     /// calling the inner .encode function for decrypted objects
     fn encode(&self, buff: &mut [u8]) -> Result<usize, Self::Error> {
-        
         let n = match self {
             Self::Encrypted(e) if !e.as_ref().is_empty() => {
                 let l = e.as_ref();
                 buff[..l.len()].copy_from_slice(l);
                 l.len()
-            },
-            Self::Cleartext(o) => { o.encode(buff)? },
-            _ => 0
+            }
+            Self::Cleartext(o) => o.encode(buff)?,
+            _ => 0,
         };
 
         debug!("Encoded: {:02x?} ({} bytes)", self, n);
@@ -107,20 +102,20 @@ impl <O: Encode + Debug, E: ImmutableData + Debug> Encode for MaybeEncrypted<O, 
     }
 }
 
-impl <O: Encode + Debug, E: ImmutableData> Default for MaybeEncrypted<O, E> {
+impl<O: Encode + Debug, E: ImmutableData> Default for MaybeEncrypted<O, E> {
     fn default() -> Self {
         MaybeEncrypted::None
     }
 }
 
-impl <'a> MaybeEncrypted<&'a [Options], &'a [u8]> {
+impl<'a> MaybeEncrypted<&'a [Options], &'a [u8]> {
     pub fn to_vec(&self) -> MaybeEncrypted<Vec<Options>, Vec<u8>> {
         match self {
             Self::Encrypted(e) => MaybeEncrypted::Encrypted(e.to_vec()),
             Self::Cleartext(e) => MaybeEncrypted::Cleartext(e.to_vec()),
             Self::None => MaybeEncrypted::None,
         }
-    }   
+    }
 }
 
 #[cfg(feature = "alloc")]
@@ -142,4 +137,3 @@ impl From<Option<MaybeEncrypted>> for MaybeEncrypted {
         }
     }
 }
-

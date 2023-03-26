@@ -1,12 +1,12 @@
 #[cfg(feature = "alloc")]
-use alloc::vec::{Vec};
+use alloc::vec::Vec;
 
 use crate::base::{MaybeEncrypted, PageBody};
-use crate::crypto::{Crypto, PubKey as _, SecKey as _, Hash as _};
+use crate::crypto::{Crypto, Hash as _, PubKey as _, SecKey as _};
 use crate::error::Error;
+use crate::keys::Keys;
 use crate::options::Options;
 use crate::types::*;
-use crate::keys::Keys;
 
 use super::Service;
 
@@ -28,11 +28,10 @@ pub struct ServiceBuilder<B: PageBody = Vec<u8>> {
     public_options: Vec<Options>,
     private_options: Vec<Options>,
 
-
     last_sig: Option<Signature>,
 }
 
-impl <B: PageBody> Default for ServiceBuilder<B> {
+impl<B: PageBody> Default for ServiceBuilder<B> {
     /// Create a default service builder instance
     fn default() -> Self {
         Self {
@@ -57,7 +56,7 @@ impl <B: PageBody> Default for ServiceBuilder<B> {
     }
 }
 
-impl <B: PageBody> ServiceBuilder<B> {
+impl<B: PageBody> ServiceBuilder<B> {
     /// Setup a peer service.
     /// This is equivalent to .kind(Kind::Peer)
     pub fn peer() -> Self {
@@ -101,14 +100,14 @@ impl <B: PageBody> ServiceBuilder<B> {
 }
 
 /// ServiceBuilder provides helpers for constructing service instances
-impl <B: PageBody> ServiceBuilder<B> {
+impl<B: PageBody> ServiceBuilder<B> {
     /// Set the ID and public key for the service
     pub fn id(mut self, id: Id, public_key: PublicKey) -> Self {
         self.id = Some(id);
         self.public_key = Some(public_key);
         self
     }
-    
+
     pub fn last_page(mut self, index: u16) -> Self {
         self.last_page = index;
         self
@@ -140,7 +139,9 @@ impl <B: PageBody> ServiceBuilder<B> {
     }
 
     pub fn keys(mut self, keys: Keys) -> Self {
-        let Keys{sec_key, pri_key, ..} = keys;
+        let Keys {
+            sec_key, pri_key, ..
+        } = keys;
 
         if let Some(pk) = pri_key {
             self.private_key = Some(pk)

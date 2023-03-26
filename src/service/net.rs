@@ -1,18 +1,18 @@
-use byteorder::{NetworkEndian, ByteOrder};
+use byteorder::{ByteOrder, NetworkEndian};
 
-use encdec::{Encode, Decode, EncodeExt, DecodeExt};
+use encdec::{Decode, DecodeExt, Encode, EncodeExt};
 
 use crate::{
-    base::{PageBody, Empty},
+    base::{Empty, PageBody},
     error::Error,
-    net::{Request, RequestBody, Response, ResponseBody, Common},
+    net::{Common, Request, RequestBody, Response, ResponseBody},
     options::Options,
     prelude::{Header, Keys},
     service::Service,
-    types::{MutableData, RequestKind, ResponseKind, Address, Flags, Kind},
+    types::{Address, Flags, Kind, MutableData, RequestKind, ResponseKind},
     wire::{
-        Container, Builder,
-        builder::{SetPublicOptions, Encrypt}
+        builder::{Encrypt, SetPublicOptions},
+        Builder, Container,
     },
 };
 
@@ -27,21 +27,30 @@ pub struct MessageOptions {
 
 impl Default for MessageOptions {
     fn default() -> Self {
-        Self { 
-            append_public_key: false, 
-            remote_addr: Default::default(), 
-            peer_keys: Default::default()
+        Self {
+            append_public_key: false,
+            remote_addr: Default::default(),
+            peer_keys: Default::default(),
         }
     }
 }
 
-pub trait Net{
-
+pub trait Net {
     /// Encode a request using the provided peer keys and buffer
-    fn encode_request<B: MutableData>(&self, req: &Request, peer_keys: &Keys, buff: B) -> Result<Container<B>, Error>;
+    fn encode_request<B: MutableData>(
+        &self,
+        req: &Request,
+        peer_keys: &Keys,
+        buff: B,
+    ) -> Result<Container<B>, Error>;
 
     /// Encode a response using the provided peer keys and buffer
-    fn encode_response<B: MutableData>(&self, resp: &Response, peer_keys: &Keys, buff: B) -> Result<Container<B>, Error>;
+    fn encode_response<B: MutableData>(
+        &self,
+        resp: &Response,
+        peer_keys: &Keys,
+        buff: B,
+    ) -> Result<Container<B>, Error>;
 
     /// Helper to encode and sign a request using fixed size buffer
     fn encode_request_buff<const N: usize>(
@@ -62,12 +71,15 @@ pub trait Net{
     }
 }
 
-
-impl <D: PageBody> Net for Service<D> {
-    fn encode_request<B: MutableData>(&self, req: &Request, keys: &Keys, buff: B) -> Result<Container<B>, Error> {
-
+impl<D: PageBody> Net for Service<D> {
+    fn encode_request<B: MutableData>(
+        &self,
+        req: &Request,
+        keys: &Keys,
+        buff: B,
+    ) -> Result<Container<B>, Error> {
         // Create generic header
-          let header = Header {
+        let header = Header {
             kind: Kind::from(RequestKind::from(&req.data)),
             flags: req.flags,
             index: req.id,
@@ -75,30 +87,31 @@ impl <D: PageBody> Net for Service<D> {
         };
 
         // Setup builder
-        let b = Builder::new(buff)
-            .id(&self.id)
-            .header(&header);
+        let b = Builder::new(buff).id(&self.id).header(&header);
 
         // Encode body
         let b = match &req.data {
             RequestBody::Hello | RequestBody::Ping => b.body(Empty)?,
-            RequestBody::FindNode(id) | RequestBody::FindValue(id) | RequestBody::Subscribe(id) | RequestBody::Unsubscribe(id) | RequestBody::Query(id) | RequestBody::Locate(id) | RequestBody::Unregister(id) => b.body(id.as_ref())?,
-            RequestBody::Store(id, pages) | RequestBody::PushData(id, pages) | RequestBody::Register(id, pages) => {
-                b.with_body(|buff| {
-                    let mut n = id.encode(buff)?;
-                    n += Container::encode_pages(pages, &mut buff[n..])?;
-                    Ok(n)
-                })?
-            },
+            RequestBody::FindNode(id)
+            | RequestBody::FindValue(id)
+            | RequestBody::Subscribe(id)
+            | RequestBody::Unsubscribe(id)
+            | RequestBody::Query(id)
+            | RequestBody::Locate(id)
+            | RequestBody::Unregister(id) => b.body(id.as_ref())?,
+            RequestBody::Store(id, pages)
+            | RequestBody::PushData(id, pages)
+            | RequestBody::Register(id, pages) => b.with_body(|buff| {
+                let mut n = id.encode(buff)?;
+                n += Container::encode_pages(pages, &mut buff[n..])?;
+                Ok(n)
+            })?,
             // TODO: filter on options here too
-            RequestBody::Discover(body, _opts) => {
-                b.body(body.as_slice())?
-            },
+            RequestBody::Discover(body, _opts) => b.body(body.as_slice())?,
         };
 
         // Attach options
-        let b = b.private_options(&[])?
-            .public();
+        let b = b.private_options(&[])?.public();
 
         // Encrypt if running symmetric mode
         //let b = self.encrypt_message(req.flags, keys, b)?;
@@ -110,7 +123,12 @@ impl <D: PageBody> Net for Service<D> {
         Ok(c)
     }
 
-    fn encode_response<B: MutableData>(&self, resp: &Response, keys: &Keys, buff: B) -> Result<Container<B>, Error> {
+    fn encode_response<B: MutableData>(
+        &self,
+        resp: &Response,
+        keys: &Keys,
+        buff: B,
+    ) -> Result<Container<B>, Error> {
         // Create generic header
         let header = Header {
             kind: Kind::from(ResponseKind::from(&resp.data)),
@@ -120,9 +138,7 @@ impl <D: PageBody> Net for Service<D> {
         };
 
         // Setup builder
-        let b = Builder::new(buff)
-            .id(&self.id)
-            .header(&header);
+        let b = Builder::new(buff).id(&self.id).header(&header);
 
         // Encode body
         let b = match &resp.data {
@@ -131,33 +147,32 @@ impl <D: PageBody> Net for Service<D> {
                 Ok(4)
             })?,
             ResponseBody::NodesFound(id, nodes) => b.with_body(|buff| {
-                    let mut i = id.encode(buff)?;
-                    for n in nodes {
-                        i += [
-                            Options::peer_id(n.0.clone()),
-                            Options::address(n.1),
-                            Options::pub_key(n.2.clone())
-                        ].encode(&mut buff[i..])?;
-                    }
-                    Ok(i)
+                let mut i = id.encode(buff)?;
+                for n in nodes {
+                    i += [
+                        Options::peer_id(n.0.clone()),
+                        Options::address(n.1),
+                        Options::pub_key(n.2.clone()),
+                    ]
+                    .encode(&mut buff[i..])?;
+                }
+                Ok(i)
             })?,
-            ResponseBody::ValuesFound(id, pages) | ResponseBody::PullData(id, pages) => {
-                b.with_body(|buff| {
+            ResponseBody::ValuesFound(id, pages) | ResponseBody::PullData(id, pages) => b
+                .with_body(|buff| {
                     let mut i = id.encode(buff)?;
                     i += Container::encode_pages(pages, &mut buff[i..])?;
                     Ok(i)
-                })?
-            },
+                })?,
             ResponseBody::NoResult => b.body(Empty)?,
         };
 
         // Attach options
-        let b = b.private_options(&[])?
-            .public();
+        let b = b.private_options(&[])?.public();
 
         // Encrypt if running symmetric mode
         //let b = self.encrypt_message(resp.flags, keys, b)?;
-        
+
         // Sign/encrypt object using provided keying
         let c = self.finalise_message(resp.flags, &resp.common, keys, b)?;
 
@@ -166,11 +181,13 @@ impl <D: PageBody> Net for Service<D> {
     }
 }
 
-
-impl <D: PageBody> Service<D> {
-
-    pub fn encrypt_message<T: MutableData>(&self, flags: Flags, keys: &Keys, b: Builder<Encrypt, T>) -> Result<Builder<SetPublicOptions, T>, Error> {
-
+impl<D: PageBody> Service<D> {
+    pub fn encrypt_message<T: MutableData>(
+        &self,
+        flags: Flags,
+        keys: &Keys,
+        b: Builder<Encrypt, T>,
+    ) -> Result<Builder<SetPublicOptions, T>, Error> {
         // Apply symmetric encryption if enabled
         if flags.contains(Flags::SYMMETRIC_MODE) && flags.contains(Flags::ENCRYPTED) {
             // Select matching symmetric key
@@ -186,8 +203,13 @@ impl <D: PageBody> Service<D> {
         }
     }
 
-    pub fn finalise_message<T: MutableData>(&self, flags: Flags, common: &Common, keys: &Keys, mut b: Builder<SetPublicOptions, T> ) -> Result<Container<T>, Error> {
-
+    pub fn finalise_message<T: MutableData>(
+        &self,
+        flags: Flags,
+        common: &Common,
+        keys: &Keys,
+        mut b: Builder<SetPublicOptions, T>,
+    ) -> Result<Container<T>, Error> {
         // Append public key if required
         if let Some(pk) = &common.public_key {
             b.public_option(&Options::pub_key(pk.clone()))?;
@@ -207,7 +229,7 @@ impl <D: PageBody> Service<D> {
 
             // TODO: attempt encryption against peer pub key if available
 
-            // Check we have a private key to sign with 
+            // Check we have a private key to sign with
             let private_key = match &self.private_key {
                 Some(k) => k,
                 None => return Err(Error::NoPrivateKey),
@@ -215,7 +237,6 @@ impl <D: PageBody> Service<D> {
 
             // Perform signing
             b.sign_pk(private_key)?
-
         } else {
             // Secret key mode, available following KX
 
@@ -240,12 +261,18 @@ mod test {
 
     use pretty_assertions::assert_eq;
 
-    use crate::{prelude::*, net::{Status, Message}};
     use super::*;
+    use crate::{
+        net::{Message, Status},
+        prelude::*,
+    };
 
     fn setup() -> (Service, Service) {
-        #[cfg(feature="simplelog")]
-        let _ = simplelog::SimpleLogger::init(simplelog::LevelFilter::Trace, simplelog::Config::default());
+        #[cfg(feature = "simplelog")]
+        let _ = simplelog::SimpleLogger::init(
+            simplelog::LevelFilter::Trace,
+            simplelog::Config::default(),
+        );
 
         let s = ServiceBuilder::generic().build().unwrap();
         let p = ServiceBuilder::generic().build().unwrap();
@@ -256,18 +283,8 @@ mod test {
         let request_id = 120;
 
         vec![
-            Request::new(
-                source.clone(),
-                0,
-                RequestBody::Hello,
-                flags.clone(),
-            ),
-            Request::new(
-                source.clone(),
-                1,
-                RequestBody::Ping,
-                flags.clone(),
-            ),
+            Request::new(source.clone(), 0, RequestBody::Hello, flags.clone()),
+            Request::new(source.clone(), 1, RequestBody::Ping, flags.clone()),
             Request::new(
                 source.clone(),
                 request_id,
@@ -301,7 +318,6 @@ mod test {
         ]
     }
 
-
     #[test]
     fn encode_decode_requests_pk() {
         let (mut source, target) = setup();
@@ -316,14 +332,15 @@ mod test {
             println!("Encoding: {:?}", r);
 
             // Encode request
-            let enc = source.encode_request(&r,  &target.keys(), &mut buff)
+            let enc = source
+                .encode_request(&r, &target.keys(), &mut buff)
                 .expect("Error encoding request");
 
             println!("Encoded to {:?} ({} bytes)", enc, enc.raw().len());
 
             // Parse back and check objects match
-            let (r2, _) = Message::parse(enc.raw().to_vec(), &source.keys())
-                .expect("error parsing message");
+            let (r2, _) =
+                Message::parse(enc.raw().to_vec(), &source.keys()).expect("error parsing message");
 
             println!("Decoded: {:?}", r2);
 
@@ -342,21 +359,21 @@ mod test {
         let flags = Flags::ADDRESS_REQUEST | Flags::SYMMETRIC_MODE | Flags::ENCRYPTED;
         let reqs = requests(source.id(), target.id(), flags, page.to_owned());
 
-
         for r in reqs {
             let mut buff = vec![0u8; 1024];
 
             println!("Encoding: {:?}", r);
 
             // Encode request
-            let enc = source.encode_request( &r, &source_keys, &mut buff)
+            let enc = source
+                .encode_request(&r, &source_keys, &mut buff)
                 .expect("Error encoding request");
 
             println!("Encoded to {:?} ({} bytes)", enc, enc.raw().len());
 
             // Parse back and check objects match
-            let (r2, _) = Message::parse(enc.raw().to_vec(), &target_keys)
-                .expect("error parsing message");
+            let (r2, _) =
+                Message::parse(enc.raw().to_vec(), &target_keys).expect("error parsing message");
 
             println!("Decoded: {:?}", r2);
 
@@ -364,10 +381,14 @@ mod test {
         }
     }
 
-
-    fn responses(source: &Service, target: &Service, flags: Flags, page: Container) -> Vec<Response> {
+    fn responses(
+        source: &Service,
+        target: &Service,
+        flags: Flags,
+        page: Container,
+    ) -> Vec<Response> {
         let request_id = 123;
-        
+
         vec![
             Response::new(
                 source.id(),
@@ -424,12 +445,13 @@ mod test {
             println!("Encoding: {:?}", r);
 
             // Encode request
-            let enc = source.encode_response(&r, &source.keys(), &mut buff)
+            let enc = source
+                .encode_response(&r, &source.keys(), &mut buff)
                 .expect("Error encoding response");
 
             // Parse back and check objects match
-            let (r2, _) = Message::parse(enc.raw().to_vec(), &source.keys())
-                .expect("error parsing message");
+            let (r2, _) =
+                Message::parse(enc.raw().to_vec(), &source.keys()).expect("error parsing message");
 
             assert_eq!(Message::response(r), r2);
         }
@@ -452,14 +474,15 @@ mod test {
             println!("Encoding: {:?}", r);
 
             // Encode request
-            let enc = source.encode_response( &r, &source_keys, &mut buff)
+            let enc = source
+                .encode_response(&r, &source_keys, &mut buff)
                 .expect("Error encoding response");
 
             println!("Decoding: {:?}", enc);
 
             // Parse back and check objects match
-            let (r2, _) = Message::parse(enc.raw().to_vec(), &target_keys)
-                .expect("error parsing message");
+            let (r2, _) =
+                Message::parse(enc.raw().to_vec(), &target_keys).expect("error parsing message");
 
             assert_eq!(Message::response(r), r2);
         }

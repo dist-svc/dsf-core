@@ -1,11 +1,11 @@
 //! Net module contains high-level message objects used to communicate between peers.
-//! 
+//!
 //! These messages are used to maintain the network, publish and subscribe to services, and exchange data,
 //! and can be converted to and from base objects for encoding/decoding.
 
-use crate::wire::Container;
 use crate::error::Error;
 use crate::types::*;
+use crate::wire::Container;
 
 pub mod request;
 pub use request::{Request, RequestBody};
@@ -15,8 +15,7 @@ pub use response::{Response, ResponseBody, Status};
 
 pub const BUFF_SIZE: usize = 10 * 1024;
 
-use crate::keys::{KeySource};
-
+use crate::keys::KeySource;
 
 /// Message is a network request or response message
 #[derive(Clone, PartialEq, Debug)]
@@ -107,15 +106,9 @@ impl Message {
             debug!("Applying symmetric decrypt to message from: {}", c.id());
 
             match key_source.keys(&c.id()).map(|k| k.sym_keys).flatten() {
-                Some(sym_keys) if flags.contains(Flags::SYMMETRIC_DIR) => {
-                    c.decrypt(&sym_keys.0)?
-                },
-                Some(sym_keys) => {
-                    c.decrypt(&sym_keys.1)?
-                },
-                None => {
-                    return Err(Error::NoSymmetricKeys)
-                }
+                Some(sym_keys) if flags.contains(Flags::SYMMETRIC_DIR) => c.decrypt(&sym_keys.0)?,
+                Some(sym_keys) => c.decrypt(&sym_keys.1)?,
+                None => return Err(Error::NoSymmetricKeys),
             }
         }
 
@@ -127,7 +120,10 @@ impl Message {
 }
 
 impl Message {
-    pub fn convert<T: ImmutableData, K: KeySource>(base: Container<T>, key_source: &K) -> Result<Message, Error> {
+    pub fn convert<T: ImmutableData, K: KeySource>(
+        base: Container<T>,
+        key_source: &K,
+    ) -> Result<Message, Error> {
         let header = base.header();
         let app_id = header.application_id();
         let kind = header.kind();

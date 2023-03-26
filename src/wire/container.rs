@@ -1,17 +1,16 @@
-
 use core::convert::TryFrom;
 
 #[cfg(feature = "alloc")]
 use alloc::vec::Vec;
 
-use crate::Debug;
 use crate::base::PageBody;
-use crate::crypto::{Crypto, PubKey as _, SecKey as _, Hash as _};
+use crate::crypto::{Crypto, Hash as _, PubKey as _, SecKey as _};
 use crate::page::PageInfo;
-use crate::{types::*};
+use crate::types::*;
+use crate::Debug;
 
-use crate::options::{Options, OptionsIter, Filters};
 use crate::error::Error;
+use crate::options::{Filters, Options, OptionsIter};
 
 use super::builder::Init;
 use super::header::WireHeader;
@@ -36,29 +35,27 @@ pub struct Container<T: ImmutableData = Vec<u8>> {
 }
 
 /// Override `core::compare::PartialEq` to compare `.raw()` instead of `.buff`
-impl <T: ImmutableData> PartialEq for Container<T> {
+impl<T: ImmutableData> PartialEq for Container<T> {
     fn eq(&self, other: &Self) -> bool {
-        self.raw() == other.raw() 
+        self.raw() == other.raw()
             && self.len == other.len
-            && self.decrypted == other.decrypted 
+            && self.decrypted == other.decrypted
             && self.verified == other.verified
     }
 }
 
 /// Override `core::fmt::Debug` to show subfields
-impl <T: ImmutableData> core::fmt::Debug for Container<T> {
+impl<T: ImmutableData> core::fmt::Debug for Container<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let mut d = f.debug_struct("Container");
 
-        d.field("id", &self.id())
-            .field("header", &self.header());
-
+        d.field("id", &self.id()).field("header", &self.header());
 
         match self.encrypted() {
             true => d.field("body (encrypted)", &self.body_raw()),
             false => d.field("body (cleartext)", &self.body_raw()),
         };
-        
+
         #[cfg(disabled)]
         match self.encrypted() {
             true => d.field("private_opts", &self.private_options_raw()),
@@ -70,24 +67,24 @@ impl <T: ImmutableData> core::fmt::Debug for Container<T> {
         d.field("public_opts", &self.public_options_raw());
 
         d.field("tag", &self.tag())
-        .field("sig", &self.signature())
-        .field("len", &self.len())
-        .field("decrypted", &self.decrypted)
-        .field("verified", &self.verified)
-        // TODO: work out how to make this optional / force this to format as hex?
-        //.field("raw", &self.raw())
-        .finish()
+            .field("sig", &self.signature())
+            .field("len", &self.len())
+            .field("decrypted", &self.decrypted)
+            .field("verified", &self.verified)
+            // TODO: work out how to make this optional / force this to format as hex?
+            //.field("raw", &self.raw())
+            .finish()
     }
 }
 
 /// Decode a container from the provided buffer
-/// 
+///
 /// NOTE THIS DOES NOT PERFORM ANY VALIDATION
-impl <'a> encdec::Decode<'a> for Container<&'a [u8]> {
+impl<'a> encdec::Decode<'a> for Container<&'a [u8]> {
     type Output = Container<&'a [u8]>;
     type Error = Error;
 
-    fn decode(buff: &'a[u8]) -> Result<(Self::Output, usize), Self::Error> {
+    fn decode(buff: &'a [u8]) -> Result<(Self::Output, usize), Self::Error> {
         // Read header
         let header = WireHeader::new(buff);
 
@@ -95,14 +92,19 @@ impl <'a> encdec::Decode<'a> for Container<&'a [u8]> {
         let len = header.encoded_len();
 
         // Build container
-        let c = Container { buff: &buff[..len], len, verified: false, decrypted: false };
+        let c = Container {
+            buff: &buff[..len],
+            len,
+            verified: false,
+            decrypted: false,
+        };
 
         Ok((c, len))
     }
 }
 
 /// Encode a container to the provided buffer
-impl <T: ImmutableData> encdec::Encode for Container<T> {
+impl<T: ImmutableData> encdec::Encode for Container<T> {
     type Error = Error;
 
     fn encode_len(&self) -> Result<usize, Self::Error> {
@@ -111,13 +113,13 @@ impl <T: ImmutableData> encdec::Encode for Container<T> {
 
     fn encode(&self, buff: &mut [u8]) -> Result<usize, Self::Error> {
         // TODO: fail if encryption flag set but not encrypted, sig missing, etc...
-        
+
         let raw = self.raw();
 
         if buff.len() < raw.len() {
             return Err(Error::BufferLength);
         }
-        
+
         buff[..raw.len()].copy_from_slice(raw);
 
         Ok(raw.len())
@@ -125,7 +127,7 @@ impl <T: ImmutableData> encdec::Encode for Container<T> {
 }
 
 #[cfg(feature = "serde")]
-impl <T: ImmutableData> serde::Serialize for Container<T> {
+impl<T: ImmutableData> serde::Serialize for Container<T> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -154,8 +156,8 @@ impl<'de: 'a, 'a> serde::Deserialize<'de> for Container {
             where
                 E: serde::de::Error,
             {
-                let buff = base64::decode(v)
-                    .map_err(|_e| serde::de::Error::custom("decoding base64"))?;
+                let buff =
+                    base64::decode(v).map_err(|_e| serde::de::Error::custom("decoding base64"))?;
 
                 Container::try_from(buff)
                     .map_err(|_e| serde::de::Error::custom("decoding container"))
@@ -165,9 +167,8 @@ impl<'de: 'a, 'a> serde::Deserialize<'de> for Container {
             where
                 E: serde::de::Error,
             {
-
-                let buff = base64::decode(v)
-                    .map_err(|_e| serde::de::Error::custom("decoding base64"))?;
+                let buff =
+                    base64::decode(v).map_err(|_e| serde::de::Error::custom("decoding base64"))?;
 
                 Container::try_from(buff)
                     .map(|c| c.to_owned())
@@ -179,15 +180,20 @@ impl<'de: 'a, 'a> serde::Deserialize<'de> for Container {
     }
 }
 
-impl <'a> TryFrom<&'a [u8]> for Container<&'a [u8]> {
+impl<'a> TryFrom<&'a [u8]> for Container<&'a [u8]> {
     // TODO: check basic container info
     type Error = ();
 
     fn try_from(buff: &'a [u8]) -> Result<Self, Self::Error> {
         let h = WireHeader::new(buff);
         let len = h.encoded_len();
-        
-        let c = Container { buff: &buff[..len], len, verified: false, decrypted: false };
+
+        let c = Container {
+            buff: &buff[..len],
+            len,
+            verified: false,
+            decrypted: false,
+        };
 
         Ok(c)
     }
@@ -208,7 +214,12 @@ impl<'a, T: ImmutableData> Container<T> {
     // TODO: this should validate the container on creation to avoid invalid containers ever existing
     pub fn from(buff: T) -> (Self, usize) {
         let len = buff.as_ref().len();
-        let c = Container { buff, len, verified: false, decrypted: false };
+        let c = Container {
+            buff,
+            len,
+            verified: false,
+            decrypted: false,
+        };
         let n = c.len();
         (c, n)
     }
@@ -217,8 +228,11 @@ impl<'a, T: ImmutableData> Container<T> {
     pub fn to_owned(&self) -> Container<Vec<u8>> {
         let buff = self.raw().to_vec();
         let len = buff.len();
-        Container{
-            buff, len, decrypted: self.decrypted, verified: self.verified
+        Container {
+            buff,
+            len,
+            decrypted: self.decrypted,
+            verified: self.verified,
         }
     }
 
@@ -282,14 +296,14 @@ impl<'a, T: ImmutableData> Container<T> {
         let h = self.header();
         let data = self.buff.as_ref();
 
-        let tag_len = if h.flags().contains(Flags::ENCRYPTED) && !h.flags().contains(Flags::SYMMETRIC_MODE) {
-            SECRET_KEY_TAG_LEN
-        } else {
-            0
-        };
+        let tag_len =
+            if h.flags().contains(Flags::ENCRYPTED) && !h.flags().contains(Flags::SYMMETRIC_MODE) {
+                SECRET_KEY_TAG_LEN
+            } else {
+                0
+            };
 
-        let n = offsets::BODY + h.data_len()
-                + h.private_options_len() + tag_len;
+        let n = offsets::BODY + h.data_len() + h.private_options_len() + tag_len;
         let s = h.public_options_len();
         &data[n..n + s]
     }
@@ -312,14 +326,15 @@ impl<'a, T: ImmutableData> Container<T> {
             return None;
         }
 
-        let n = HEADER_LEN + ID_LEN + h.data_len()
-                + h.private_options_len();
+        let n = HEADER_LEN + ID_LEN + h.data_len() + h.private_options_len();
 
         Some(&data[n..n + SECRET_KEY_TAG_LEN])
     }
 
     pub fn tag(&self) -> Option<SecretMeta> {
-        self.tag_raw().map(|d| SecretMeta::try_from(d).ok() ).flatten()
+        self.tag_raw()
+            .map(|d| SecretMeta::try_from(d).ok())
+            .flatten()
     }
 
     /// Return the public options section data
@@ -327,7 +342,9 @@ impl<'a, T: ImmutableData> Container<T> {
         let data = self.buff.as_ref();
         let header = self.header();
 
-        let tag_len = if header.flags().contains(Flags::ENCRYPTED) && !header.flags().contains(Flags::SYMMETRIC_MODE) {
+        let tag_len = if header.flags().contains(Flags::ENCRYPTED)
+            && !header.flags().contains(Flags::SYMMETRIC_MODE)
+        {
             SECRET_KEY_TAG_LEN
         } else {
             0
@@ -368,7 +385,8 @@ impl<'a, T: ImmutableData> Container<T> {
         let header = self.header();
         let flags = header.flags();
 
-        let tag_len = if flags.contains(Flags::ENCRYPTED) && !flags.contains(Flags::SYMMETRIC_MODE) {
+        let tag_len = if flags.contains(Flags::ENCRYPTED) && !flags.contains(Flags::SYMMETRIC_MODE)
+        {
             SECRET_KEY_TAG_LEN
         } else {
             0
@@ -408,7 +426,10 @@ impl<'a, T: ImmutableData> Container<T> {
     pub fn info(&self) -> Result<PageInfo, Error> {
         let (kind, flags) = (self.header().kind(), self.header().flags());
 
-        let info = if kind.is_page() && !flags.contains(Flags::SECONDARY) && !flags.contains(Flags::TERTIARY) {
+        let info = if kind.is_page()
+            && !flags.contains(Flags::SECONDARY)
+            && !flags.contains(Flags::TERTIARY)
+        {
             // Handle primary page parsing
 
             // Fetch public key from options
@@ -424,7 +445,6 @@ impl<'a, T: ImmutableData> Container<T> {
             }
 
             PageInfo::primary(public_key)
-
         } else if kind.is_page() && flags.contains(Flags::SECONDARY) {
             // Handle secondary page parsing
 
@@ -439,7 +459,6 @@ impl<'a, T: ImmutableData> Container<T> {
             }?;
 
             PageInfo::secondary(peer_id)
-        
         } else if kind.is_page() && flags.contains(Flags::TERTIARY) {
             // Handle tertiary page parsing
 
@@ -456,19 +475,17 @@ impl<'a, T: ImmutableData> Container<T> {
                 Ok(PageKind::ServiceLink) => {
                     let target_id = Id::try_from(self.body_raw())?;
                     PageInfo::service_link(target_id, peer_id)
-                },
+                }
                 Ok(PageKind::BlockLink) => {
                     let block_sig = Signature::try_from(self.body_raw())?;
                     PageInfo::block_link(block_sig, peer_id)
                 }
                 _ => return Err(Error::InvalidPageKind),
             }
-
         } else if kind.is_data() {
             PageInfo::Data(())
-
         } else {
-            return Err(Error::InvalidPageKind)
+            return Err(Error::InvalidPageKind);
         };
 
         Ok(info)
@@ -522,7 +539,7 @@ impl<'a, T: MutableData> Container<T> {
         // Check we're encrypted
         if !self.header().flags().contains(Flags::ENCRYPTED) || self.decrypted {
             debug!("Object already decrypted");
-            return Err(Error::InvalidSignature)
+            return Err(Error::InvalidSignature);
         }
 
         // Extract tag
@@ -530,8 +547,8 @@ impl<'a, T: MutableData> Container<T> {
             Some(t) => t,
             None => {
                 debug!("Object does not contain tag");
-                return Err(Error::InvalidSignature)
-            },
+                return Err(Error::InvalidSignature);
+            }
         };
 
         // Perform decryption
@@ -548,39 +565,42 @@ impl<'a, T: MutableData> Container<T> {
 
     /// Decrypt a symmetric mode AEAD message
     pub fn sk_decrypt(&mut self, secret_key: &SecretKey) -> Result<(), Error> {
-        
         let sig_index = {
             let h = self.header();
             offsets::BODY + h.data_len() + h.private_options_len() + h.public_options_len()
-            
         };
         let sig = self.signature();
 
-        debug!("SK Verify/Decrypt (AEAD) with key: {} (Sig: {}, {} bytes)", secret_key, sig, sig_index);
+        debug!(
+            "SK Verify/Decrypt (AEAD) with key: {} (Sig: {}, {} bytes)",
+            secret_key, sig, sig_index
+        );
 
         let buff = self.buff.as_mut();
 
-        let (header, body) = buff[..sig_index].split_at_mut(HEADER_LEN+ID_LEN);
+        let (header, body) = buff[..sig_index].split_at_mut(HEADER_LEN + ID_LEN);
 
         if let Err(e) = Crypto::sk_decrypt(secret_key, &sig[..40], Some(header), body) {
             warn!("Failed AEAD decryption: {:?}", e);
-            return Err(Error::CryptoError)
+            return Err(Error::CryptoError);
         }
 
         self.decrypted = true;
 
-        return Ok(())
+        return Ok(());
     }
 }
 
-
 impl<'a, T: ImmutableData> Container<T> {
-
     // Decrypt data and private options into the provided buffer
-    pub fn decrypt_to<'b>(&self, sk: &SecretKey, buff: &'b mut [u8]) -> Result<(&'b [u8], &'b [u8]), Error> {
+    pub fn decrypt_to<'b>(
+        &self,
+        sk: &SecretKey,
+        buff: &'b mut [u8],
+    ) -> Result<(&'b [u8], &'b [u8]), Error> {
         // Check we're encrypted
         if !self.header().flags().contains(Flags::ENCRYPTED) || self.decrypted {
-            return Err(Error::InvalidSignature)
+            return Err(Error::InvalidSignature);
         }
 
         // Extract tag
@@ -601,19 +621,16 @@ impl<'a, T: ImmutableData> Container<T> {
             &buff[self.header().private_options_offset()..][..self.header().private_options_len()],
         ))
     }
-
 }
 
-
-impl<'a, T: ImmutableData> AsRef<[u8]> for  Container<T> {
+impl<'a, T: ImmutableData> AsRef<[u8]> for Container<T> {
     fn as_ref(&self) -> &[u8] {
         let n = self.len;
         &self.buff.as_ref()[..n]
     }
 }
 
-
-impl <T: MutableData> core::ops::Deref for Container<T> {
+impl<T: MutableData> core::ops::Deref for Container<T> {
     type Target = [u8];
 
     fn deref(&self) -> &[u8] {
@@ -624,10 +641,10 @@ impl <T: MutableData> core::ops::Deref for Container<T> {
     }
 }
 
-impl <T: MutableData> core::ops::DerefMut for Container<T> {
+impl<T: MutableData> core::ops::DerefMut for Container<T> {
     fn deref_mut(&mut self) -> &mut [u8] {
         let len = self.len();
-        let data = self.buff.as_mut();        
+        let data = self.buff.as_mut();
 
         &mut data[..len]
     }

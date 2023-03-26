@@ -1,8 +1,8 @@
 use byteorder::{ByteOrder, NetworkEndian};
 
-use crate::base::{Header};
+use super::{offsets, HEADER_LEN, SECRET_KEY_TAG_LEN};
+use crate::base::Header;
 use crate::types::{Flags, ImmutableData, Kind, MutableData, ID_LEN, SIGNATURE_LEN};
-use super::{offsets, SECRET_KEY_TAG_LEN, HEADER_LEN};
 
 /// Header generic over arbitrary storage for wire encoding
 // TODO: decide what to do with the high / low level impls
@@ -10,7 +10,7 @@ pub struct WireHeader<T: ImmutableData> {
     pub(crate) buff: T,
 }
 
-impl <T: ImmutableData> PartialEq for WireHeader<T> {
+impl<T: ImmutableData> PartialEq for WireHeader<T> {
     fn eq(&self, other: &Self) -> bool {
         self.buff.as_ref() == other.buff.as_ref()
     }
@@ -63,7 +63,6 @@ impl<T: ImmutableData> WireHeader<T> {
         NetworkEndian::read_u16(&self.buff.as_ref()[offsets::PUBLIC_OPTIONS_LEN..]) as usize
     }
 
-
     pub fn data_offset(&self) -> usize {
         offsets::BODY
     }
@@ -93,7 +92,8 @@ impl<T: ImmutableData> WireHeader<T> {
     pub fn encoded_len(&self) -> usize {
         let flags = self.flags();
 
-        let tag_len = if flags.contains(Flags::ENCRYPTED) && !flags.contains(Flags::SYMMETRIC_MODE) {
+        let tag_len = if flags.contains(Flags::ENCRYPTED) && !flags.contains(Flags::SYMMETRIC_MODE)
+        {
             SECRET_KEY_TAG_LEN
         } else {
             0
@@ -193,7 +193,7 @@ mod tests {
     use super::*;
     use crate::wire::HEADER_LEN;
 
-    use crate::base::{Header};
+    use crate::base::Header;
     use crate::types::PageKind;
 
     #[test]

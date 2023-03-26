@@ -1,16 +1,15 @@
-
 use core::{
     cmp::{Ord, Ordering, PartialOrd},
+    convert::TryFrom,
     fmt,
     hash::{Hash, Hasher},
-    ops::{Deref, DerefMut},
-    str::FromStr,
     marker::PhantomData,
     ops::BitXor,
-    convert::{TryFrom},
+    ops::{Deref, DerefMut},
+    str::FromStr,
 };
 
-use encdec::{Encode, Decode};
+use encdec::{Decode, Encode};
 
 #[cfg(feature = "serde")]
 use serde::{
@@ -20,12 +19,11 @@ use serde::{
 
 use crate::error::Error;
 
-
 /// Basic const-generic array type to override display etc.
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub struct Array<K, const N: usize> (pub(super) [u8; N], pub(super) PhantomData<K>);
+pub struct Array<K, const N: usize>(pub(super) [u8; N], pub(super) PhantomData<K>);
 
-impl <K, const N: usize> Array<K, N> {
+impl<K, const N: usize> Array<K, N> {
     /// Fetch array instance length
     pub const fn len() -> usize {
         N
@@ -37,19 +35,19 @@ impl <K, const N: usize> Array<K, N> {
     }
 }
 
-impl <K, const N: usize> AsRef<[u8]> for Array<K, N> {
+impl<K, const N: usize> AsRef<[u8]> for Array<K, N> {
     fn as_ref(&self) -> &[u8] {
         &self.0
     }
 }
 
-impl <K, const N: usize> AsMut<[u8]> for Array<K, N> {
+impl<K, const N: usize> AsMut<[u8]> for Array<K, N> {
     fn as_mut(&mut self) -> &mut [u8] {
         &mut self.0
     }
 }
 
-impl <K, const N: usize> Deref for Array<K, N> {
+impl<K, const N: usize> Deref for Array<K, N> {
     type Target = [u8];
 
     fn deref(&self) -> &[u8] {
@@ -57,45 +55,43 @@ impl <K, const N: usize> Deref for Array<K, N> {
     }
 }
 
-impl <K, const N: usize> DerefMut for Array<K, N> {
+impl<K, const N: usize> DerefMut for Array<K, N> {
     fn deref_mut(&mut self) -> &mut [u8] {
         &mut self.0
     }
 }
 
-impl <K, const N: usize> Default for Array<K, N> {
+impl<K, const N: usize> Default for Array<K, N> {
     fn default() -> Self {
         Array([0u8; N], PhantomData)
     }
 }
 
-impl <K, const N: usize> Clone for Array<K, N> {
+impl<K, const N: usize> Clone for Array<K, N> {
     fn clone(&self) -> Self {
         Self(self.0.clone(), PhantomData)
     }
 }
 
-
-impl <K, const N: usize> PartialEq for Array<K, N> {
+impl<K, const N: usize> PartialEq for Array<K, N> {
     fn eq(&self, other: &Self) -> bool {
         self.0 == other.0
     }
 }
 
-
-impl <K, const N: usize> Ord for Array<K, N> {
+impl<K, const N: usize> Ord for Array<K, N> {
     fn cmp(&self, other: &Self) -> Ordering {
         self.0.cmp(&other.0)
     }
 }
 
-impl <K, const N: usize> PartialOrd for Array<K, N> {
+impl<K, const N: usize> PartialOrd for Array<K, N> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl <K, const N: usize> Encode for Array<K, N> {
+impl<K, const N: usize> Encode for Array<K, N> {
     type Error = encdec::Error;
 
     fn encode_len(&self) -> Result<usize, Self::Error> {
@@ -108,17 +104,17 @@ impl <K, const N: usize> Encode for Array<K, N> {
         }
 
         buff[..N].copy_from_slice(&self.0);
-        
+
         Ok(N)
     }
 }
 
-impl <'a, K, const N: usize> Decode<'a> for Array<K, N> {
+impl<'a, K, const N: usize> Decode<'a> for Array<K, N> {
     type Output = Self;
 
     type Error = encdec::Error;
 
-    fn decode(buff: &'a[u8]) -> Result<(Self::Output, usize), Self::Error> {
+    fn decode(buff: &'a [u8]) -> Result<(Self::Output, usize), Self::Error> {
         if buff.len() < N {
             return Err(encdec::Error::Length);
         }
@@ -130,7 +126,7 @@ impl <'a, K, const N: usize> Decode<'a> for Array<K, N> {
     }
 }
 
-impl <K, const N: usize> TryFrom<&[u8]> for Array<K, N> {
+impl<K, const N: usize> TryFrom<&[u8]> for Array<K, N> {
     type Error = Error;
 
     fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
@@ -146,13 +142,13 @@ impl <K, const N: usize> TryFrom<&[u8]> for Array<K, N> {
     }
 }
 
-impl <K, const N: usize> From<[u8; N]> for Array<K, N> {
+impl<K, const N: usize> From<[u8; N]> for Array<K, N> {
     fn from(data: [u8; N]) -> Self {
         Array(data, PhantomData)
     }
 }
 
-impl <K, const N: usize> From<&[u8; N]> for Array<K, N> {
+impl<K, const N: usize> From<&[u8; N]> for Array<K, N> {
     fn from(data: &[u8; N]) -> Self {
         let mut a = [0u8; N];
 
@@ -162,27 +158,27 @@ impl <K, const N: usize> From<&[u8; N]> for Array<K, N> {
     }
 }
 
-impl <K, const N: usize> Into<[u8; N]> for Array<K, N> {
+impl<K, const N: usize> Into<[u8; N]> for Array<K, N> {
     fn into(self) -> [u8; N] {
         self.0
     }
 }
 
-impl <K, const N: usize> PartialEq<[u8; N]> for Array<K, N> {
+impl<K, const N: usize> PartialEq<[u8; N]> for Array<K, N> {
     fn eq(&self, other: &[u8; N]) -> bool {
         self.0.as_ref() == other.as_ref()
     }
 }
 
-impl <K, const N: usize> Hash for Array<K, N> {
+impl<K, const N: usize> Hash for Array<K, N> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.0.hash(state)
     }
 }
 
-impl <K, const N: usize> Eq for Array<K, N> {}
+impl<K, const N: usize> Eq for Array<K, N> {}
 
-impl <K, const N: usize> BitXor for Array<K, N> {
+impl<K, const N: usize> BitXor for Array<K, N> {
     type Output = Array<K, N>;
 
     fn bitxor(self, rhs: Array<K, N>) -> Self::Output {
@@ -194,7 +190,7 @@ impl <K, const N: usize> BitXor for Array<K, N> {
     }
 }
 
-impl <K, const N: usize> fmt::Display for Array<K, N> {
+impl<K, const N: usize> fmt::Display for Array<K, N> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let r: &[u8] = &self.0;
         let encoded = base64::encode_config(&r, base64::URL_SAFE);
@@ -203,7 +199,7 @@ impl <K, const N: usize> fmt::Display for Array<K, N> {
     }
 }
 
-impl <K, const N: usize> fmt::Debug for Array<K, N> {
+impl<K, const N: usize> fmt::Debug for Array<K, N> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let r: &[u8] = &self.0;
         let encoded = base64::encode_config(&r, base64::URL_SAFE);
@@ -212,7 +208,7 @@ impl <K, const N: usize> fmt::Debug for Array<K, N> {
     }
 }
 
-impl <K, const N: usize> fmt::UpperHex for Array<K, N> {
+impl<K, const N: usize> fmt::UpperHex for Array<K, N> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for i in 0..self.0.len() {
             if i == 0 {
@@ -225,7 +221,7 @@ impl <K, const N: usize> fmt::UpperHex for Array<K, N> {
     }
 }
 
-impl <K, const N: usize> FromStr for Array<K, N> {
+impl<K, const N: usize> FromStr for Array<K, N> {
     type Err = base64::DecodeError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -238,7 +234,7 @@ impl <K, const N: usize> FromStr for Array<K, N> {
 }
 
 #[cfg(feature = "serde")]
-impl <K, const N: usize> serde::Serialize for Array<K, N> {
+impl<K, const N: usize> serde::Serialize for Array<K, N> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,

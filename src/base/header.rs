@@ -3,7 +3,7 @@
 use crate::types::{Flags, Kind};
 
 /// Header encodes information for a given page in the database.
-/// 
+///
 /// Wire encoding and decoding exists in [`crate::wire::WireHeader`]
 #[derive(Clone, PartialEq, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]

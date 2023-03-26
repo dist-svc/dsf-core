@@ -2,7 +2,6 @@
 //!
 //!
 
-
 use core::marker::PhantomData;
 
 #[cfg(feature = "std")]
@@ -26,7 +25,6 @@ pub use self::datetime::DateTime;
 pub mod address;
 pub use self::address::{Address, AddressV4, AddressV6, Ip};
 
-
 /// ImmutableData trait wraps AsRef<[u8]>
 pub trait ImmutableData: AsRef<[u8]> + core::fmt::Debug {}
 
@@ -45,7 +43,7 @@ pub trait Queryable: core::fmt::Debug {
 }
 
 /// Automatic impl on references to Queryable types
-impl <T: Queryable> Queryable for &T {
+impl<T: Queryable> Queryable for &T {
     fn hash<H: CryptoHasher>(&self, h: &mut H) -> bool {
         <T as Queryable>::hash(self, h)
     }
@@ -54,7 +52,6 @@ impl <T: Queryable> Queryable for &T {
 pub trait CryptoHasher {
     fn update(&mut self, buff: &[u8]);
 }
-
 
 pub const ID_LEN: usize = 32;
 /// ID type
@@ -69,7 +66,6 @@ impl From<CryptoHash> for Id {
         Self(h.0, PhantomData)
     }
 }
-
 
 impl Queryable for Id {
     fn hash<H: CryptoHasher>(&self, state: &mut H) -> bool {
@@ -109,10 +105,8 @@ pub const SECRET_KEY_TAG_LEN: usize = 40;
 /// Secret key encryption metadata (tag and nonce)
 pub type SecretMeta = Array<SecretMetaTy, SECRET_KEY_TAG_LEN>;
 
-
 pub const HASH_LEN: usize = 32;
 /// Cryptographic hash value
 pub type CryptoHash = Array<CryptoHashTy, HASH_LEN>;
-
 
 pub type Data = crate::wire::Container;

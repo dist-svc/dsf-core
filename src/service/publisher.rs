@@ -1,16 +1,16 @@
 use core::ops::Add;
 
-use encdec::{Encode, Decode};
+use encdec::{Decode, Encode};
 
 use crate::{
-    base::{Header, MaybeEncrypted, DataBody, PageBody},
+    base::{DataBody, Header, MaybeEncrypted, PageBody},
     error::Error,
     options::Options,
     service::Service,
     types::*,
     wire::{
+        builder::{Encrypt, SetPublicOptions},
         Builder, Container,
-        builder::{Encrypt, SetPublicOptions}
     },
 };
 
@@ -25,7 +25,10 @@ pub trait Publisher<const N: usize = 512> {
     ) -> Result<(usize, Container<T>), Error>;
 
     // Helper to publish primary page using fixed sized buffer
-    fn publish_primary_buff(&mut self, options: PrimaryOptions) -> Result<(usize, Container<[u8; N]>), Error> {
+    fn publish_primary_buff(
+        &mut self,
+        options: PrimaryOptions,
+    ) -> Result<(usize, Container<[u8; N]>), Error> {
         let buff = [0u8; N];
         let (n, c) = self.publish_primary(options, buff)?;
         Ok((n, c))
@@ -39,7 +42,10 @@ pub trait Publisher<const N: usize = 512> {
     ) -> Result<(usize, Container<T>), Error>;
 
     // Helper to publish data block using fixed size buffer
-    fn publish_data_buff<B: DataBody>(&mut self, options: DataOptions<B>) -> Result<(usize, Container<[u8; N]>), Error> {
+    fn publish_data_buff<B: DataBody>(
+        &mut self,
+        options: DataOptions<B>,
+    ) -> Result<(usize, Container<[u8; N]>), Error> {
         let buff = [0u8; N];
         let (n, c) = self.publish_data(options, buff)?;
         Ok((n, c))
@@ -54,7 +60,11 @@ pub trait Publisher<const N: usize = 512> {
     ) -> Result<(usize, Container<T>), Error>;
 
     /// Helper to publish secondary page fixed size buffer
-    fn publish_secondary_buff(&mut self, id: &Id, options: SecondaryOptions) -> Result<(usize, Container<[u8; N]>), Error> {
+    fn publish_secondary_buff(
+        &mut self,
+        id: &Id,
+        options: SecondaryOptions,
+    ) -> Result<(usize, Container<[u8; N]>), Error> {
         let buff = [0u8; N];
         let (n, c) = self.publish_secondary(id, options, buff)?;
         Ok((n, c))
@@ -80,24 +90,27 @@ impl Default for PrimaryOptions {
 }
 
 fn default_issued() -> Option<DateTime> {
-    #[cfg(feature="std")]
+    #[cfg(feature = "std")]
     return Some(std::time::SystemTime::now().into());
 
-    #[cfg(not(feature="std"))]
+    #[cfg(not(feature = "std"))]
     return None;
 }
 
 fn default_expiry() -> Option<DateTime> {
-    #[cfg(feature="std")]
-    return Some(std::time::SystemTime::now()
-        .add(std::time::Duration::from_secs(24*60*60)).into());
+    #[cfg(feature = "std")]
+    return Some(
+        std::time::SystemTime::now()
+            .add(std::time::Duration::from_secs(24 * 60 * 60))
+            .into(),
+    );
 
-    #[cfg(not(feature="std"))]
+    #[cfg(not(feature = "std"))]
     return None;
 }
 
 #[derive(Clone)]
-pub struct SecondaryOptions<'a, Body: DataBody=&'a [u8]> {
+pub struct SecondaryOptions<'a, Body: DataBody = &'a [u8]> {
     /// Application ID of primary service
     pub application_id: u16,
 
@@ -124,7 +137,7 @@ pub struct SecondaryOptions<'a, Body: DataBody=&'a [u8]> {
     pub private_options: &'a [Options],
 }
 
-impl <'a>Default for SecondaryOptions<'a> {
+impl<'a> Default for SecondaryOptions<'a> {
     fn default() -> Self {
         Self {
             application_id: 0,
@@ -138,7 +151,6 @@ impl <'a>Default for SecondaryOptions<'a> {
         }
     }
 }
-
 
 #[derive(Clone, Debug)]
 pub struct DataOptions<'a, Body: DataBody = &'a [u8]> {
@@ -174,10 +186,10 @@ impl<'a, Body: DataBody> Default for DataOptions<'a, Body> {
     }
 }
 
-impl <B> Publisher for Service<B> 
-    where
-        B: PageBody,
-        <B as Encode>::Error: core::fmt::Debug,
+impl<B> Publisher for Service<B>
+where
+    B: PageBody,
+    <B as Encode>::Error: core::fmt::Debug,
 {
     /// Publish generates a page to publishing for the given service.
     fn publish_primary<T: MutableData>(
@@ -210,9 +222,7 @@ impl <B> Publisher for Service<B>
         };
 
         // Build object
-        let b = Builder::new(buff)
-           .header(&header)
-           .id(&self.id());
+        let b = Builder::new(buff).header(&header).id(&self.id());
 
         let b = match &self.body {
             MaybeEncrypted::Cleartext(body) => b.body(body).map_err(|e| {
@@ -223,20 +233,18 @@ impl <B> Publisher for Service<B>
                 // TODO: we can't publish if we don't have the secret keys anyway
                 // so we _could_ just write this directly...
                 error!("Cannot encode encrypted body");
-                return Err(Error::EncodeFailed)
+                return Err(Error::EncodeFailed);
             }
             MaybeEncrypted::None => b.no_body(),
         };
 
         let b = b.private_options(private_opts.iter())?;
-        
+
         // Apply internal encryption if enabled
         let mut b = self.encrypt(b)?;
 
         // Generate and append public options
-        b = b.public_options([
-            Options::pub_key(self.public_key.clone()),
-        ].iter())?;
+        b = b.public_options([Options::pub_key(self.public_key.clone())].iter())?;
 
         // Attach last sig if available
         if let Some(last) = &self.last_sig {
@@ -253,13 +261,13 @@ impl <B> Publisher for Service<B>
         if let Some(exp) = options.expiry {
             b = b.public_options([Options::expiry(exp)].iter())?;
         }
-        
+
         // Then finally attach public options
         let b = b.public_options(self.public_options.iter())?;
 
         // Sign generated object
         let c = self.sign(b)?;
-        
+
         // Return container and encode
         Ok((c.len(), c))
     }
@@ -290,13 +298,11 @@ impl <B> Publisher for Service<B>
         };
 
         // Build object
-        let b = Builder::new(buff)
-            .header(&header)
-            .id(id);
+        let b = Builder::new(buff).header(&header).id(id);
 
         let b = match options.body {
             Some(body) => b.body(body)?,
-            None => b.with_body(|_b| Ok(0) )?,
+            None => b.with_body(|_b| Ok(0))?,
         };
 
         let b = b.private_options(options.private_options.iter())?;
@@ -305,9 +311,7 @@ impl <B> Publisher for Service<B>
         let b = self.encrypt(b)?;
 
         // Generate and append public options
-        let mut b = b.public_options([
-            Options::peer_id(self.id.clone()),
-        ].iter())?;
+        let mut b = b.public_options([Options::peer_id(self.id.clone())].iter())?;
 
         // Attach issued if provided
         if let Some(iss) = options.issued {
@@ -326,7 +330,7 @@ impl <B> Publisher for Service<B>
 
         // Sign generated object
         let c = self.sign(b)?;
-        
+
         Ok((c.len(), c))
     }
 
@@ -351,18 +355,16 @@ impl <B> Publisher for Service<B>
         };
 
         // Build object
-        let b = Builder::new(buff)
-            .header(&header)
-            .id(&self.id());
+        let b = Builder::new(buff).header(&header).id(&self.id());
 
         let b = match options.body {
             Some(body) => b.body(body).map_err(|e| {
                 error!("Failed to encode data body: {:?}", e);
                 Error::EncodeFailed
             })?,
-            None => b.with_body(|_b| Ok(0) )?,
+            None => b.with_body(|_b| Ok(0))?,
         };
-    
+
         let b = b.private_options(options.private_options)?;
 
         // Apply internal encryption if enabled
@@ -385,17 +387,18 @@ impl <B> Publisher for Service<B>
 
         // Sign generated object
         let c = self.sign(b)?;
-        
+
         // Return container and encoded length
         Ok((c.len(), c))
     }
 }
 
-impl <B: PageBody> Service<B> {
-
+impl<B: PageBody> Service<B> {
     /// Encrypt the data and private options in the provided container builder
-    pub(super) fn encrypt<T: MutableData>(&mut self, b: Builder<Encrypt, T>) -> Result<Builder<SetPublicOptions, T>, Error> {
-
+    pub(super) fn encrypt<T: MutableData>(
+        &mut self,
+        b: Builder<Encrypt, T>,
+    ) -> Result<Builder<SetPublicOptions, T>, Error> {
         // Apply internal encryption if enabled
         let b = match (self.encrypted, &self.secret_key) {
             (true, Some(sk)) => b.encrypt(sk)?,
@@ -407,8 +410,10 @@ impl <B: PageBody> Service<B> {
     }
 
     /// Sign and finalise a container builder
-    pub(super) fn sign<T: MutableData>(&mut self, b: Builder<SetPublicOptions, T> ) -> Result<Container<T>, Error> {
-
+    pub(super) fn sign<T: MutableData>(
+        &mut self,
+        b: Builder<SetPublicOptions, T>,
+    ) -> Result<Container<T>, Error> {
         // Sign generated object
         let c = match &self.private_key {
             Some(pk) => b.sign_pk(pk)?,
@@ -420,7 +425,7 @@ impl <B: PageBody> Service<B> {
 
         // Update last signature
         self.last_sig = Some(c.signature());
-        
+
         // Return signed container
         Ok(c)
     }
@@ -428,8 +433,8 @@ impl <B: PageBody> Service<B> {
 
 #[cfg(test)]
 mod test {
-    use crate::{prelude::*, options::Filters};
     use super::*;
+    use crate::{options::Filters, prelude::*};
 
     fn init_service() -> Service {
         ServiceBuilder::default()
@@ -442,52 +447,58 @@ mod test {
 
     #[test]
     fn test_publish_primary() {
-
         let mut svc = init_service();
 
-        let opts = PrimaryOptions{
+        let opts = PrimaryOptions {
             ..Default::default()
         };
 
         // Publish first page
-        let (_n, p) = svc.publish_primary_buff(opts.clone()).expect("Failed to publish primary page");
+        let (_n, p) = svc
+            .publish_primary_buff(opts.clone())
+            .expect("Failed to publish primary page");
         assert_eq!(p.header().index(), 1);
 
         // Publish second page
-        let (_n, p) = svc.publish_primary_buff(opts.clone()).expect("Failed to publish primary page");
+        let (_n, p) = svc
+            .publish_primary_buff(opts.clone())
+            .expect("Failed to publish primary page");
         assert_eq!(p.header().index(), 2);
     }
 
     #[test]
     fn test_publish_data() {
-
         let mut svc = init_service();
 
-        let opts = PrimaryOptions{
+        let opts = PrimaryOptions {
             ..Default::default()
         };
 
         // Generate primary page for linking
-        let (_n, p) = svc.publish_primary_buff(opts).expect("Failed to publish primary page");
+        let (_n, p) = svc
+            .publish_primary_buff(opts)
+            .expect("Failed to publish primary page");
         assert_eq!(svc.last_sig, Some(p.signature()));
 
-
         let body: &[u8] = &[0x00, 0x11, 0x22, 0x33];
-        let opts = DataOptions{
+        let opts = DataOptions {
             body: Some(body),
             ..Default::default()
         };
 
         // Publish first data object
-        let(_n, d1) = svc.publish_data_buff(opts.clone()).expect("Failed to publish data object");
+        let (_n, d1) = svc
+            .publish_data_buff(opts.clone())
+            .expect("Failed to publish data object");
         assert_eq!(d1.header().index(), 1);
         assert_eq!(d1.public_options_iter().prev_sig(), Some(p.signature()));
         assert_eq!(svc.last_sig, Some(d1.signature()));
 
-
         // Publish second data object
-        let(_n, d2) = svc.publish_data_buff(opts.clone()).expect("Failed to publish data object");
-        
+        let (_n, d2) = svc
+            .publish_data_buff(opts.clone())
+            .expect("Failed to publish data object");
+
         assert_eq!(d2.header().index(), 2);
         assert_eq!(d2.public_options_iter().prev_sig(), Some(d1.signature()));
         assert_eq!(svc.last_sig, Some(d2.signature()));

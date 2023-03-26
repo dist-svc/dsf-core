@@ -2,17 +2,17 @@ use core::convert::TryFrom;
 use core::ops::Deref;
 
 #[cfg(feature = "alloc")]
-use alloc::vec::{Vec};
+use alloc::vec::Vec;
 
 use byteorder::{ByteOrder, NetworkEndian};
+use encdec::{Decode, DecodeExt, Encode, EncodeExt};
 use slice_ext::SplitBefore;
-use encdec::{Encode, EncodeExt, Decode, DecodeExt};
 
 use crate::base::Message;
 use crate::error::Error;
-use crate::options::{Options, Filters};
-use crate::types::*;
 use crate::keys::KeySource;
+use crate::options::{Filters, Options};
+use crate::types::*;
 use crate::wire::Container;
 
 use super::Common;
@@ -37,25 +37,15 @@ pub enum ResponseBody {
 }
 
 #[derive(Clone, Debug, Encode, Decode)]
-pub struct Status2 {
-
-}
+pub struct Status2 {}
 #[derive(Clone, Debug, Encode, Decode)]
-pub struct NodesFound {
-
-}
+pub struct NodesFound {}
 #[derive(Clone, Debug, Encode, Decode)]
-pub struct ValuesFound {
-
-}
+pub struct ValuesFound {}
 #[derive(Clone, Debug, Encode, Decode)]
-pub struct NoResult {
-
-}
+pub struct NoResult {}
 #[derive(Clone, Debug, Encode, Decode)]
-pub struct PullData {
-
-}
+pub struct PullData {}
 
 /// Convert response kind object to protocol message enumeration
 impl From<&ResponseBody> for ResponseKind {
@@ -155,7 +145,10 @@ impl PartialEq for Response {
 }
 
 impl Response {
-    pub fn convert<T: ImmutableData, K: KeySource>(base: Container<T>, key_source: &K) -> Result<Response, Error>{
+    pub fn convert<T: ImmutableData, K: KeySource>(
+        base: Container<T>,
+        key_source: &K,
+    ) -> Result<Response, Error> {
         let header = base.header();
 
         if base.encrypted() {
@@ -188,7 +181,8 @@ impl Response {
 
                 // Build options array from body
                 let options = Options::decode_iter(&body[ID_LEN..])
-                        .collect::<Result<Vec<Options>, Error>>().unwrap();
+                    .collect::<Result<Vec<Options>, Error>>()
+                    .unwrap();
 
                 let nodes: Vec<_> = (&options[..])
                     .split_before(|o| match o {

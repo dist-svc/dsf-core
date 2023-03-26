@@ -1,18 +1,17 @@
 //! Crypto module provides cryptographic interfaces and implementations for DSF
 //!
 
+use core::convert::TryFrom;
 use core::fmt::Debug;
 use core::ops::Deref;
-use core::convert::TryFrom;
 
-use blake2::{Blake2b512};
-use sha2::{Sha512Trunc256, digest::FixedOutput};
+use blake2::Blake2b512;
+use sha2::{digest::FixedOutput, Sha512Trunc256};
 
 use crate::prelude::Keys;
 use crate::types::*;
 
 pub mod native;
-
 
 pub type Crypto = native::RustCrypto;
 
@@ -53,11 +52,19 @@ pub trait PubKey {
 
     fn pk_sign(private_key: &PrivateKey, data: &[u8]) -> Result<Signature, Self::Error>;
 
-    fn pk_verify(public_key: &PublicKey, signature: &Signature, data: &[u8]) -> Result<bool, Self::Error>;
+    fn pk_verify(
+        public_key: &PublicKey,
+        signature: &Signature,
+        data: &[u8],
+    ) -> Result<bool, Self::Error>;
 
     /// Derive secret keys for symmetric use from pub/pri keys.
     /// Note that these must be swapped (rx->tx, tx->rx) depending on direction
-    fn kx(pub_key: &PublicKey, pri_key: &PrivateKey, remote: &PublicKey) -> Result<(SecretKey, SecretKey), Self::Error>;
+    fn kx(
+        pub_key: &PublicKey,
+        pri_key: &PrivateKey,
+        remote: &PublicKey,
+    ) -> Result<(SecretKey, SecretKey), Self::Error>;
 
     fn get_public(private_key: &PrivateKey) -> PublicKey {
         let mut public_key = PublicKey::default();
@@ -73,11 +80,25 @@ pub trait SecKey {
 
     fn new_sk() -> Result<SecretKey, Self::Error>;
 
-    fn sk_encrypt(secret_key: &SecretKey, assoc: Option<&[u8]>, message: &mut [u8]) -> Result<SecretMeta, Self::Error>;
+    fn sk_encrypt(
+        secret_key: &SecretKey,
+        assoc: Option<&[u8]>,
+        message: &mut [u8],
+    ) -> Result<SecretMeta, Self::Error>;
 
-    fn sk_decrypt(secret_key: &SecretKey, meta: &[u8], assoc: Option<&[u8]>, message: &mut [u8]) -> Result<(), Self::Error>;
+    fn sk_decrypt(
+        secret_key: &SecretKey,
+        meta: &[u8],
+        assoc: Option<&[u8]>,
+        message: &mut [u8],
+    ) -> Result<(), Self::Error>;
 
-    fn sk_reencrypt(secret_key: &SecretKey, meta: &[u8], assoc: Option<&[u8]>, message: &mut [u8]) -> Result<SecretMeta, Self::Error>;
+    fn sk_reencrypt(
+        secret_key: &SecretKey,
+        meta: &[u8],
+        assoc: Option<&[u8]>,
+        message: &mut [u8],
+    ) -> Result<SecretMeta, Self::Error>;
 }
 
 /// Blake2b KDF context for tertiary ID seed derivation
@@ -110,20 +131,20 @@ pub trait Hash {
             // Public service, use public key
             (_, Some(pk)) => Self::kdf(&pk)?,
             _ => todo!(),
-        };    
-    
+        };
+
         // Generate new identity hash
         let mut h = Sha512Trunc256::new();
         h.input(&seed);
-        
+
         if !o.hash(&mut h) {
             error!("Attempted to hash non-queryable type: {:?}", o);
-            return Err(())
+            return Err(());
         }
 
         let d = h.fixed_result();
         let d = CryptoHash::try_from(d.deref()).unwrap();
-    
+
         // XOR with ns ID to give new location
         Ok(d ^ CryptoHash::from(id.as_bytes()))
     }
@@ -133,18 +154,14 @@ impl CryptoHasher for Sha512Trunc256 {
     fn update(&mut self, buff: &[u8]) {
         use sha2::Digest;
 
-        self.input( buff)
+        self.input(buff)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        service::ServiceBuilder,
-        options::Options,
-        base::Empty,
-    };
     use super::{Crypto, Hash, SecKey};
+    use crate::{base::Empty, options::Options, service::ServiceBuilder};
 
     #[test]
     fn test_tid_match_public() {
@@ -160,7 +177,10 @@ mod tests {
 
     #[test]
     fn test_tid_match_private() {
-        let s1 = ServiceBuilder::<Empty>::generic().encrypt().build().unwrap();
+        let s1 = ServiceBuilder::<Empty>::generic()
+            .encrypt()
+            .build()
+            .unwrap();
 
         let d = Options::name("who knows");
 

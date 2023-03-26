@@ -1,16 +1,16 @@
 use core::convert::TryInto;
 
-use encdec::{Encode, Decode, decode::DecodeOwned};
+use encdec::{decode::DecodeOwned, Decode, Encode};
 
-#[cfg(feature="alloc")]
-use alloc::{vec::Vec};
+#[cfg(feature = "alloc")]
+use alloc::vec::Vec;
 
 use crate::{
     base::PageBody,
-    crypto::{Crypto, PubKey as _, SecKey as _, Hash as _},
+    crypto::{Crypto, Hash as _, PubKey as _, SecKey as _},
     error::Error,
-    page::{PageInfo},
-    prelude::{MaybeEncrypted},
+    page::PageInfo,
+    prelude::MaybeEncrypted,
     service::Service,
     types::*,
     wire::Container,
@@ -27,10 +27,12 @@ pub trait Subscriber<B: PageBody> {
     fn validate_page<T: ImmutableData>(&mut self, page: &Container<T>) -> Result<(), Error>;
 
     /// Validate data published by this service
-    fn validate_block<T: ImmutableData>(&mut self, _block: &Container<T>) -> Result<(), Error> { todo!() }
+    fn validate_block<T: ImmutableData>(&mut self, _block: &Container<T>) -> Result<(), Error> {
+        todo!()
+    }
 }
 
-impl <'a, B: PageBody + DecodeOwned<Output=B>> Subscriber<B> for Service<B> {
+impl<'a, B: PageBody + DecodeOwned<Output = B>> Subscriber<B> for Service<B> {
     /// Create a service instance from a given page
     fn load<T: ImmutableData>(page: &Container<T>) -> Result<Service<B>, Error> {
         let header = page.header();
@@ -48,13 +50,12 @@ impl <'a, B: PageBody + DecodeOwned<Output=B>> Subscriber<B> for Service<B> {
             _ if page.header().data_len() == 0 => MaybeEncrypted::None,
             true => MaybeEncrypted::Encrypted(page.body_raw().to_vec()),
             false => {
-                let (info, _n) = B::decode(page.body_raw())
-                    .map_err(|e| {
-                        error!("Failed to parse body: {:?}", e);
-                        Error::EncodeFailed
-                    })?;
+                let (info, _n) = B::decode(page.body_raw()).map_err(|e| {
+                    error!("Failed to parse body: {:?}", e);
+                    Error::EncodeFailed
+                })?;
                 MaybeEncrypted::Cleartext(info)
-            },
+            }
         };
 
         let public_options: Vec<_> = page.public_options_iter().collect();
@@ -93,18 +94,17 @@ impl <'a, B: PageBody + DecodeOwned<Output=B>> Subscriber<B> for Service<B> {
         let header = update.header();
 
         let flags = header.flags();
-        
+
         let body = match update.encrypted() {
             _ if update.header().data_len() == 0 => MaybeEncrypted::None,
             true => MaybeEncrypted::Encrypted(update.body_raw().to_vec()),
             false => {
-                let (info, _n) = B::decode(update.body_raw())
-                    .map_err(|e| {
-                        error!("Failed to parse body: {:?}", e);
-                        Error::EncodeFailed
-                    })?;
+                let (info, _n) = B::decode(update.body_raw()).map_err(|e| {
+                    error!("Failed to parse body: {:?}", e);
+                    Error::EncodeFailed
+                })?;
                 MaybeEncrypted::Cleartext(info)
-            },
+            }
         };
 
         let public_options: Vec<_> = update.public_options_iter().collect();
@@ -138,7 +138,9 @@ impl <'a, B: PageBody + DecodeOwned<Output=B>> Subscriber<B> for Service<B> {
         let header = page.header();
 
         if header.kind().is_page() {
-            if !header.flags().contains(Flags::SECONDARY) && !header.flags().contains(Flags::TERTIARY) {
+            if !header.flags().contains(Flags::SECONDARY)
+                && !header.flags().contains(Flags::TERTIARY)
+            {
                 self.validate_primary(page)?
             } else if header.flags().contains(Flags::SECONDARY) {
                 self.validate_secondary(page)?
@@ -148,16 +150,19 @@ impl <'a, B: PageBody + DecodeOwned<Output=B>> Subscriber<B> for Service<B> {
         } else if header.kind().is_data() {
             self.validate_data(page)?
         } else {
-            return Err(Error::UnexpectedPageKind)
+            return Err(Error::UnexpectedPageKind);
         }
-        
+
         Ok(())
     }
 }
 
-impl <B: PageBody> Service<B> {
+impl<B: PageBody> Service<B> {
     /// Validate a primary page
-    pub(crate) fn validate_primary<T: ImmutableData>(&mut self, page: &Container<T>) -> Result<(), Error> {
+    pub(crate) fn validate_primary<T: ImmutableData>(
+        &mut self,
+        page: &Container<T>,
+    ) -> Result<(), Error> {
         let header = page.header();
 
         if !header.kind().is_page() {
@@ -200,7 +205,10 @@ impl <B: PageBody> Service<B> {
     }
 
     /// Validate a secondary page
-    pub(crate) fn validate_secondary<T: ImmutableData>(&mut self, secondary: &Container<T>) -> Result<(), Error> {
+    pub(crate) fn validate_secondary<T: ImmutableData>(
+        &mut self,
+        secondary: &Container<T>,
+    ) -> Result<(), Error> {
         let header = secondary.header();
 
         if !header.kind().is_page() {
@@ -226,7 +234,10 @@ impl <B: PageBody> Service<B> {
     }
 
     /// Validate a data objects
-    pub(crate) fn validate_data<T: ImmutableData>(&mut self, data: &Container<T>) -> Result<(), Error> {
+    pub(crate) fn validate_data<T: ImmutableData>(
+        &mut self,
+        data: &Container<T>,
+    ) -> Result<(), Error> {
         let header = data.header();
 
         if !header.kind().is_data() {

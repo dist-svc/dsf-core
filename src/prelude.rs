@@ -1,13 +1,13 @@
 pub use crate::service::{Service, ServiceBuilder};
 
-pub use crate::wire::{Container, Builder as ContainerBuilder};
+pub use crate::wire::{Builder as ContainerBuilder, Container};
 
 pub use crate::service::Net as _;
-pub use crate::service::{DataOptions, Publisher as _, SecondaryOptions};
 pub use crate::service::Subscriber as _;
+pub use crate::service::{DataOptions, Publisher as _, SecondaryOptions};
 
 pub use crate::types::{
-    Address, Data, DataKind, Flags, Id, Kind, PageKind, RequestId, MutableData, ImmutableData
+    Address, Data, DataKind, Flags, Id, ImmutableData, Kind, MutableData, PageKind, RequestId,
 };
 
 pub use crate::options::Options;
@@ -18,7 +18,7 @@ pub use crate::types::{PrivateKey, PublicKey, SecretKey, Signature};
 
 pub use crate::base::{Body, Header, MaybeEncrypted};
 
-pub use crate::page::{PageInfo};
+pub use crate::page::PageInfo;
 
 pub use crate::net::{
     Message as NetMessage, Request as NetRequest, RequestBody as NetRequestBody,

@@ -1,20 +1,18 @@
 //! Wire provides a container type to map byte data to fixed fields (and vice versa)
 //! to support wire encoding and decoding.
 
-
-use core::ops::{DerefMut};
-
+use core::ops::DerefMut;
 
 #[cfg(feature = "alloc")]
-use alloc::vec::{Vec};
+use alloc::vec::Vec;
 
-use encdec::{Encode, Decode, EncodeExt, DecodeExt};
+use encdec::{Decode, DecodeExt, Encode, EncodeExt};
 use pretty_hex::*;
 
-use crate::base::{MaybeEncrypted};
-use crate::crypto::{Crypto, PubKey as _, SecKey as _, Hash as _};
+use crate::base::MaybeEncrypted;
+use crate::crypto::{Crypto, Hash as _, PubKey as _, SecKey as _};
 use crate::error::Error;
-use crate::options::{Options};
+use crate::options::Options;
 use crate::types::*;
 
 /// Header provides a low-cost header abstraction for encoding/decoding
@@ -29,8 +27,6 @@ pub mod container;
 pub use container::Container;
 
 use crate::keys::{KeySource, Keys};
-
-
 
 /// Header object length
 pub const HEADER_LEN: usize = 16;
@@ -49,12 +45,11 @@ mod offsets {
     pub const BODY: usize = 48;
 }
 
-
 /// Helper for validating signatures in symmetric or asymmetric modes
 fn validate<T: MutableData>(
     signing_id: &Id,
     keys: &Keys,
-    container: &mut Container<T>
+    container: &mut Container<T>,
 ) -> Result<bool, Error> {
     let header = container.header();
     let flags = header.flags();
@@ -89,22 +84,26 @@ fn validate<T: MutableData>(
     // Otherwise use public key
     } else {
         debug!("Using asymmetric mode");
-        
+
         // Check for matching public key
         let pub_key = match &keys.pub_key {
             Some(pk) => pk,
             None => return Err(Error::NoPublicKey),
         };
-        
+
         // Check ID matches public key
         let h = Crypto::hash(pub_key).unwrap();
         if signing_id.as_bytes() != h.as_bytes() {
-            error!("Public key mismatch for object from {:?} ({})", signing_id, h);
+            error!(
+                "Public key mismatch for object from {:?} ({})",
+                signing_id, h
+            );
             return Err(Error::KeyIdMismatch);
         }
 
         // Validate signature
-        Crypto::pk_verify(pub_key, &container.signature(), container.signed()).map_err(|_e| Error::CryptoError)?
+        Crypto::pk_verify(pub_key, &container.signature(), container.signed())
+            .map_err(|_e| Error::CryptoError)?
     };
 
     Ok(valid)
@@ -125,7 +124,12 @@ impl<'a, T: MutableData> Container<T> {
             let header = container.header();
             trace!("Parsed header: {:02x?}", header);
 
-            (container.id(), header.flags(), header.kind(), header.index())
+            (
+                container.id(),
+                header.flags(),
+                header.kind(),
+                header.index(),
+            )
         };
 
         debug!("Parse container: {:?}", container);
@@ -141,7 +145,11 @@ impl<'a, T: MutableData> Container<T> {
             (true, Some(keys)) if keys.pub_key.is_some() => {
                 let pub_key = keys.pub_key.as_ref().unwrap();
 
-                trace!("Early signature validate: {:02x?} using key: {:?}", signature.as_ref(), pub_key);
+                trace!(
+                    "Early signature validate: {:02x?} using key: {:?}",
+                    signature.as_ref(),
+                    pub_key
+                );
 
                 // Perform verification
                 verified = validate(&id, &keys, &mut container)?;
@@ -151,10 +159,10 @@ impl<'a, T: MutableData> Container<T> {
                     info!("Invalid signature with known pubkey");
                     return Err(Error::InvalidSignature);
                 }
-            },
+            }
             _ => {
                 trace!("Skipping early signature validation, no keys loaded");
-            },
+            }
         }
 
         trace!("Fetching public options");
@@ -168,13 +176,13 @@ impl<'a, T: MutableData> Container<T> {
             match o {
                 Options::PeerId(v) => {
                     peer_id = Some(v.clone());
-                },
+                }
                 Options::PubKey(v) => {
                     pub_key = Some(v.clone());
-                },
+                }
                 Options::PrevSig(v) => {
                     parent = Some(v.clone());
-                },
+                }
                 _ => (),
             }
         }
@@ -186,8 +194,13 @@ impl<'a, T: MutableData> Container<T> {
             _ => Err(Error::NoPeerId),
         }?;
 
-        trace!("Peer id: {:?} pub_key: {:?} parent: {:?} signing_id: {:?}",
-            peer_id, pub_key, parent, signing_id);
+        trace!(
+            "Peer id: {:?} pub_key: {:?} parent: {:?} signing_id: {:?}",
+            peer_id,
+            pub_key,
+            parent,
+            signing_id
+        );
 
         // Fetch public key
         let keys: Option<Keys> = match (key_source.keys(&signing_id), &pub_key) {
@@ -208,7 +221,7 @@ impl<'a, T: MutableData> Container<T> {
         match (verified, keys) {
             (false, Some(keys)) => {
                 // Check signature
-                verified = validate(&signing_id, &keys,  &mut container)?;
+                verified = validate(&signing_id, &keys, &mut container)?;
 
                 // Stop processing on verification failure
                 if !verified {
@@ -233,8 +246,12 @@ impl<'a, T: MutableData> Container<T> {
 }
 
 /// Helper to decrypt optionally encrypted fields
-pub(crate) fn decrypt(sk: &SecretKey, body: &mut MaybeEncrypted, private_opts: &mut MaybeEncrypted<Vec<Options>>, tag: Option<&SecretMeta>) -> Result<(), Error> {
-    
+pub(crate) fn decrypt(
+    sk: &SecretKey,
+    body: &mut MaybeEncrypted,
+    private_opts: &mut MaybeEncrypted<Vec<Options>>,
+    tag: Option<&SecretMeta>,
+) -> Result<(), Error> {
     // Check we have a tag
     let tag = match tag {
         Some(t) => t,
@@ -243,14 +260,14 @@ pub(crate) fn decrypt(sk: &SecretKey, body: &mut MaybeEncrypted, private_opts: &
 
     // Build cyphertext
     let mut cyphertext: Vec<u8> = vec![];
-    
+
     let body_len = match body {
         MaybeEncrypted::Cleartext(_) => return Err(Error::Unknown),
         MaybeEncrypted::None => 0,
         MaybeEncrypted::Encrypted(e) => {
             cyphertext.extend(e.iter());
             e.len()
-        },
+        }
     };
 
     let private_opt_len = match private_opts {
@@ -259,12 +276,12 @@ pub(crate) fn decrypt(sk: &SecretKey, body: &mut MaybeEncrypted, private_opts: &
         MaybeEncrypted::Encrypted(e) => {
             cyphertext.extend(e.iter());
             e.len()
-        },
+        }
     };
 
     // Perform decryption
     let _n = Crypto::sk_decrypt(sk, tag, None, cyphertext.deref_mut())
-            .map_err(|_e| Error::InvalidSignature)?;
+        .map_err(|_e| Error::InvalidSignature)?;
 
     // Write-back decrypted data
     if body_len > 0 {
@@ -283,7 +300,7 @@ pub(crate) fn decrypt(sk: &SecretKey, body: &mut MaybeEncrypted, private_opts: &
 impl<T: ImmutableData> Container<T> {
     pub fn encode_pages(pages: &[Container<T>], buff: &mut [u8]) -> Result<usize, Error> {
         let mut i = 0;
-    
+
         for p in pages {
             // TODO: is there any way to have an invalid (non-signed/verified) container here?
             // if so, handle this case
@@ -291,18 +308,17 @@ impl<T: ImmutableData> Container<T> {
 
             // Check we have space
             if b.len() >= buff.len() - i {
-                return Err(Error::BufferLength)
+                return Err(Error::BufferLength);
             }
-    
+
             // Convert and encode, note these must be pre-signed / encrypted
             buff[i..][..b.len()].copy_from_slice(b);
-    
+
             i += b.len();
         }
-    
+
         Ok(i)
     }
-    
 }
 
 impl Container {
@@ -312,31 +328,33 @@ impl Container {
     {
         let mut pages = vec![];
         let mut i = 0;
-    
+
         // Last key used to cache the previous primary key to decode secondary pages published by a service in a single message.
         let mut last_key: Option<(Id, Keys)> = None;
-    
+
         while i < buff.len() {
             // TODO: validate signatures against existing services!
-            let c = match Container::parse((&buff[i..]).to_vec(), &key_source.cached(last_key.clone())){
-                Ok(v) => v,
-                Err(e) => {
-                    debug!("Error parsing base message: {:?}", e);
-                    return Err(e);
-                }
-            };
-    
+            let c =
+                match Container::parse((&buff[i..]).to_vec(), &key_source.cached(last_key.clone()))
+                {
+                    Ok(v) => v,
+                    Err(e) => {
+                        debug!("Error parsing base message: {:?}", e);
+                        return Err(e);
+                    }
+                };
+
             i += c.len();
-    
+
             // Cache key for next run
             if let Some(key) = c.info()?.pub_key() {
                 last_key = Some((c.id().clone(), Keys::new(key)));
             }
-    
+
             // Push page to parsed list
             pages.push(c);
         }
-    
+
         Ok(pages)
     }
 }
@@ -348,18 +366,27 @@ mod test {
 
     use super::*;
 
-    use crate::{crypto, keys::NullKeySource, prelude::{Header, Body}};
+    use crate::{
+        crypto,
+        keys::NullKeySource,
+        prelude::{Body, Header},
+    };
 
     fn setup() -> (Id, Keys) {
-        #[cfg(feature="simplelog")]
-        let _ = simplelog::SimpleLogger::init(simplelog::LevelFilter::Trace, simplelog::Config::default());
+        #[cfg(feature = "simplelog")]
+        let _ = simplelog::SimpleLogger::init(
+            simplelog::LevelFilter::Trace,
+            simplelog::Config::default(),
+        );
 
         let (pub_key, pri_key) =
             Crypto::new_pk().expect("Error generating new public/private key pair");
 
-        let id = Id::from(Crypto::hash(&pub_key)
-            .expect("Error generating new ID")
-            .as_bytes());
+        let id = Id::from(
+            Crypto::hash(&pub_key)
+                .expect("Error generating new ID")
+                .as_bytes(),
+        );
 
         let sec_key = Crypto::new_sk().expect("Error generating new secret key");
         (
@@ -390,16 +417,16 @@ mod test {
         let c = Builder::new(vec![0u8; 1024])
             .id(&id)
             .header(&header)
-            .body(data).unwrap()
-            .private_options(&[]).unwrap()
+            .body(data)
+            .unwrap()
+            .private_options(&[])
+            .unwrap()
             .public()
             .sign_pk(keys.pri_key.as_ref().unwrap())
             .expect("Error encoding page");
 
-
         // Decode into container
-        let d = Container::parse(c.buff.clone(), &keys)
-            .expect("Error decoding page");
+        let d = Container::parse(c.buff.clone(), &keys).expect("Error decoding page");
 
         // TODO: convert to pages and compare
 
@@ -424,8 +451,10 @@ mod test {
             let _c = Builder::new([0u8; 1024])
                 .id(&id)
                 .header(&header)
-                .body(&data).unwrap()
-                .private_options(&[]).unwrap()
+                .body(&data)
+                .unwrap()
+                .private_options(&[])
+                .unwrap()
                 .public()
                 .sign_pk(keys.pri_key.as_ref().unwrap())
                 .expect("Error encoding page");
@@ -447,25 +476,27 @@ mod test {
         let encoded = Builder::new(vec![0u8; 1024])
             .id(&id)
             .header(&header)
-            .body(Body::Cleartext(data)).unwrap()
-            .private_options(&[]).unwrap()
+            .body(Body::Cleartext(data))
+            .unwrap()
+            .private_options(&[])
+            .unwrap()
             .public()
             .public_options(&[
                 Options::peer_id(id.clone()),
-                Options::pub_key(keys.pub_key.as_ref().unwrap().clone())
-            ]).unwrap()
+                Options::pub_key(keys.pub_key.as_ref().unwrap().clone()),
+            ])
+            .unwrap()
             .sign_pk(keys.pri_key.as_ref().unwrap())
             .expect("Error encoding page");
-            
 
-        let decoded =
-            Container::parse(encoded.raw().to_vec(), &keys).expect("Error decoding page with known public key");
+        let decoded = Container::parse(encoded.raw().to_vec(), &keys)
+            .expect("Error decoding page with known public key");
 
         assert_eq!(encoded, decoded);
         assert_eq!(encoded.raw(), decoded.raw());
 
-        let decoded2 =
-            Container::parse(encoded.raw().to_vec(), &NullKeySource).expect("Error decoding page with unknown public key");
+        let decoded2 = Container::parse(encoded.raw().to_vec(), &NullKeySource)
+            .expect("Error decoding page with unknown public key");
 
         assert_eq!(encoded, decoded2);
         assert_eq!(encoded.raw(), decoded.raw().to_vec());
@@ -486,17 +517,18 @@ mod test {
         let encoded = Builder::new(vec![0u8; 1024])
             .id(&id)
             .header(&header)
-            .body(Body::Cleartext(data)).unwrap()
-            .private_options(&[]).unwrap()
+            .body(Body::Cleartext(data))
+            .unwrap()
+            .private_options(&[])
+            .unwrap()
             .public()
-            .public_options(&[
-                Options::peer_id(id.clone()),
-            ]).unwrap()
+            .public_options(&[Options::peer_id(id.clone())])
+            .unwrap()
             .sign_pk(keys.pri_key.as_ref().unwrap())
             .expect("Error encoding page");
 
-        let decoded =
-            Container::parse(encoded.raw().to_vec(), &keys).expect("Error decoding page with known public key");
+        let decoded = Container::parse(encoded.raw().to_vec(), &keys)
+            .expect("Error decoding page with known public key");
 
         assert_eq!(encoded, decoded);
         assert_eq!(encoded.raw(), decoded.raw().to_vec());
@@ -516,16 +548,19 @@ mod test {
         let encoded = Builder::new(vec![0u8; 1024])
             .id(&id)
             .header(&header)
-            .body(Body::Cleartext(data.clone())).unwrap()
-            .private_options(&[]).unwrap()
-            .encrypt(keys.sec_key.as_ref().unwrap()).unwrap()
-            .public_options(&[
-                Options::peer_id(id.clone()),
-            ]).unwrap()
+            .body(Body::Cleartext(data.clone()))
+            .unwrap()
+            .private_options(&[])
+            .unwrap()
+            .encrypt(keys.sec_key.as_ref().unwrap())
+            .unwrap()
+            .public_options(&[Options::peer_id(id.clone())])
+            .unwrap()
             .sign_pk(keys.pri_key.as_ref().unwrap())
             .expect("Error encoding page");
 
-        let mut decoded = Container::parse(encoded.raw().to_vec(), &keys).expect("Error decoding page");
+        let mut decoded =
+            Container::parse(encoded.raw().to_vec(), &keys).expect("Error decoding page");
         assert_eq!(encoded, decoded);
 
         // Check we're encrypted
@@ -546,7 +581,6 @@ mod test {
             Crypto::new_pk().expect("Error generating new public/private key pair");
         let keys = keys.derive_peer(pub_key).unwrap();
 
-
         let header = Header {
             kind: RequestKind::Hello.into(),
             flags: Flags::SYMMETRIC_MODE | Flags::ENCRYPTED,
@@ -557,18 +591,20 @@ mod test {
         let encoded = Builder::new(vec![0u8; 1024])
             .id(&id)
             .header(&header)
-            .body(Body::Cleartext(data.clone())).unwrap()
-            .private_options(&[]).unwrap()
+            .body(Body::Cleartext(data.clone()))
+            .unwrap()
+            .private_options(&[])
+            .unwrap()
             .public()
-            .public_options(&[
-                Options::peer_id(id.clone()),
-            ]).unwrap()
-            .encrypt_sk(keys.sym_keys.as_ref().map(|k| &k.1 ).unwrap())
+            .public_options(&[Options::peer_id(id.clone())])
+            .unwrap()
+            .encrypt_sk(keys.sym_keys.as_ref().map(|k| &k.1).unwrap())
             //.sign_pk(keys.pri_key.as_ref().unwrap())
             .expect("Error encoding message");
 
-        let mut decoded = Container::parse(encoded.raw().to_vec(), &keys).expect("Error decoding page");
-        
+        let mut decoded =
+            Container::parse(encoded.raw().to_vec(), &keys).expect("Error decoding page");
+
         assert_eq!(encoded.header(), decoded.header());
 
         // Check we're decrypted
@@ -594,12 +630,14 @@ mod test {
             let _c = Builder::new([0u8; 1024])
                 .id(&id)
                 .header(&header)
-                .body(&data).unwrap()
-                .private_options(&[]).unwrap()
-                .encrypt(keys.sec_key.as_ref().unwrap()).unwrap()
-                .public_options(&[
-                    Options::peer_id(id.clone()),
-                ]).unwrap()
+                .body(&data)
+                .unwrap()
+                .private_options(&[])
+                .unwrap()
+                .encrypt(keys.sec_key.as_ref().unwrap())
+                .unwrap()
+                .public_options(&[Options::peer_id(id.clone())])
+                .unwrap()
                 .sign_pk(keys.pri_key.as_ref().unwrap())
                 .expect("Error encoding page");
         });
@@ -622,12 +660,13 @@ mod test {
             let _c = Builder::new([0u8; 1024])
                 .id(&id)
                 .header(&header)
-                .body(&data).unwrap()
-                .private_options(&[]).unwrap()
+                .body(&data)
+                .unwrap()
+                .private_options(&[])
+                .unwrap()
                 .public()
-                .public_options(&[
-                    Options::peer_id(id.clone()),
-                ]).unwrap()
+                .public_options(&[Options::peer_id(id.clone())])
+                .unwrap()
                 .sign_pk(keys.pri_key.as_ref().unwrap())
                 .expect("Error encoding page");
         });
@@ -639,7 +678,11 @@ mod test {
 
         let (pub_key, pri_key) =
             Crypto::new_pk().expect("Error generating new public/private key pair");
-        let target = Keys{ pub_key: Some(pub_key), pri_key: Some(pri_key), ..Default::default() };
+        let target = Keys {
+            pub_key: Some(pub_key),
+            pri_key: Some(pri_key),
+            ..Default::default()
+        };
 
         let target = target.derive_peer(keys.pub_key.unwrap().clone()).unwrap();
 
@@ -657,12 +700,13 @@ mod test {
             let _c = Builder::new([0u8; 1024])
                 .id(&id)
                 .header(&header)
-                .body(&data).unwrap()
-                .private_options(&[]).unwrap()
+                .body(&data)
+                .unwrap()
+                .private_options(&[])
+                .unwrap()
                 .public()
-                .public_options(&[
-                    Options::peer_id(id.clone()),
-                ]).unwrap()
+                .public_options(&[Options::peer_id(id.clone())])
+                .unwrap()
                 .encrypt_sk(target.sym_keys.as_ref().map(|k| &k.0).unwrap())
                 .expect("Error encoding page");
         });
