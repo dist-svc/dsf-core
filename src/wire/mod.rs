@@ -6,7 +6,7 @@ use core::ops::DerefMut;
 #[cfg(feature = "alloc")]
 use alloc::vec::Vec;
 
-use encdec::{Decode, DecodeExt, Encode, EncodeExt};
+use encdec::{DecodeExt};
 use pretty_hex::*;
 
 use crate::base::MaybeEncrypted;
@@ -120,7 +120,7 @@ impl<'a, T: MutableData> Container<T> {
 
         trace!("Parsing object: {:02x?}", container.hex_dump());
 
-        let (id, flags, kind, index) = {
+        let (id, flags, _kind, index) = {
             let header = container.header();
             trace!("Parsed header: {:02x?}", header);
 
@@ -367,7 +367,6 @@ mod test {
     use super::*;
 
     use crate::{
-        crypto,
         keys::NullKeySource,
         prelude::{Body, Header},
     };
@@ -602,7 +601,7 @@ mod test {
             //.sign_pk(keys.pri_key.as_ref().unwrap())
             .expect("Error encoding message");
 
-        let mut decoded =
+        let decoded =
             Container::parse(encoded.raw().to_vec(), &keys).expect("Error decoding page");
 
         assert_eq!(encoded.header(), decoded.header());

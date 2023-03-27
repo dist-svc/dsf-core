@@ -3,7 +3,7 @@ use core::fmt::Debug;
 use core::marker::PhantomData;
 use core::ops::Deref;
 
-use encdec::{Decode, DecodeExt, Encode, EncodeExt};
+use encdec::{Decode, DecodeExt, Encode};
 
 #[cfg(feature = "alloc")]
 use alloc::vec::Vec;

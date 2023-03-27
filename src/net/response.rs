@@ -5,10 +5,9 @@ use core::ops::Deref;
 use alloc::vec::Vec;
 
 use byteorder::{ByteOrder, NetworkEndian};
-use encdec::{Decode, DecodeExt, Encode, EncodeExt};
+use encdec::{Decode, DecodeExt, Encode};
 use slice_ext::SplitBefore;
 
-use crate::base::Message;
 use crate::error::Error;
 use crate::keys::KeySource;
 use crate::options::{Filters, Options};

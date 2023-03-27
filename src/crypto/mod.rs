@@ -5,7 +5,6 @@ use core::convert::TryFrom;
 use core::fmt::Debug;
 use core::ops::Deref;
 
-use blake2::Blake2b512;
 use sha2::{digest::FixedOutput, Sha512Trunc256};
 
 use crate::prelude::Keys;

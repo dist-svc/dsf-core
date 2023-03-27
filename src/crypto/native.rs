@@ -3,7 +3,7 @@ use core::ops::Deref;
 
 use chacha20poly1305::aead::{AeadInPlace, NewAead};
 use chacha20poly1305::ChaCha20Poly1305;
-use ed25519_dalek::{Keypair, Signer, Verifier};
+use ed25519_dalek::{Keypair, Signer};
 
 use rand_core_0_6::{OsRng, RngCore as _};
 use sha2::Digest;

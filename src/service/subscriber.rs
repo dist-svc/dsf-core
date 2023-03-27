@@ -1,13 +1,13 @@
 use core::convert::TryInto;
 
-use encdec::{decode::DecodeOwned, Decode, Encode};
+use encdec::{decode::DecodeOwned, Decode};
 
 #[cfg(feature = "alloc")]
 use alloc::vec::Vec;
 
 use crate::{
     base::PageBody,
-    crypto::{Crypto, Hash as _, PubKey as _, SecKey as _},
+    crypto::{Crypto, Hash as _},
     error::Error,
     page::PageInfo,
     prelude::MaybeEncrypted,

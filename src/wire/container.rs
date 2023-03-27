@@ -4,10 +4,9 @@ use core::convert::TryFrom;
 use alloc::vec::Vec;
 
 use crate::base::PageBody;
-use crate::crypto::{Crypto, Hash as _, PubKey as _, SecKey as _};
+use crate::crypto::{Crypto, Hash as _, SecKey as _};
 use crate::page::PageInfo;
 use crate::types::*;
-use crate::Debug;
 
 use crate::error::Error;
 use crate::options::{Filters, Options, OptionsIter};

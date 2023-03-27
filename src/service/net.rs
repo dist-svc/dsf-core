@@ -1,6 +1,6 @@
 use byteorder::{ByteOrder, NetworkEndian};
 
-use encdec::{Decode, DecodeExt, Encode, EncodeExt};
+use encdec::{Encode};
 
 use crate::{
     base::{Empty, PageBody},

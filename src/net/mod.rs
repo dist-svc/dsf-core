@@ -100,7 +100,7 @@ impl Message {
         let n = c.len();
 
         // Decrypt symmetric encrypted objects if enabled
-        let flags = c.header().flags();
+        let _flags = c.header().flags();
         #[cfg(nope)]
         if flags.contains(Flags::SYMMETRIC_MODE) && flags.contains(Flags::ENCRYPTED) {
             debug!("Applying symmetric decrypt to message from: {}", c.id());

@@ -57,7 +57,7 @@ pub enum Error {
 
 #[cfg(feature = "std")]
 impl From<std::io::Error> for Error {
-    fn from(e: std::io::Error) -> Error {
+    fn from(_e: std::io::Error) -> Error {
         Error::IO
     }
 }

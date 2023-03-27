@@ -1,12 +1,12 @@
 use core::fmt::Debug;
 use core::marker::PhantomData;
 
-use encdec::{Decode, DecodeExt, Encode, EncodeExt};
+use encdec::{Encode, EncodeExt};
 use log::trace;
 use pretty_hex::*;
 
 use crate::base::Header;
-use crate::crypto::{Crypto, Hash as _, PubKey as _, SecKey as _};
+use crate::crypto::{Crypto, PubKey as _, SecKey as _};
 use crate::error::Error;
 use crate::options::Options;
 use crate::types::*;

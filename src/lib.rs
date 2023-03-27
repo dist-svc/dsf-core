@@ -1,6 +1,5 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![feature(test)]
-#![feature(generic_associated_types)]
 #![feature(associated_type_defaults)]
 #![feature(trait_alias)]
 

@@ -5,7 +5,7 @@ use core::convert::TryFrom;
 use core::fmt::Debug;
 
 use byteorder::{ByteOrder, NetworkEndian};
-use encdec::{Decode, DecodeExt, Encode, EncodeExt};
+use encdec::{Decode, Encode};
 use heapless::String;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
@@ -164,11 +164,6 @@ impl Options {
 
     pub fn pub_key(public_key: PublicKey) -> Options {
         Options::PubKey(public_key)
-    }
-
-    fn parse_string(d: &[u8]) -> Result<String<MAX_OPTION_LEN>, Error> {
-        let s = core::str::from_utf8(d).map_err(|_| Error::InvalidOption)?;
-        Ok(String::from(s))
     }
 }
 

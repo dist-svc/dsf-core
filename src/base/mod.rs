@@ -1,18 +1,13 @@
 //! Base module provides a low-level structure for data encoding and decoding
 
-use core::convert::{Infallible, TryFrom};
-use core::marker::PhantomData;
-
 #[cfg(feature = "alloc")]
 use alloc::vec::Vec;
 
 mod header;
-use encdec::EncDec;
 pub use header::*;
 
-use crate::error::Error;
 use crate::options::Options;
-use crate::types::{Id, ImmutableData, ID_LEN};
+use crate::types::{Id, ImmutableData};
 use crate::Debug;
 
 pub type Body = MaybeEncrypted;

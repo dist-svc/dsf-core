@@ -1,6 +1,6 @@
 use core::ops::Add;
 
-use encdec::{Decode, Encode};
+use encdec::{Encode};
 
 use crate::{
     base::{DataBody, Header, MaybeEncrypted, PageBody},

@@ -2,9 +2,9 @@ use core::fmt::Display;
 use core::str;
 use core::str::FromStr;
 
-use encdec::{Decode, Encode};
+use encdec::{Decode};
 
-use super::{OptionString, Options, String, MAX_OPTION_LEN, OPTION_HEADER_LEN};
+use super::{OptionString, Options, OPTION_HEADER_LEN};
 use crate::types::{Address, DateTime, Id, ImmutableData, PublicKey, Signature};
 
 /// Iterator for decoding options from the provided buffer

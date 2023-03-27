@@ -4,7 +4,7 @@
 //! subscribing to services, and sending messages respectively.
 
 use crate::base::{MaybeEncrypted, PageBody};
-use crate::crypto::{Crypto, Hash as _, PubKey as _, SecKey as _};
+use crate::crypto::{Crypto, Hash as _, PubKey as _};
 use crate::error::Error;
 use crate::options::Options;
 use crate::types::*;
