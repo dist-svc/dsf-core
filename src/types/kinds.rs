@@ -3,7 +3,20 @@ use core::convert::TryFrom;
 use modular_bitfield::prelude::*;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
-/// Kind identifies the type of the of object
+/// [ServiceKind] enumerates different types of services
+#[derive(PartialEq, Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub enum ServiceKind {
+    Generic,
+    Peer,
+    Replica,
+    Registry,
+    Private,
+    Unknown(i16),
+}
+
+/// [Kind] identifies object types
 #[bitfield]
 #[derive(Copy, Clone, PartialEq, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
@@ -18,6 +31,7 @@ pub struct Kind {
     pub base: BaseKind,
 }
 
+/// [BaseKind] differentiates between pages, blocks, and messages
 #[derive(BitfieldSpecifier, Copy, Clone, PartialEq, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
@@ -83,7 +97,7 @@ pub enum KindError {
     Unrecognized(Kind),
 }
 
-/// PageKind describes DSF-specific page kinds for encoding and decoding
+/// [PageKind] describes DSF-specific page kinds for encoding and decoding
 #[derive(
     PartialEq,
     Debug,
@@ -146,6 +160,7 @@ impl Into<Kind> for PageKind {
     }
 }
 
+/// [RequestKind] enumerates request message types
 #[derive(BitfieldSpecifier, Copy, Clone, PartialEq, Debug, strum::EnumString, strum::Display)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
@@ -186,6 +201,7 @@ impl TryFrom<Kind> for RequestKind {
     }
 }
 
+/// [RequestKind] enumerates response message types
 #[derive(BitfieldSpecifier, Copy, Clone, PartialEq, Debug, strum::EnumString, strum::Display)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
@@ -218,6 +234,7 @@ impl TryFrom<Kind> for ResponseKind {
     }
 }
 
+/// [DataKind] enumerates data object types
 #[derive(BitfieldSpecifier, Copy, Clone, PartialEq, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]

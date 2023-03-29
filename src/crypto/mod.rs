@@ -160,7 +160,7 @@ impl CryptoHasher for Sha512Trunc256 {
 #[cfg(test)]
 mod tests {
     use super::{Crypto, Hash, SecKey};
-    use crate::{base::Empty, options::Options, service::ServiceBuilder};
+    use crate::{base::Empty, options::Options, service::{ServiceBuilder}};
 
     #[test]
     fn test_tid_match_public() {

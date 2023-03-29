@@ -4,7 +4,7 @@
 //! subscribing to services, and sending messages respectively.
 
 use crate::base::{MaybeEncrypted, PageBody};
-use crate::crypto::{Crypto, Hash as _, PubKey as _};
+use crate::crypto::{Crypto, Hash as _, PubKey as _, SecKey};
 use crate::error::Error;
 use crate::options::Options;
 use crate::types::*;
@@ -55,9 +55,9 @@ pub struct Service<B: PageBody = Vec<u8>> {
 
     public_key: PublicKey,
     private_key: Option<PrivateKey>,
-
-    encrypted: bool,
     secret_key: Option<SecretKey>,
+    
+    encrypted: bool,
 
     last_sig: Option<Signature>,
 }
@@ -65,8 +65,9 @@ pub struct Service<B: PageBody = Vec<u8>> {
 impl<B: PageBody> Default for Service<B> {
     /// Create a default / blank Service for further initialisation.
     fn default() -> Self {
-        // Generate service key-pair
+        // Generate service keys
         let (public_key, private_key) = Crypto::new_pk().unwrap();
+        let secret_key = Crypto::new_sk().unwrap();
 
         // Generate service ID from public key
         let id = Crypto::hash(&public_key).unwrap();
@@ -84,13 +85,160 @@ impl<B: PageBody> Default for Service<B> {
             public_key,
             private_key: Some(private_key),
             encrypted: false,
-            secret_key: None,
+            secret_key: Some(secret_key),
             last_sig: None,
         }
     }
 }
 
+pub struct ServiceOpts<B: PageBody> {
+    /// Service ID
+    pub id: Option<Id>,
+
+    /// Service kind
+    pub kind: PageKind,
+
+    /// Application ID
+    pub application_id: u16,
+
+    /// Service private key
+    pub private_key: Option<PrivateKey>,
+
+    /// Service secret key
+    pub secret_key: Option<SecretKey>,
+
+    /// Page body
+    pub body: Option<B>,
+
+    /// Public options
+    pub public_options: Vec<Options>,
+
+    /// Private options
+    pub private_options: Vec<Options>,
+
+    /// Service publishing history
+    pub history: History,
+
+    /// Encrypted flag
+    pub encrypted: bool,
+}
+
+impl <B: PageBody> Default for ServiceOpts<B> {
+    fn default() -> Self {
+        Self {
+            id: None,
+            kind: PageKind::Generic,
+            application_id: 0,
+            private_key: None,
+            secret_key: None,
+            body: None,
+            public_options: vec![],
+            private_options: vec![],
+            history: Default::default(),
+            encrypted: false,
+        }
+    }
+}
+
+impl <B: PageBody> ServiceOpts<B> {
+    /// Setup a peer service.
+    /// This is equivalent to .kind(Kind::Peer)
+    pub fn peer() -> Self {
+        Self {
+            kind: PageKind::Peer,
+            ..Default::default()
+        }
+    }
+
+    /// Setup a generic service.
+    /// This is equivalent to .kind(Kind::Generic)
+    pub fn generic() -> Self {
+        Self {
+            kind: PageKind::Generic,
+            ..Default::default()
+        }
+    }
+
+    /// Setup a private service.
+    /// This is equivalent to .kind(Kind::Private)
+    pub fn private() -> Self {
+        Self {
+            kind: PageKind::Private,
+            ..Default::default()
+        }
+    }
+
+    /// Setup a name service with the specified prefix
+    pub fn ns(prefix: &str) -> Self {
+        let mut s = Self {
+            // TODO: fix up kinds, seems to be conflation between DB and DSF pages?
+            // maybe this should be flags for pri | sec | ter + enum for variant?
+            kind: PageKind::Name,
+            ..Default::default()
+        };
+
+        s.private_options = vec![Options::name(prefix)];
+
+        s
+    }
+}
+
 impl<B: PageBody> Service<B> {
+    /// Create a new service using the provided options.
+    /// 
+    /// This will reuse credentials if provided, or generate a new identity and keys if not.
+    /// 
+    /// To _load_ an existing service from a service page,
+    /// see [Service::load]
+    pub fn new(opts: ServiceOpts<B>) -> Result<Self, Error> {
+        // Setup service keys
+        let (public_key, private_key) = match opts.private_key {
+            // If we have a private key, regenerate the matching public key
+            Some(private_key) => {
+                let public_key = Crypto::get_public(&private_key);
+                (public_key, private_key)
+            },
+            // Otherwise, create a new keypair
+            None => Crypto::new_pk().unwrap(),
+        };
+
+        // Setup service ID
+        let id: Id = Crypto::hash(&public_key).unwrap().into();
+        match &opts.id {
+            Some(v) if v != &id => return Err(Error::KeyIdMismatch),
+            _ => (),
+        };
+
+        // Setup secret / encryption keys
+        let secret_key = match opts.secret_key {
+            Some(sk) => sk,
+            None => Crypto::new_sk().unwrap(),
+        };
+
+        // Setup service body
+        let body = match opts.body {
+            Some(b) => MaybeEncrypted::Cleartext(b),
+            None => MaybeEncrypted::None,
+        };
+
+        // Return service object
+        Ok(Service {
+            id: opts.id.unwrap(),
+            application_id: opts.application_id,
+            kind: opts.kind,
+            version: opts.history.last_page,
+            data_index: opts.history.last_data,
+            body,
+            public_options: opts.public_options,
+            private_options: MaybeEncrypted::Cleartext(opts.private_options),
+            public_key,
+            private_key: Some(private_key),
+            encrypted: opts.encrypted,
+            secret_key: Some(secret_key),
+            last_sig: None,
+        })
+    }
+
     pub fn id(&self) -> Id {
         self.id.clone()
     }

@@ -224,6 +224,7 @@ impl<'a, T: ImmutableData> Container<T> {
     }
 
     /// Convert to a Vec<u8> based owned container
+    #[cfg(feature = "alloc")]
     pub fn to_owned(&self) -> Container<Vec<u8>> {
         let buff = self.raw().to_vec();
         let len = buff.len();
