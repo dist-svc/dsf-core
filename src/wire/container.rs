@@ -39,7 +39,6 @@ impl<T: ImmutableData> PartialEq for Container<T> {
         self.raw() == other.raw()
             && self.len == other.len
             && self.decrypted == other.decrypted
-            && self.verified == other.verified
     }
 }
 

@@ -4,7 +4,7 @@ pub use crate::wire::{Builder as ContainerBuilder, Container};
 
 pub use crate::service::Net as _;
 pub use crate::service::Subscriber as _;
-pub use crate::service::{DataOptions, Publisher as _, SecondaryOptions};
+pub use crate::service::{DataOptions, Publisher as _, PrimaryOptions, SecondaryOptions};
 
 pub use crate::types::{
     Address, Data, DataKind, Flags, Id, ImmutableData, Kind, MutableData, PageKind, RequestId,
